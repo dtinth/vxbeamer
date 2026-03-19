@@ -32,11 +32,17 @@ function loadSessionToken(): string | null {
   return token;
 }
 
-export const $wakeLockEnabled = atom<boolean>(localStorage.getItem(WAKE_LOCK_KEY) === "true");
+export type WakeLockMode = "off" | "recording" | "always";
 
-export function setWakeLockEnabled(enabled: boolean): void {
-  $wakeLockEnabled.set(enabled);
-  localStorage.setItem(WAKE_LOCK_KEY, String(enabled));
+export const $wakeLockMode = atom<WakeLockMode>(
+  (localStorage.getItem(WAKE_LOCK_KEY) as WakeLockMode | null) ?? "off",
+);
+
+export const $wakeLockActive = atom<boolean>(false);
+
+export function setWakeLockMode(mode: WakeLockMode): void {
+  $wakeLockMode.set(mode);
+  localStorage.setItem(WAKE_LOCK_KEY, mode);
 }
 
 export const $backendUrl = atom<string>(

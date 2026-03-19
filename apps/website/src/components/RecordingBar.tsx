@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useStore } from "@nanostores/react";
-import { $sessionToken, $backendUrl, $wakeLockEnabled } from "../store.ts";
+import { $sessionToken, $backendUrl, $wakeLockMode, $wakeLockActive } from "../store.ts";
 
 const SAMPLE_RATE = 16000;
 
@@ -25,7 +25,7 @@ registerProcessor('pcm-processor', PCMProcessor);
 export function RecordingBar() {
   const authToken = useStore($sessionToken);
   const backendUrl = useStore($backendUrl);
-  const wakeLockEnabled = useStore($wakeLockEnabled);
+  const wakeLockMode = useStore($wakeLockMode);
   const [isRecording, setIsRecording] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -103,6 +103,7 @@ export function RecordingBar() {
 
     void wakeLockRef.current?.release().catch(() => undefined);
     wakeLockRef.current = null;
+    if ($wakeLockMode.get() === "recording") $wakeLockActive.set(false);
 
     stopVisualizer();
     setIsRecording(false);
@@ -165,9 +166,10 @@ export function RecordingBar() {
         if (ws.readyState === WebSocket.OPEN) ws.send(evt.data);
       };
 
-      if (wakeLockEnabled) {
+      if (wakeLockMode === "recording" || wakeLockMode === "always") {
         try {
           wakeLockRef.current = await navigator.wakeLock.request("screen");
+          $wakeLockActive.set(true);
         } catch {
           // wake lock not available or denied — non-fatal
         }
@@ -196,6 +198,30 @@ export function RecordingBar() {
   useEffect(() => {
     return () => stopRecording();
   }, [stopRecording]);
+
+  // Always-on wake lock
+  useEffect(() => {
+    if (wakeLockMode !== "always") return;
+    let sentinel: WakeLockSentinel | null = null;
+    let cancelled = false;
+    void navigator.wakeLock
+      ?.request("screen")
+      .then((s) => {
+        if (cancelled) {
+          void s.release();
+          return;
+        }
+        sentinel = s;
+        $wakeLockActive.set(true);
+        s.addEventListener("release", () => $wakeLockActive.set(false));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+      void sentinel?.release().catch(() => undefined);
+      $wakeLockActive.set(false);
+    };
+  }, [wakeLockMode]);
 
   const canRecord = !!authToken;
 

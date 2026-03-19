@@ -17,6 +17,19 @@ This project is primarily for personal use and is not designed to be particularl
 - **ASR** — Qwen3-ASR-Flash via DashScope (Alibaba Cloud)
 - **Post-processing** — gpt-oss-120b via Groq (optional, improves transcript quality)
 
+## Authentication
+
+vxbeamer supports two authentication methods: static API keys (via `API_KEYS`) and OpenID Connect. For interactive use from the frontend, OIDC is required.
+
+The OIDC provider must support:
+
+1. **PKCE flow** — the frontend performs the authorization code flow with PKCE and exchanges the resulting ID token for a session with the backend.
+2. **Discovery document** — the provider must expose its configuration at the standard `/.well-known/openid-configuration` path.
+3. **CORS** — cross-origin requests must be allowed, since the frontend will contact the provider directly from the browser.
+4. **Restricted token issuance** — the provider must only issue ID tokens to authorized users. There is no built-in user whitelist in vxbeamer itself, so access control must be enforced at the provider level.
+
+[Authentik](https://goauthentik.io) is a self-hosted, open-source identity provider that meets all of these requirements.
+
 ## Deployment
 
 The backend is distributed as a Docker image.

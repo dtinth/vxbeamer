@@ -194,18 +194,18 @@ export function RecordingBar() {
   return (
     <div className="flex-none border-t border-white/10 px-4 py-4">
       {error && <p className="text-xs text-red-400 mb-2 text-center">{error}</p>}
-      <div className="relative h-16 flex items-center justify-center">
+      <div className="relative h-20 flex items-center justify-center">
         <canvas
           ref={canvasRef}
           width={600}
-          height={64}
+          height={80}
           className="absolute inset-0 w-full h-full rounded-xl"
         />
         <button
           onClick={handleToggle}
           disabled={!canRecord}
           className={[
-            "relative z-10 w-16 h-16 rounded-full flex items-center justify-center transition-all shadow-lg",
+            "relative z-10 w-20 h-20 rounded-full flex items-center justify-center transition-all shadow-lg",
             isRecording
               ? "bg-red-500 scale-110 shadow-red-500/50"
               : canRecord
@@ -215,9 +215,9 @@ export function RecordingBar() {
           aria-label={isRecording ? "Stop recording" : "Start recording"}
         >
           {isRecording ? (
-            <span className="w-5 h-5 rounded-sm bg-white" />
+            <span className="w-6 h-6 rounded-sm bg-white" />
           ) : (
-            <span className="w-5 h-5 rounded-full bg-red-500" />
+            <span className="w-6 h-6 rounded-full bg-red-500" />
           )}
         </button>
       </div>

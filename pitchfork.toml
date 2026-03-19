@@ -1,0 +1,5 @@
+[daemons.frontend]
+run = "mise exec -- vp run dev:frontend"
+
+[daemons.backend]
+run = "mise exec -- vp run dev:backend"

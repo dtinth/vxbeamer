@@ -51,11 +51,65 @@ const stopButton = document.querySelector<HTMLButtonElement>("#stop")!;
 const copyButton = document.querySelector<HTMLButtonElement>("#copy")!;
 const downloadLink = document.querySelector<HTMLAnchorElement>("#download")!;
 
-const RECORDING_TIMESLICE_MS = 300;
+const SAMPLE_RATE = 16000;
+
+// Inline AudioWorklet processor: converts Float32 mic samples to Int16 PCM
+const PCM_WORKLET_CODE = `
+class PCMProcessor extends AudioWorkletProcessor {
+  process(inputs) {
+    const channel = inputs[0]?.[0];
+    if (channel) {
+      const int16 = new Int16Array(channel.length);
+      for (let i = 0; i < channel.length; i++) {
+        const s = Math.max(-1, Math.min(1, channel[i]));
+        int16[i] = s < 0 ? s * 32768 : s * 32767;
+      }
+      this.port.postMessage(int16.buffer, [int16.buffer]);
+    }
+    return true;
+  }
+}
+registerProcessor('pcm-processor', PCMProcessor);
+`;
+
+function createWavBlob(chunks: Int16Array[], sampleRate: number): Blob {
+  const pcmLength = chunks.reduce((n, c) => n + c.length, 0) * 2;
+  const buffer = new ArrayBuffer(44 + pcmLength);
+  const view = new DataView(buffer);
+  const write = (offset: number, value: number, bytes: number) => {
+    for (let i = 0; i < bytes; i++) view.setUint8(offset + i, (value >> (8 * i)) & 0xff);
+  };
+  const writeStr = (offset: number, str: string) => {
+    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+  };
+  writeStr(0, "RIFF");
+  write(4, 36 + pcmLength, 4);
+  writeStr(8, "WAVE");
+  writeStr(12, "fmt ");
+  write(16, 16, 4);
+  write(20, 1, 2); // PCM
+  write(22, 1, 2); // mono
+  write(24, sampleRate, 4);
+  write(28, sampleRate * 2, 4); // byte rate
+  write(32, 2, 2); // block align
+  write(34, 16, 2); // bits per sample
+  writeStr(36, "data");
+  write(40, pcmLength, 4);
+  let offset = 44;
+  for (const chunk of chunks) {
+    for (let i = 0; i < chunk.length; i++) {
+      view.setInt16(offset, chunk[i]!, true);
+      offset += 2;
+    }
+  }
+  return new Blob([buffer], { type: "audio/wav" });
+}
+
 let accessToken: string | null = null;
 let socket: WebSocket | null = null;
-let mediaRecorder: MediaRecorder | null = null;
-let recordedChunks: Blob[] = [];
+let audioContext: AudioContext | null = null;
+let workletNode: AudioWorkletNode | null = null;
+let recordedChunks: Int16Array[] = [];
 let downloadUrl: string | null = null;
 
 function setStatus(text: string): void {
@@ -79,8 +133,9 @@ function enableDownload(): void {
   if (downloadUrl) {
     URL.revokeObjectURL(downloadUrl);
   }
-  downloadUrl = URL.createObjectURL(new Blob(recordedChunks, { type: "audio/webm" }));
+  downloadUrl = URL.createObjectURL(createWavBlob(recordedChunks, SAMPLE_RATE));
   downloadLink.href = downloadUrl;
+  downloadLink.setAttribute("download", "failed-recording.wav");
   downloadLink.classList.remove("disabled");
   downloadLink.setAttribute("aria-disabled", "false");
 }
@@ -196,27 +251,24 @@ startButton.addEventListener("click", async () => {
     await connectSocket(backendUrlInput.value.trim());
 
     recordedChunks = [];
-    mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+    audioContext = new AudioContext({ sampleRate: SAMPLE_RATE });
+    const workletBlob = new Blob([PCM_WORKLET_CODE], { type: "application/javascript" });
+    const workletUrl = URL.createObjectURL(workletBlob);
+    await audioContext.audioWorklet.addModule(workletUrl);
+    URL.revokeObjectURL(workletUrl);
 
-    mediaRecorder.ondataavailable = async (event) => {
-      if (event.data.size === 0) {
-        return;
-      }
+    const source = audioContext.createMediaStreamSource(stream);
+    workletNode = new AudioWorkletNode(audioContext, "pcm-processor");
 
-      recordedChunks.push(event.data);
-      const arrayBuffer = await event.data.arrayBuffer();
+    workletNode.port.onmessage = (event: MessageEvent<ArrayBuffer>) => {
+      const int16 = new Int16Array(event.data);
+      recordedChunks.push(int16);
       if (socket?.readyState === WebSocket.OPEN) {
-        socket.send(arrayBuffer);
+        socket.send(event.data);
       }
     };
 
-    mediaRecorder.onstop = () => {
-      for (const track of stream.getTracks()) {
-        track.stop();
-      }
-    };
-
-    mediaRecorder.start(RECORDING_TIMESLICE_MS);
+    source.connect(workletNode);
     sendMessage({ type: "start" });
     setStatus("Recording started.");
   } catch (error) {
@@ -231,9 +283,10 @@ stopButton.addEventListener("click", () => {
   stopButton.disabled = true;
   startButton.disabled = false;
 
-  if (mediaRecorder?.state === "recording") {
-    mediaRecorder.stop();
-  }
+  workletNode?.disconnect();
+  workletNode = null;
+  void audioContext?.close();
+  audioContext = null;
 
   sendMessage({ type: "stop" });
   setStatus("Finishing and transcribing...");

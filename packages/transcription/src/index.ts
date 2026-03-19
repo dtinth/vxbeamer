@@ -1,3 +1,5 @@
+import { createQwenProvider } from "vxasr";
+
 export interface TranscriptionResult {
   text: string;
   bytes: number;
@@ -9,9 +11,31 @@ export async function transcribeAudioPackets(packets: Uint8Array[]): Promise<Tra
     throw new Error("No audio received");
   }
 
-  const estimatedSeconds = Math.max(1, Math.round(bytes / 16_000));
-  return {
-    text: `Transcription ready (${estimatedSeconds}s audio, ${bytes} bytes).`,
-    bytes,
-  };
+  const apiKey = process.env.DASHSCOPE_API_KEY;
+  if (!apiKey) {
+    throw new Error("DASHSCOPE_API_KEY not configured");
+  }
+
+  const provider = createQwenProvider({ apiKey });
+
+  return new Promise((resolve, reject) => {
+    let finalText = "";
+
+    const session = provider.createSession({
+      onFinal(text) {
+        finalText = text;
+      },
+      onEnd() {
+        resolve({ text: finalText, bytes });
+      },
+      onError(err) {
+        reject(err);
+      },
+    });
+
+    for (const packet of packets) {
+      session.sendAudio(Buffer.from(packet));
+    }
+    session.finish();
+  });
 }

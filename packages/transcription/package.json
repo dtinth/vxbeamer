@@ -10,6 +10,9 @@
     "test": "vp test",
     "check": "vp check"
   },
+  "dependencies": {
+    "vxasr": "workspace:*"
+  },
   "devDependencies": {
     "typescript": "catalog:",
     "vite-plus": "catalog:"

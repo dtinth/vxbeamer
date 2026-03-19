@@ -176,21 +176,39 @@ app.post("/auth/refresh", authMiddleware, (c) => {
 });
 
 app.get("/sse", authMiddleware, (c) => {
+  const eventsParam = c.req.query("events");
+  const filter = eventsParam ? new Set(eventsParam.split(",").map((e) => e.trim())) : null;
+
   return streamSSE(c, async (stream) => {
-    pruneMessages();
-    await stream.writeSSE({
-      data: JSON.stringify({ type: "snapshot", messages }),
-    });
+    if (!filter) {
+      pruneMessages();
+      await stream.writeSSE({
+        data: JSON.stringify({ type: "snapshot", messages }),
+      });
+    }
 
     const send: SseSend = (data) => {
+      if (filter) {
+        try {
+          const event = JSON.parse(data) as { type?: string };
+          if (!event.type || !filter.has(event.type)) return;
+        } catch {
+          return;
+        }
+      }
       void stream.writeSSE({ data });
     };
     sseClients.add(send);
+
+    const heartbeat = setInterval(() => {
+      void stream.write(": keepalive\n\n");
+    }, 15000);
 
     await new Promise<void>((resolve) => {
       stream.onAbort(resolve);
     });
 
+    clearInterval(heartbeat);
     sseClients.delete(send);
   });
 });

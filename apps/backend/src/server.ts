@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
 import { URL } from "node:url";
-import { WebSocketServer, type WebSocket } from "ws";
+import { WebSocket, WebSocketServer } from "ws";
 import { transcribeAudioPackets } from "@vxbeamer/transcription";
 import {
   createAccessToken,
@@ -14,6 +14,8 @@ import {
 const oidcClientId = process.env.OIDC_CLIENT_ID ?? "vxbeamer-mobile";
 const authSecret = process.env.OIDC_SECRET ?? "local-dev-secret";
 const port = Number(process.env.PORT ?? "8787");
+const AUTH_CODE_TTL_MS = 60_000;
+const ACCESS_TOKEN_TTL_SECONDS = 600;
 
 const authorizationCodes = new Map<string, AuthorizationCode>();
 
@@ -66,7 +68,7 @@ const server = createServer(async (request, response) => {
     const code = createAuthorizationCode();
     authorizationCodes.set(code, {
       challenge,
-      expiresAt: Date.now() + 60_000,
+      expiresAt: Date.now() + AUTH_CODE_TTL_MS,
       subject: randomUUID(),
     });
 
@@ -98,11 +100,11 @@ const server = createServer(async (request, response) => {
     }
 
     authorizationCodes.delete(code);
-    const accessToken = createAccessToken(grant.subject, authSecret);
+    const accessToken = createAccessToken(grant.subject, authSecret, ACCESS_TOKEN_TTL_SECONDS);
     json(response, 200, {
       token_type: "Bearer",
       access_token: accessToken,
-      expires_in: 600,
+      expires_in: ACCESS_TOKEN_TTL_SECONDS,
     });
     return;
   }
@@ -113,7 +115,7 @@ const server = createServer(async (request, response) => {
 const websocketServer = new WebSocketServer({ noServer: true });
 
 function sendMessage(socket: WebSocket, payload: unknown): void {
-  if (socket.readyState === socket.OPEN) {
+  if (socket.readyState === WebSocket.OPEN) {
     socket.send(JSON.stringify(payload));
   }
 }

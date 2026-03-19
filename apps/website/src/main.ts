@@ -52,6 +52,7 @@ const copyButton = document.querySelector<HTMLButtonElement>("#copy")!;
 const downloadLink = document.querySelector<HTMLAnchorElement>("#download")!;
 
 const oidcClientId = "vxbeamer-mobile";
+const RECORDING_TIMESLICE_MS = 300;
 let accessToken: string | null = null;
 let socket: WebSocket | null = null;
 let mediaRecorder: MediaRecorder | null = null;
@@ -203,7 +204,7 @@ startButton.addEventListener("click", async () => {
       }
     };
 
-    mediaRecorder.start(300);
+    mediaRecorder.start(RECORDING_TIMESLICE_MS);
     sendMessage({ type: "start" });
     setStatus("Recording started.");
   } catch (error) {

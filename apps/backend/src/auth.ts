@@ -31,6 +31,8 @@ interface AccessTokenPayload {
   exp: number;
 }
 
+const DEFAULT_TOKEN_TTL_SECONDS = 600;
+
 function sign(payload: string, secret: string): string {
   return base64UrlEncode(createHmac("sha256", secret).update(payload).digest());
 }
@@ -41,7 +43,11 @@ function decodeBase64Url(input: string): string {
   return Buffer.from(padded, "base64").toString("utf8");
 }
 
-export function createAccessToken(subject: string, secret: string, ttlSeconds = 600): string {
+export function createAccessToken(
+  subject: string,
+  secret: string,
+  ttlSeconds = DEFAULT_TOKEN_TTL_SECONDS,
+): string {
   const payload: AccessTokenPayload = {
     sub: subject,
     exp: Math.floor(Date.now() / 1000) + ttlSeconds,

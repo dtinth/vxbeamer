@@ -1,8 +1,10 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useStore } from "@nanostores/react";
 import { $messages, type Message } from "../store.ts";
 
 function MessageCard({ message }: { message: Message }) {
+  const [copied, setCopied] = useState(false);
+
   const time = new Date(message.createdAt).toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
@@ -13,8 +15,21 @@ function MessageCard({ message }: { message: Message }) {
     message.partial ??
     (message.status === "recording" ? "…" : (message.error ?? ""));
 
+  const copyable = message.status !== "recording" && !!text;
+
+  const handleClick = () => {
+    if (!copyable) return;
+    void navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
+
   return (
-    <div className="px-4 py-3 border-b border-white/5">
+    <div
+      onClick={handleClick}
+      className={`px-4 py-3 border-b border-white/5 ${copyable ? "cursor-pointer active:bg-white/5" : ""}`}
+    >
       <div className="flex items-center gap-2 mb-1">
         <span className="text-xs text-white/40">{time}</span>
         {message.status === "recording" && (
@@ -24,6 +39,7 @@ function MessageCard({ message }: { message: Message }) {
           </span>
         )}
         {message.status === "error" && <span className="text-xs text-red-400">Error</span>}
+        {copied && <span className="text-xs text-green-400 ml-auto">Copied</span>}
       </div>
       <p className="text-sm text-white/90 whitespace-pre-wrap leading-relaxed">{text}</p>
     </div>

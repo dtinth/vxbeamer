@@ -29,6 +29,7 @@ export function RecordingBar() {
   const [error, setError] = useState<string | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const workletRef = useRef<AudioWorkletNode | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -90,6 +91,8 @@ export function RecordingBar() {
       ws.send(JSON.stringify({ type: "stop" }));
     }
 
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
     workletRef.current?.disconnect();
     workletRef.current = null;
     analyserRef.current = null;
@@ -113,6 +116,7 @@ export function RecordingBar() {
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
 
       const wsUrl = new URL(backendUrl);
       wsUrl.protocol = wsUrl.protocol === "https:" ? "wss:" : "ws:";

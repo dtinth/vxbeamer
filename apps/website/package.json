@@ -10,7 +10,18 @@
     "test": "vp test",
     "check": "vp check"
   },
+  "dependencies": {
+    "@nanostores/react": "^0.7.3",
+    "nanostores": "^0.11.4",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.1.4",
+    "@types/react": "^19.1.2",
+    "@types/react-dom": "^19.1.2",
+    "@vitejs/plugin-react": "^4.4.1",
+    "tailwindcss": "^4.1.4",
     "typescript": "~5.9.3",
     "vite": "catalog:",
     "vite-plus": "catalog:"

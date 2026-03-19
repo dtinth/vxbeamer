@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node src/server.ts",
+    "dev": "node --watch src/server.ts",
     "test": "vp test",
     "check": "vp check"
   },

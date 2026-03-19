@@ -32,6 +32,14 @@ The OIDC provider must support:
 
 ## Deployment
 
+A full deployment consists of three parts:
+
+1. **OIDC provider** — a self-hosted identity provider such as Authentik (see [Authentication](#authentication) above).
+2. **Backend** — a self-hosted server you run yourself (see below).
+3. **Frontend** — the web application, available at [vxbeamer.vercel.app](https://vxbeamer.vercel.app). This hosted instance is provided as-is and connects to whichever backend URL you configure in its settings. Only the frontend is hosted; you must run your own backend.
+
+### Backend
+
 The backend is distributed as a Docker image.
 
 ```sh

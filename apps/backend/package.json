@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@vxbeamer/transcription": "workspace:*",
+    "jose": "catalog:",
     "ws": "^8.18.3"
   },
   "devDependencies": {

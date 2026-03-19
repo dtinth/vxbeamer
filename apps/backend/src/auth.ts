@@ -1,10 +1,5 @@
-import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-
-export interface AuthorizationCode {
-  challenge: string;
-  expiresAt: number;
-  subject: string;
-}
+import { createHmac, timingSafeEqual } from "node:crypto";
+import { createRemoteJWKSet, jwtVerify } from "jose";
 
 export function base64UrlEncode(input: Uint8Array): string {
   return Buffer.from(input)
@@ -12,18 +7,6 @@ export function base64UrlEncode(input: Uint8Array): string {
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=+$/g, "");
-}
-
-export function createPkceChallenge(verifier: string): string {
-  return base64UrlEncode(createHash("sha256").update(verifier).digest());
-}
-
-export function createAuthorizationCode(): string {
-  return base64UrlEncode(randomBytes(24));
-}
-
-export function verifyPkce(codeVerifier: string, codeChallenge: string): boolean {
-  return createPkceChallenge(codeVerifier) === codeChallenge;
 }
 
 interface AccessTokenPayload {
@@ -83,4 +66,28 @@ export function verifyAccessToken(token: string, secret: string): AccessTokenPay
     return null;
   }
   return payload;
+}
+
+const jwksSets = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
+
+function getJwkSet(jwksUri: string): ReturnType<typeof createRemoteJWKSet> {
+  let set = jwksSets.get(jwksUri);
+  if (!set) {
+    set = createRemoteJWKSet(new URL(jwksUri));
+    jwksSets.set(jwksUri, set);
+  }
+  return set;
+}
+
+export async function verifyIdToken(
+  token: string,
+  issuer: string,
+  jwksUri: string,
+  audience: string,
+): Promise<{ sub: string }> {
+  const { payload } = await jwtVerify(token, getJwkSet(jwksUri), { issuer, audience });
+  if (!payload.sub) {
+    throw new Error("Missing sub claim");
+  }
+  return { sub: payload.sub };
 }

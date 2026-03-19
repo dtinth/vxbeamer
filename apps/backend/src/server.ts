@@ -1,23 +1,42 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { randomUUID } from "node:crypto";
 import { URL } from "node:url";
 import { WebSocket, WebSocketServer } from "ws";
 import { transcribeAudioPackets } from "@vxbeamer/transcription";
-import {
-  createAccessToken,
-  createAuthorizationCode,
-  type AuthorizationCode,
-  verifyAccessToken,
-  verifyPkce,
-} from "./auth.ts";
+import { createAccessToken, verifyAccessToken, verifyIdToken } from "./auth.ts";
 
+const oidcDiscoveryUrl = process.env.OIDC_DISCOVERY_URL ?? "";
 const oidcClientId = process.env.OIDC_CLIENT_ID ?? "vxbeamer-mobile";
+const oidcAudience = process.env.OIDC_AUDIENCE ?? oidcClientId;
 const authSecret = process.env.OIDC_SECRET ?? "local-dev-secret";
 const port = Number(process.env.PORT ?? "8787");
-const AUTH_CODE_TTL_MS = 60_000;
 const ACCESS_TOKEN_TTL_SECONDS = 600;
+const DISCOVERY_CACHE_TTL_MS = 3_600_000;
 
-const authorizationCodes = new Map<string, AuthorizationCode>();
+interface OidcDiscovery {
+  issuer: string;
+  authorization_endpoint: string;
+  token_endpoint: string;
+  jwks_uri: string;
+}
+
+let discoveryCache: { value: OidcDiscovery; expiresAt: number } | null = null;
+
+async function fetchDiscovery(): Promise<OidcDiscovery> {
+  const now = Date.now();
+  if (discoveryCache && discoveryCache.expiresAt > now) {
+    return discoveryCache.value;
+  }
+  if (!oidcDiscoveryUrl) {
+    throw new Error("OIDC_DISCOVERY_URL not configured");
+  }
+  const res = await fetch(oidcDiscoveryUrl);
+  if (!res.ok) {
+    throw new Error("Failed to fetch OIDC discovery document");
+  }
+  const value = (await res.json()) as OidcDiscovery;
+  discoveryCache = { value, expiresAt: now + DISCOVERY_CACHE_TTL_MS };
+  return value;
+}
 
 function json(response: ServerResponse, statusCode: number, payload: unknown): void {
   response.statusCode = statusCode;
@@ -54,53 +73,63 @@ const server = createServer(async (request, response) => {
     return;
   }
 
-  if (request.method === "GET" && url.pathname === "/oidc/authorize") {
-    const clientId = url.searchParams.get("client_id");
-    const challenge = url.searchParams.get("code_challenge");
-    const challengeMethod = url.searchParams.get("code_challenge_method");
-    const state = url.searchParams.get("state") ?? "";
-
-    if (clientId !== oidcClientId || !challenge || challengeMethod !== "S256") {
-      json(response, 400, { error: "Invalid authorize request" });
+  if (request.method === "GET" && url.pathname === "/auth/config") {
+    if (!oidcDiscoveryUrl) {
+      json(response, 503, { error: "OIDC_DISCOVERY_URL not configured" });
       return;
     }
-
-    const code = createAuthorizationCode();
-    authorizationCodes.set(code, {
-      challenge,
-      expiresAt: Date.now() + AUTH_CODE_TTL_MS,
-      subject: randomUUID(),
+    let discovery: OidcDiscovery;
+    try {
+      discovery = await fetchDiscovery();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to fetch OIDC config";
+      json(response, 502, { error: message });
+      return;
+    }
+    json(response, 200, {
+      clientId: oidcClientId,
+      authorizationEndpoint: discovery.authorization_endpoint,
+      tokenEndpoint: discovery.token_endpoint,
     });
-
-    json(response, 200, { code, state });
     return;
   }
 
-  if (request.method === "POST" && url.pathname === "/oidc/token") {
-    const body = await readBody(request);
-    const params = new URLSearchParams(body);
-    const code = params.get("code");
-    const codeVerifier = params.get("code_verifier");
-    const clientId = params.get("client_id");
-
-    if (!code || !codeVerifier || clientId !== oidcClientId) {
-      json(response, 400, { error: "Invalid token request" });
+  if (request.method === "POST" && url.pathname === "/auth/session") {
+    if (!oidcDiscoveryUrl) {
+      json(response, 503, { error: "OIDC_DISCOVERY_URL not configured" });
       return;
     }
 
-    const grant = authorizationCodes.get(code);
-    if (!grant || grant.expiresAt < Date.now()) {
-      json(response, 400, { error: "Authorization code expired" });
+    let body: { id_token?: string };
+    try {
+      body = JSON.parse(await readBody(request)) as typeof body;
+    } catch {
+      json(response, 400, { error: "Invalid request body" });
       return;
     }
 
-    if (!verifyPkce(codeVerifier, grant.challenge)) {
-      json(response, 401, { error: "PKCE verification failed" });
+    if (!body.id_token) {
+      json(response, 400, { error: "Missing id_token" });
       return;
     }
 
-    authorizationCodes.delete(code);
-    const accessToken = createAccessToken(grant.subject, authSecret, ACCESS_TOKEN_TTL_SECONDS);
+    let subject: string;
+    try {
+      const discovery = await fetchDiscovery();
+      const claims = await verifyIdToken(
+        body.id_token,
+        discovery.issuer,
+        discovery.jwks_uri,
+        oidcAudience,
+      );
+      subject = claims.sub;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Invalid id_token";
+      json(response, 401, { error: message });
+      return;
+    }
+
+    const accessToken = createAccessToken(subject, authSecret, ACCESS_TOKEN_TTL_SECONDS);
     json(response, 200, {
       token_type: "Bearer",
       access_token: accessToken,

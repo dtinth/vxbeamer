@@ -9,6 +9,9 @@ catalogs:
     '@types/node':
       specifier: ^24
       version: 24.12.0
+    jose:
+      specifier: ^6.2.2
+      version: 6.2.2
     typescript:
       specifier: ^5
       version: 5.9.3
@@ -33,6 +36,9 @@ importers:
       '@vxbeamer/transcription':
         specifier: workspace:*
         version: link:../../packages/transcription
+      jose:
+        specifier: 'catalog:'
+        version: 6.2.2
       ws:
         specifier: ^8.18.3
         version: 8.19.0
@@ -72,6 +78,24 @@ importers:
         version: 0.1.12(@types/node@25.5.0)(jiti@2.6.1)(typescript@5.9.3)(vite@8.0.0(@types/node@25.5.0)(jiti@2.6.1)(yaml@2.8.2))(yaml@2.8.2)
 
   packages/utils:
+    devDependencies:
+      '@types/node':
+        specifier: ^25.5.0
+        version: 25.5.0
+      '@typescript/native-preview':
+        specifier: 7.0.0-dev.20260316.1
+        version: 7.0.0-dev.20260316.1
+      bumpp:
+        specifier: ^11.0.1
+        version: 11.0.1
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vite-plus:
+        specifier: ^0.1.11
+        version: 0.1.12(@types/node@25.5.0)(jiti@2.6.1)(typescript@5.9.3)(vite@8.0.0(@types/node@25.5.0)(jiti@2.6.1)(yaml@2.8.2))(yaml@2.8.2)
+
+  packages/vxasr:
     devDependencies:
       '@types/node':
         specifier: ^25.5.0
@@ -725,6 +749,9 @@ packages:
   jiti@2.6.1:
     resolution: {integrity: sha512-ekilCSN1jwRvIbgeg/57YFh8qQDNbwDb9xT/qu2DAHbFFZUicIl4ygVaAvzveMhMVr3LnpSKTNnwt8PoOfmKhQ==}
     hasBin: true
+
+  jose@6.2.2:
+    resolution: {integrity: sha512-d7kPDd34KO/YnzaDOlikGpOurfF0ByC2sEV4cANCtdqLlTfBlw2p14O/5d/zv40gJPbIQxfES3nSx1/oYNyuZQ==}
 
   jsonc-parser@3.3.1:
     resolution: {integrity: sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ==}
@@ -1477,6 +1504,8 @@ snapshots:
   isexe@2.0.0: {}
 
   jiti@2.6.1: {}
+
+  jose@6.2.2: {}
 
   jsonc-parser@3.3.1: {}
 

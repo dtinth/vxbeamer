@@ -26,48 +26,101 @@ export async function createCodeChallenge(verifier: string): Promise<string> {
   return base64UrlEncode(new Uint8Array(digest));
 }
 
-export async function exchangePkceToken(baseUrl: string, clientId: string): Promise<string> {
-  const state = crypto.randomUUID();
+interface AuthConfig {
+  clientId: string;
+  authorizationEndpoint: string;
+  tokenEndpoint: string;
+}
+
+interface OidcState {
+  state: string;
+  codeVerifier: string;
+  backendUrl: string;
+  redirectUri: string;
+}
+
+const OIDC_STATE_KEY = "vxbeamer_oidc_state";
+
+async function fetchAuthConfig(backendUrl: string): Promise<AuthConfig> {
+  const res = await fetch(new URL("/auth/config", backendUrl).toString());
+  if (!res.ok) throw new Error("Failed to fetch auth config");
+  return res.json() as Promise<AuthConfig>;
+}
+
+export async function startSignIn(backendUrl: string): Promise<never> {
+  const config = await fetchAuthConfig(backendUrl);
+
   const codeVerifier = createCodeVerifier();
   const codeChallenge = await createCodeChallenge(codeVerifier);
+  const state = crypto.randomUUID();
+  const redirectUri = window.location.origin + window.location.pathname;
 
-  const authorizeUrl = new URL("/oidc/authorize", baseUrl);
-  authorizeUrl.searchParams.set("client_id", clientId);
-  authorizeUrl.searchParams.set("code_challenge", codeChallenge);
-  authorizeUrl.searchParams.set("code_challenge_method", "S256");
-  authorizeUrl.searchParams.set("state", state);
+  const oidcState: OidcState = { state, codeVerifier, backendUrl, redirectUri };
+  sessionStorage.setItem(OIDC_STATE_KEY, JSON.stringify(oidcState));
 
-  const authorizeResponse = await fetch(authorizeUrl, { method: "GET" });
-  if (!authorizeResponse.ok) {
-    throw new Error("Unable to authorize OIDC session");
-  }
+  const authUrl = new URL(config.authorizationEndpoint);
+  authUrl.searchParams.set("response_type", "code");
+  authUrl.searchParams.set("client_id", config.clientId);
+  authUrl.searchParams.set("redirect_uri", redirectUri);
+  authUrl.searchParams.set("scope", "openid");
+  authUrl.searchParams.set("code_challenge", codeChallenge);
+  authUrl.searchParams.set("code_challenge_method", "S256");
+  authUrl.searchParams.set("state", state);
 
-  const authorizePayload = (await authorizeResponse.json()) as { code?: string; state?: string };
-  if (!authorizePayload.code || authorizePayload.state !== state) {
-    throw new Error("OIDC authorize response is invalid");
-  }
+  window.location.href = authUrl.toString();
+  throw new Error("Redirecting");
+}
 
-  const tokenResponse = await fetch(new URL("/oidc/token", baseUrl), {
+export async function handleCallback(): Promise<{
+  accessToken: string;
+  backendUrl: string;
+} | null> {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get("code");
+  const returnedState = params.get("state");
+
+  if (!code || !returnedState) return null;
+
+  const stored = sessionStorage.getItem(OIDC_STATE_KEY);
+  if (!stored) throw new Error("No OIDC state found — please sign in again");
+
+  const { state, codeVerifier, backendUrl, redirectUri } = JSON.parse(stored) as OidcState;
+  sessionStorage.removeItem(OIDC_STATE_KEY);
+
+  if (returnedState !== state) throw new Error("State mismatch");
+
+  window.history.replaceState({}, "", window.location.pathname);
+
+  const config = await fetchAuthConfig(backendUrl);
+
+  const tokenRes = await fetch(config.tokenEndpoint, {
     method: "POST",
-    headers: {
-      "content-type": "application/x-www-form-urlencoded",
-    },
+    headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       grant_type: "authorization_code",
-      client_id: clientId,
-      code: authorizePayload.code,
+      client_id: config.clientId,
+      code,
+      redirect_uri: redirectUri,
       code_verifier: codeVerifier,
     }),
   });
+  if (!tokenRes.ok) throw new Error("Token exchange failed");
 
-  if (!tokenResponse.ok) {
-    throw new Error("Unable to exchange OIDC token");
+  const tokens = (await tokenRes.json()) as { id_token?: string };
+  if (!tokens.id_token) throw new Error("No id_token in token response");
+
+  const sessionRes = await fetch(new URL("/auth/session", backendUrl).toString(), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ id_token: tokens.id_token }),
+  });
+  if (!sessionRes.ok) {
+    const err = (await sessionRes.json()) as { error?: string };
+    throw new Error(err.error ?? "Session creation failed");
   }
 
-  const tokenPayload = (await tokenResponse.json()) as { access_token?: string };
-  if (!tokenPayload.access_token) {
-    throw new Error("OIDC token response missing access token");
-  }
+  const session = (await sessionRes.json()) as { access_token?: string };
+  if (!session.access_token) throw new Error("No access_token in session response");
 
-  return tokenPayload.access_token;
+  return { accessToken: session.access_token, backendUrl };
 }

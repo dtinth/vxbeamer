@@ -1,5 +1,5 @@
 import "./style.css";
-import { exchangePkceToken, toWebSocketUrl } from "./oidc";
+import { handleCallback, startSignIn, toWebSocketUrl } from "./oidc";
 
 type ServerMessage =
   | { type: "connected" }
@@ -19,7 +19,7 @@ app.innerHTML = `
 
     <label class="field">
       Backend URL
-      <input id="backend-url" value="${window.location.origin}" autocomplete="off" />
+      <input id="backend-url" value="${localStorage.getItem("vxbeamer_backend_url") ?? window.location.origin}" autocomplete="off" />
     </label>
 
     <div class="actions">
@@ -51,7 +51,6 @@ const stopButton = document.querySelector<HTMLButtonElement>("#stop")!;
 const copyButton = document.querySelector<HTMLButtonElement>("#copy")!;
 const downloadLink = document.querySelector<HTMLAnchorElement>("#download")!;
 
-const oidcClientId = "vxbeamer-mobile";
 const RECORDING_TIMESLICE_MS = 300;
 let accessToken: string | null = null;
 let socket: WebSocket | null = null;
@@ -153,21 +152,34 @@ async function connectSocket(baseUrl: string): Promise<void> {
   });
 }
 
+// Handle OIDC redirect callback on page load
+void (async () => {
+  try {
+    const result = await handleCallback();
+    if (result) {
+      accessToken = result.accessToken;
+      backendUrlInput.value = result.backendUrl;
+      await connectSocket(result.backendUrl);
+      startButton.disabled = false;
+      setStatus("Authenticated. Ready to record.");
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Sign-in failed";
+    setStatus(message);
+  }
+})();
+
 signInButton.addEventListener("click", async () => {
   signInButton.disabled = true;
-  startButton.disabled = true;
 
   try {
     const baseUrl = backendUrlInput.value.trim();
-    accessToken = await exchangePkceToken(baseUrl, oidcClientId);
-    await connectSocket(baseUrl);
-    startButton.disabled = false;
-    setStatus("Authenticated. Ready to record.");
+    localStorage.setItem("vxbeamer_backend_url", baseUrl);
+    await startSignIn(baseUrl);
   } catch (error) {
+    // startSignIn redirects and never returns; any error here is a real failure
     const message = error instanceof Error ? error.message : "Unable to sign in";
     setStatus(message);
-    accessToken = null;
-  } finally {
     signInButton.disabled = false;
   }
 });

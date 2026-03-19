@@ -22,7 +22,7 @@ const apiKeys = new Set(
     .filter(Boolean),
 );
 const webhookUrl = process.env.WEBHOOK_URL ?? "";
-const ACCESS_TOKEN_TTL_SECONDS = 600;
+const ACCESS_TOKEN_TTL_SECONDS = 259200; // 3 days
 const DISCOVERY_CACHE_TTL_MS = 3_600_000;
 const ONE_DAY_MS = 86_400_000;
 
@@ -161,6 +161,18 @@ app.post("/auth/session", async (c) => {
     const message = error instanceof Error ? error.message : "Invalid id_token";
     return c.json({ error: message }, 401);
   }
+});
+
+app.post("/auth/refresh", authMiddleware, (c) => {
+  const token = extractToken(c.req.header("Authorization"), c.req.query("access_token"));
+  const payload = token ? verifyAccessToken(token, authSecret) : null;
+  if (!payload) return c.json({ error: "Invalid token" }, 401);
+  const accessToken = createAccessToken(payload.sub, authSecret, ACCESS_TOKEN_TTL_SECONDS);
+  return c.json({
+    token_type: "Bearer",
+    access_token: accessToken,
+    expires_in: ACCESS_TOKEN_TTL_SECONDS,
+  });
 });
 
 app.get("/sse", authMiddleware, (c) => {

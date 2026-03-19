@@ -49,12 +49,56 @@ export function setBackendUrl(url: string): void {
 export function saveSessionToken(token: string): void {
   $sessionToken.set(token);
   localStorage.setItem(SESSION_TOKEN_KEY, token);
+  scheduleTokenRefresh(token);
 }
 
 export function clearSessionToken(): void {
   $sessionToken.set(null);
   localStorage.removeItem(SESSION_TOKEN_KEY);
 }
+
+let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleTokenRefresh(token: string): void {
+  if (refreshTimer !== null) {
+    clearTimeout(refreshTimer);
+    refreshTimer = null;
+  }
+  let exp: number;
+  try {
+    const payload = JSON.parse(
+      atob(token.split(".")[0]!.replace(/-/g, "+").replace(/_/g, "/")),
+    ) as { exp: number };
+    exp = payload.exp;
+  } catch {
+    return;
+  }
+  const now = Math.floor(Date.now() / 1000);
+  const refreshAt = exp - 3600; // 1 hour before expiry
+  const delayMs = Math.max(0, (refreshAt - now) * 1000);
+  refreshTimer = setTimeout(() => void refreshToken(), delayMs);
+}
+
+async function refreshToken(): Promise<void> {
+  const token = $sessionToken.get();
+  const backendUrl = $backendUrl.get();
+  if (!token || !backendUrl) return;
+  try {
+    const res = await fetch(new URL("/auth/refresh", backendUrl).toString(), {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return;
+    const data = (await res.json()) as { access_token: string };
+    saveSessionToken(data.access_token);
+  } catch {
+    // silently ignore, token remains valid until expiry
+  }
+}
+
+// Schedule refresh for any token already in storage on page load
+const _initialToken = $sessionToken.get();
+if (_initialToken) scheduleTokenRefresh(_initialToken);
 
 type SseEvent =
   | { type: "snapshot"; messages: Message[] }

@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "vp pack",
     "dev": "node --watch src/server.ts",
     "test": "vp test",
     "check": "vp check"

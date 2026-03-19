@@ -1,0 +1,21 @@
+{
+  "name": "backend",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --experimental-strip-types src/server.ts",
+    "test": "vp test",
+    "check": "vp check"
+  },
+  "dependencies": {
+    "@vxbeamer/transcription": "workspace:*",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/ws": "^8.18.1",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
+  }
+}

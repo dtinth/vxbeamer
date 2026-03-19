@@ -4,9 +4,11 @@ vxbeamer is a self-hosted, personal speech transcriber with a real-time web inte
 
 ## Overview
 
-For most transcription needs, [Google Gemini](https://ai.google.dev/gemini-api/docs/audio) provides the highest accuracy. However, it comes with high latency. vxbeamer uses a different workflow: [Qwen3-ASR-Flash](https://modelstudio.console.alibabacloud.com/ap-southeast-1?tab=doc#/doc/?type=model&url=2840914_2&modelId=qwen3-asr-flash) handles real-time speech recognition, and gpt-oss-120b (an open-source model by OpenAI, served on [Groq](https://groq.com) for fast inference) does post-processing. This trades some accuracy for significantly faster feedback.
+For most of my transcription needs, I use [Google Gemini](https://ai.google.dev/gemini-api/docs/audio) as it provides the highest accuracy. However, it comes with high latency, which makes it somewhat frustrating to use for voice typing scenarios. _(It has very high throughput though, e.g., 15 minutes of audio content can be transcribed in less than 20 seconds.)_
 
-The frontend is a PWA that can be added to the home screen. Tap the record button to transcribe, watch the text stream in real time, swipe right to broadcast a transcription as an event (for integrators), and swipe left to delete it.
+vxbeamer uses a different workflow: [Qwen3-ASR-Flash](https://modelstudio.console.alibabacloud.com/ap-southeast-1?tab=doc#/doc/?type=model&url=2840914_2&modelId=qwen3-asr-flash) handles real-time speech recognition, and [gpt-oss-120b](https://openai.com/index/introducing-gpt-oss/) (an open-source model by OpenAI, served on [Groq](https://groq.com) for fast inference) does post-processing. This trades some accuracy for significantly faster feedback.
+
+The frontend is a PWA that can be added to the home screen. Tap the record button to transcribe, swipe right to broadcast a transcription as an event (for custom integrations), and swipe left to delete it.
 
 This project is primarily for personal use and is not designed to be particularly flexible. That said, the setup is documented below.
 
@@ -15,7 +17,7 @@ This project is primarily for personal use and is not designed to be particularl
 - **Frontend** — React PWA (`apps/website`), deployed statically
 - **Backend** — Node.js/Hono server (`apps/backend`), deployed via Docker
 - **ASR** — Qwen3-ASR-Flash via DashScope (Alibaba Cloud)
-- **Post-processing** — gpt-oss-120b via Groq (optional, improves transcript quality)
+- **Post-processing** — gpt-oss-120b via Groq
 
 ## Authentication
 
@@ -34,7 +36,7 @@ The OIDC provider must support:
 
 A full deployment consists of three parts:
 
-1. **OIDC provider** — a self-hosted identity provider such as Authentik (see [Authentication](#authentication) above).
+1. **OIDC provider** — an OIDC-compatible identity provider such as Authentik (see [Authentication](#authentication) above).
 2. **Backend** — a self-hosted server you run yourself (see below).
 3. **Frontend** — the web application, available at [vxbeamer.vercel.app](https://vxbeamer.vercel.app). This hosted instance is provided as-is and connects to whichever backend URL you configure in its settings. Only the frontend is hosted; you must run your own backend.
 
@@ -42,12 +44,22 @@ A full deployment consists of three parts:
 
 The backend is distributed as a Docker image.
 
-```sh
-docker run -p 8787:8787 \
-  -e API_KEYS=your-secret-key \
-  -e DASHSCOPE_API_KEY=... \
-  -e GROQ_API_KEY=... \
-  ghcr.io/dtinth/vxbeamer:latest
+```yaml
+services:
+  backend:
+    image: ghcr.io/dtinth/vxbeamer:latest
+    pull_policy: always
+    restart: unless-stoppped
+    expose:
+      - 8787
+    environment:
+      - DASHSCOPE_API_KEY
+      - GROQ_API_KEY
+      - BYTEPLUS_API_KEY
+      - OIDC_DISCOVERY_URL
+      - OIDC_CLIENT_ID
+      - OIDC_SECRET
+      - API_KEYS
 ```
 
 ### Environment variables
@@ -55,7 +67,7 @@ docker run -p 8787:8787 \
 | Variable             | Required | Description                                                  |
 | -------------------- | -------- | ------------------------------------------------------------ |
 | `DASHSCOPE_API_KEY`  | Yes      | Alibaba Cloud DashScope key for Qwen3-ASR-Flash              |
-| `API_KEYS`           | Yes\*    | Comma-separated static API keys for authentication           |
+| `API_KEYS`           | Yes      | Comma-separated static API keys for authentication           |
 | `GROQ_API_KEY`       | No       | Groq API key for gpt-oss-120b post-processing                |
 | `OIDC_DISCOVERY_URL` | No       | OIDC provider discovery URL (alternative to API keys)        |
 | `OIDC_CLIENT_ID`     | No       | OIDC client ID (default: `vxbeamer-mobile`)                  |
@@ -63,8 +75,6 @@ docker run -p 8787:8787 \
 | `OIDC_SECRET`        | No       | HMAC secret for session tokens (default: `local-dev-secret`) |
 | `WEBHOOK_URL`        | No       | Endpoint to POST completed transcriptions to                 |
 | `PORT`               | No       | HTTP port (default: `8787`)                                  |
-
-\*Either `API_KEYS` or OIDC must be configured for authentication.
 
 ## API
 

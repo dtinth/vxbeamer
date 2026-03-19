@@ -179,6 +179,7 @@ export function MessageFeed() {
 
   return (
     <div className="flex-1 overflow-y-auto py-1">
+      <div className="h-[50vh]" />
       {messages.map((msg) => (
         <MessageCard
           key={msg.id}

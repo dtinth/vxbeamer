@@ -12,6 +12,7 @@ export interface Message {
 
 const BACKEND_URL_KEY = "vxbeamer_backend_url";
 const SESSION_TOKEN_KEY = "vxbeamer_access_token";
+const WAKE_LOCK_KEY = "vxbeamer_wake_lock";
 
 function loadSessionToken(): string | null {
   const token = localStorage.getItem(SESSION_TOKEN_KEY);
@@ -29,6 +30,13 @@ function loadSessionToken(): string | null {
     return null;
   }
   return token;
+}
+
+export const $wakeLockEnabled = atom<boolean>(localStorage.getItem(WAKE_LOCK_KEY) === "true");
+
+export function setWakeLockEnabled(enabled: boolean): void {
+  $wakeLockEnabled.set(enabled);
+  localStorage.setItem(WAKE_LOCK_KEY, String(enabled));
 }
 
 export const $backendUrl = atom<string>(

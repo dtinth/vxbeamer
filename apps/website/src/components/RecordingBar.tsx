@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useStore } from "@nanostores/react";
-import { $sessionToken, $backendUrl } from "../store.ts";
+import { $sessionToken, $backendUrl, $wakeLockEnabled } from "../store.ts";
 
 const SAMPLE_RATE = 16000;
 
@@ -25,6 +25,7 @@ registerProcessor('pcm-processor', PCMProcessor);
 export function RecordingBar() {
   const authToken = useStore($sessionToken);
   const backendUrl = useStore($backendUrl);
+  const wakeLockEnabled = useStore($wakeLockEnabled);
   const [isRecording, setIsRecording] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -118,6 +119,31 @@ export function RecordingBar() {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
+      // Set up audio immediately so no audio is lost while WS connects
+      const audioCtx = new AudioContext({ sampleRate: SAMPLE_RATE });
+      audioCtxRef.current = audioCtx;
+
+      const blob = new Blob([PCM_WORKLET_CODE], { type: "application/javascript" });
+      const workletUrl = URL.createObjectURL(blob);
+      await audioCtx.audioWorklet.addModule(workletUrl);
+      URL.revokeObjectURL(workletUrl);
+
+      const source = audioCtx.createMediaStreamSource(stream);
+      const worklet = new AudioWorkletNode(audioCtx, "pcm-processor");
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      analyserRef.current = analyser;
+      workletRef.current = worklet;
+
+      source.connect(worklet);
+      source.connect(analyser);
+
+      // Buffer audio while WS is connecting
+      const buffer: ArrayBuffer[] = [];
+      worklet.port.onmessage = (evt: MessageEvent<ArrayBuffer>) => {
+        buffer.push(evt.data);
+      };
+
       const wsUrl = new URL(backendUrl);
       wsUrl.protocol = wsUrl.protocol === "https:" ? "wss:" : "ws:";
       wsUrl.pathname = "/ws";
@@ -133,36 +159,18 @@ export function RecordingBar() {
         ws.onerror = () => reject(new Error("WebSocket connection failed"));
       });
 
-      const audioCtx = new AudioContext({ sampleRate: SAMPLE_RATE });
-      audioCtxRef.current = audioCtx;
-
-      const blob = new Blob([PCM_WORKLET_CODE], {
-        type: "application/javascript",
-      });
-      const workletUrl = URL.createObjectURL(blob);
-      await audioCtx.audioWorklet.addModule(workletUrl);
-      URL.revokeObjectURL(workletUrl);
-
-      const source = audioCtx.createMediaStreamSource(stream);
-      const worklet = new AudioWorkletNode(audioCtx, "pcm-processor");
-      const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 256;
-      analyserRef.current = analyser;
-
+      // Flush buffered audio then stream live
+      for (const chunk of buffer) ws.send(chunk);
       worklet.port.onmessage = (evt: MessageEvent<ArrayBuffer>) => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(evt.data);
-        }
+        if (ws.readyState === WebSocket.OPEN) ws.send(evt.data);
       };
 
-      source.connect(worklet);
-      source.connect(analyser);
-      workletRef.current = worklet;
-
-      try {
-        wakeLockRef.current = await navigator.wakeLock.request("screen");
-      } catch {
-        // wake lock not available or denied — non-fatal
+      if (wakeLockEnabled) {
+        try {
+          wakeLockRef.current = await navigator.wakeLock.request("screen");
+        } catch {
+          // wake lock not available or denied — non-fatal
+        }
       }
 
       setIsRecording(true);

@@ -1,12 +1,20 @@
 import { useState } from "react";
 import { useStore } from "@nanostores/react";
-import { $backendUrl, $sessionToken, setBackendUrl, clearSessionToken } from "../store.ts";
+import {
+  $backendUrl,
+  $sessionToken,
+  $wakeLockEnabled,
+  setBackendUrl,
+  clearSessionToken,
+  setWakeLockEnabled,
+} from "../store.ts";
 import { startSignIn } from "../oidc.ts";
 
 export function SettingsSheet() {
   const [open, setOpen] = useState(false);
   const backendUrl = useStore($backendUrl);
   const sessionToken = useStore($sessionToken);
+  const wakeLockEnabled = useStore($wakeLockEnabled);
   const [urlInput, setUrlInput] = useState(backendUrl);
   const [signingIn, setSigningIn] = useState(false);
 
@@ -78,6 +86,25 @@ export function SettingsSheet() {
             autoCapitalize="off"
           />
         </label>
+
+        <div className="flex items-center justify-between">
+          <span className="text-sm">Keep screen on while recording</span>
+          <button
+            onClick={() => setWakeLockEnabled(!wakeLockEnabled)}
+            className={[
+              "relative w-11 h-6 rounded-full transition-colors",
+              wakeLockEnabled ? "bg-white" : "bg-white/20",
+            ].join(" ")}
+            aria-label="Toggle wake lock"
+          >
+            <span
+              className={[
+                "absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-gray-900 transition-transform",
+                wakeLockEnabled ? "translate-x-5" : "translate-x-0",
+              ].join(" ")}
+            />
+          </button>
+        </div>
 
         <div className="pt-1 space-y-2">
           {sessionToken ? (

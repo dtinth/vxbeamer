@@ -153,7 +153,11 @@ function MessageCard({
           {message.status === "error" && <span className="text-xs text-red-400">Error</span>}
           {copied && <span className="text-xs text-green-400 ml-auto">Copied</span>}
         </div>
-        <p className="text-sm text-white/90 whitespace-pre-wrap leading-relaxed">{text}</p>
+        <p
+          className={`text-sm whitespace-pre-wrap leading-relaxed ${message.final ? "text-white/90" : "text-white/40"}`}
+        >
+          {text}
+        </p>
       </div>
     </div>
   );

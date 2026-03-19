@@ -206,6 +206,22 @@ app.get("/messages/:id", authMiddleware, (c) => {
   return c.json(msg);
 });
 
+app.delete("/messages/:id", authMiddleware, (c) => {
+  const id = c.req.param("id");
+  const idx = messages.findIndex((m) => m.id === id);
+  if (idx === -1) return c.json({ error: "Not found" }, 404);
+  messages.splice(idx, 1);
+  broadcast({ type: "deleted", messageId: id });
+  return c.json({ ok: true });
+});
+
+app.post("/messages/:id/swipe", authMiddleware, (c) => {
+  const msg = messages.find((m) => m.id === c.req.param("id"));
+  if (!msg) return c.json({ error: "Not found" }, 404);
+  broadcast({ type: "swiped", message: msg });
+  return c.json({ ok: true });
+});
+
 app.get(
   "/ws",
   authMiddleware,

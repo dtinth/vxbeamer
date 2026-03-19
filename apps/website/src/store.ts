@@ -111,7 +111,8 @@ if (_initialToken) scheduleTokenRefresh(_initialToken);
 type SseEvent =
   | { type: "snapshot"; messages: Message[] }
   | { type: "created"; message: Message }
-  | { type: "updated"; message: Message };
+  | { type: "updated"; message: Message }
+  | { type: "deleted"; messageId: string };
 
 export function applySSEEvent(raw: unknown): void {
   const event = raw as SseEvent;
@@ -121,5 +122,7 @@ export function applySSEEvent(raw: unknown): void {
     $messages.set([...$messages.get(), event.message]);
   } else if (event.type === "updated") {
     $messages.set($messages.get().map((m) => (m.id === event.message.id ? event.message : m)));
+  } else if (event.type === "deleted") {
+    $messages.set($messages.get().filter((m) => m.id !== event.messageId));
   }
 }

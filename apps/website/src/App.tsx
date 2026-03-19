@@ -70,7 +70,14 @@ export function App() {
         : "bg-red-500";
 
   return (
-    <div className="h-dvh flex flex-col bg-gray-950 text-white overflow-hidden">
+    <div
+      className="flex flex-col bg-gray-950 text-white overflow-hidden"
+      style={{
+        height: "100dvh",
+        paddingTop: "env(safe-area-inset-top)",
+        paddingBottom: "env(safe-area-inset-bottom)",
+      }}
+    >
       <header className="flex-none px-4 py-3 flex items-center justify-between border-b border-white/10">
         <h1 className="text-lg font-semibold tracking-tight">VXBeamer</h1>
         <div className="flex items-center gap-3">

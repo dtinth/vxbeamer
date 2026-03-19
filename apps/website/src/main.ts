@@ -105,6 +105,39 @@ function createWavBlob(chunks: Int16Array[], sampleRate: number): Blob {
   return new Blob([buffer], { type: "audio/wav" });
 }
 
+const ACCESS_TOKEN_KEY = "vxbeamer_access_token";
+
+function saveAccessToken(token: string): void {
+  accessToken = token;
+  localStorage.setItem(ACCESS_TOKEN_KEY, token);
+}
+
+function clearAccessToken(): void {
+  accessToken = null;
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+}
+
+function loadAccessToken(): string | null {
+  const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+  if (!token) return null;
+  // Decode payload to check expiry (format: base64url(json).signature)
+  try {
+    const payload = JSON.parse(
+      atob(token.split(".")[0]!.replace(/-/g, "+").replace(/_/g, "/")),
+    ) as {
+      exp: number;
+    };
+    if (payload.exp <= Math.floor(Date.now() / 1000)) {
+      localStorage.removeItem(ACCESS_TOKEN_KEY);
+      return null;
+    }
+  } catch {
+    localStorage.removeItem(ACCESS_TOKEN_KEY);
+    return null;
+  }
+  return token;
+}
+
 let accessToken: string | null = null;
 let socket: WebSocket | null = null;
 let audioContext: AudioContext | null = null;
@@ -201,25 +234,31 @@ async function connectSocket(baseUrl: string): Promise<void> {
 
     socket.onclose = () => {
       if (startButton.disabled === false) {
+        clearAccessToken();
         setStatus("Disconnected. Sign in again.");
       }
     };
   });
 }
 
-// Handle OIDC redirect callback on page load
+// Handle OIDC redirect callback or restore saved session on page load
 void (async () => {
   try {
     const result = await handleCallback();
     if (result) {
-      accessToken = result.accessToken;
+      saveAccessToken(result.accessToken);
       backendUrlInput.value = result.backendUrl;
-      await connectSocket(result.backendUrl);
+    } else {
+      accessToken = loadAccessToken();
+    }
+
+    if (accessToken) {
       startButton.disabled = false;
       setStatus("Authenticated. Ready to record.");
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Sign-in failed";
+    clearAccessToken();
     setStatus(message);
   }
 })();

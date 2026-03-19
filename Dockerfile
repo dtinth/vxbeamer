@@ -7,7 +7,8 @@ ENV CI=true
 WORKDIR /app
 COPY . .
 RUN vp install
-RUN vp run backend#build
+ENV PATH=/app/node_modules/.bin:$PATH
+RUN vp run vxasr#build && vp run backend#build
 
 FROM node:24-slim
 WORKDIR /app

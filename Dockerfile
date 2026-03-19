@@ -11,7 +11,14 @@ RUN vp run backend#build
 
 FROM node:24-slim
 WORKDIR /app
-COPY --from=builder /app/apps/backend/dist/server.mjs ./
-COPY --from=builder /app/apps/backend/dist/server.mjs.map ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/apps/backend/node_modules ./apps/backend/node_modules
+COPY --from=builder /app/apps/backend/dist/server.mjs ./apps/backend/dist/
+COPY --from=builder /app/apps/backend/dist/server.mjs.map ./apps/backend/dist/
+COPY --from=builder /app/packages/vxasr/package.json ./packages/vxasr/
+COPY --from=builder /app/packages/vxasr/dist/ ./packages/vxasr/dist/
+COPY --from=builder /app/packages/vxasr/node_modules/ ./packages/vxasr/node_modules/
+COPY --from=builder /app/packages/utils/package.json ./packages/utils/
+COPY --from=builder /app/packages/utils/dist/ ./packages/utils/dist/
 EXPOSE 8787
-CMD ["node", "--enable-source-maps", "server.mjs"]
+CMD ["node", "--enable-source-maps", "apps/backend/dist/server.mjs"]

@@ -96,7 +96,7 @@ export function SettingsSheet() {
               Wake Lock
             </span>
             <span
-              className={`text-xs ${wakeLockActive ? "text-(--m3-tertiary)" : "text-(--m3-on-surface-variant)"}`}
+              className={`text-xs ${wakeLockActive ? "text-green-400" : "text-(--m3-on-surface-variant)"}`}
             >
               {wakeLockActive ? "● Active" : "○ Inactive"}
             </span>

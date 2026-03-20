@@ -64,7 +64,7 @@ export function App() {
 
   const statusColor =
     sseStatus === "connected"
-      ? "bg-(--m3-tertiary)"
+      ? "bg-green-400"
       : sseStatus === "connecting"
         ? "bg-(--m3-primary) animate-pulse"
         : "bg-(--m3-error)";

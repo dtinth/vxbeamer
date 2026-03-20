@@ -241,7 +241,7 @@ export function RecordingBar() {
           className={[
             "relative z-10 w-32 h-32 rounded-full flex items-center justify-center transition-all shadow-lg",
             isRecording
-              ? "bg-(--m3-error) scale-110 shadow-(--m3-error)/50"
+              ? "bg-red-500 scale-110 shadow-red-500/50"
               : canRecord
                 ? "bg-(--m3-surface-container-high) hover:bg-(--m3-surface-container-highest) active:scale-95"
                 : "bg-(--m3-surface-container) opacity-40 cursor-not-allowed",
@@ -251,7 +251,7 @@ export function RecordingBar() {
           {isRecording ? (
             <span className="w-10 h-10 rounded-md bg-(--m3-on-error)" />
           ) : (
-            <span className="w-10 h-10 rounded-full bg-(--m3-error)" />
+            <span className="w-10 h-10 rounded-full bg-red-500" />
           )}
         </button>
       </div>

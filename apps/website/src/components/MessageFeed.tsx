@@ -146,12 +146,12 @@ function MessageCard({
           <span className="text-xs text-(--m3-on-surface-variant)">{time}</span>
           {message.status === "recording" && (
             <span className="flex items-center gap-1 text-xs text-(--m3-error)">
-              <span className="w-1.5 h-1.5 rounded-full bg-(--m3-error) animate-pulse inline-block" />
+              <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse inline-block" />
               Recording
             </span>
           )}
           {message.status === "error" && <span className="text-xs text-(--m3-error)">Error</span>}
-          {copied && <span className="text-xs text-(--m3-tertiary) ml-auto">Copied</span>}
+          {copied && <span className="text-xs text-green-400 ml-auto">Copied</span>}
         </div>
         <p
           className={`text-sm whitespace-pre-wrap leading-relaxed ${message.final ? "text-(--m3-on-surface)" : "text-(--m3-on-surface-variant)"}`}

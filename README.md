@@ -2,6 +2,12 @@
 
 vxbeamer is a self-hosted, personal speech transcriber with a real-time web interface.
 
+## Demo (how I use it)
+
+I speak into my phone. The voice message is instantly transcribed. Then I can swipe on my phone to beam the transcription to my laptop.
+
+[vxbeamer.webm](https://github.com/user-attachments/assets/ff6188ed-3d5c-4d0d-bbf1-a39916091e2a)
+
 ## Overview
 
 For most of my transcription needs, I use [Google Gemini](https://ai.google.dev/gemini-api/docs/audio) as it provides the highest accuracy. However, it comes with high latency, which makes it somewhat frustrating to use for voice typing scenarios. _(It has very high throughput though, e.g., 15 minutes of audio content can be transcribed in less than 20 seconds.)_

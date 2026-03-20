@@ -27,7 +27,12 @@ This project is primarily for personal use and is not designed to be particularl
 
 ## Authentication
 
-vxbeamer supports two authentication methods: static API keys (via `API_KEYS`) and OpenID Connect. For interactive use from the frontend, OIDC is required.
+vxbeamer comes with 2 two authentication methods:
+
+- **User authentication** via OIDC, for interactive use from the frontend.
+- **API keys** (via `API_KEYS`), for integration with scripts.
+
+### User authentication
 
 The OIDC provider must support:
 
@@ -37,6 +42,10 @@ The OIDC provider must support:
 4. **Restricted token issuance** — the provider must only issue ID tokens to authorized users. There is no built-in user whitelist in vxbeamer itself, so access control must be enforced at the provider level.
 
 [Authentik](https://goauthentik.io) is a self-hosted, open-source identity provider that meets all of these requirements.
+
+### API keys
+
+Set the `API_KEYS` environment variable. Scripts can use this key to integrate with vxbeamer.
 
 ## Deployment
 

@@ -1,4 +1,4 @@
-export type { ASRProvider, ASRSession, ASRSessionCallbacks } from "./asr.ts";
+export type { ASRProvider, ASRSession, ASRSessionCallbacks, UsageRecord } from "./asr.ts";
 export { createQwenProvider } from "./providers/qwen.ts";
 export type { QwenProviderConfig } from "./providers/qwen.ts";
 export { createBytePlusProvider } from "./providers/byteplus.ts";

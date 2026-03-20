@@ -1,6 +1,10 @@
 import WebSocket from "ws";
 import type { ASRProvider, ASRSession, ASRSessionCallbacks } from "../asr.ts";
 
+// 16kHz 16-bit mono = 32000 bytes/sec
+const BYTES_PER_SECOND = 32000;
+const QWEN_PRICE_PER_SECOND = 0.000035;
+
 export interface QwenProviderConfig {
   apiKey: string;
   model?: string;
@@ -23,11 +27,13 @@ export function createQwenProvider(config: QwenProviderConfig): ASRProvider {
       let buffer = Buffer.alloc(0);
       let ready = false;
       let finishing = false;
+      let totalBytesSent = 0;
 
       function flushBuffer() {
         while (buffer.length >= CHUNK_SIZE) {
           const chunk = buffer.subarray(0, CHUNK_SIZE);
           buffer = buffer.subarray(CHUNK_SIZE);
+          totalBytesSent += chunk.length;
           ws.send(
             JSON.stringify({
               event_id: `event_${Date.now()}`,
@@ -40,6 +46,7 @@ export function createQwenProvider(config: QwenProviderConfig): ASRProvider {
 
       function doFinish() {
         if (buffer.length > 0) {
+          totalBytesSent += buffer.length;
           ws.send(
             JSON.stringify({
               event_id: `event_${Date.now()}`,
@@ -80,6 +87,14 @@ export function createQwenProvider(config: QwenProviderConfig): ASRProvider {
         } else if (data.type === "conversation.item.input_audio_transcription.completed") {
           callbacks.onFinal?.(data.transcript ?? "");
         } else if (data.type === "session.finished") {
+          const seconds = Math.ceil(totalBytesSent / BYTES_PER_SECOND);
+          callbacks.onUsage?.([
+            {
+              sku: "dashscope:qwen3-asr-flash:seconds",
+              unitPrice: QWEN_PRICE_PER_SECOND,
+              quantity: seconds,
+            },
+          ]);
           callbacks.onEnd?.();
           ws.close(1000, "done");
         } else if (data.type === "error") {

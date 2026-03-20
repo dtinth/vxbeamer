@@ -2,6 +2,10 @@ import WebSocket from "ws";
 import { randomUUID } from "crypto";
 import type { ASRProvider, ASRSession, ASRSessionCallbacks } from "../asr.ts";
 
+// 16kHz 16-bit mono = 32000 bytes/sec
+const BYTES_PER_SECOND = 32000;
+const BYTEPLUS_PRICE_PER_SECOND = 0.15 / 3600;
+
 export interface BytePlusProviderConfig {
   apiKey: string;
   resourceId?: string;
@@ -68,11 +72,13 @@ export function createBytePlusProvider(config: BytePlusProviderConfig): ASRProvi
       let buffer = Buffer.alloc(0);
       let ready = false;
       let finishing = false;
+      let totalBytesSent = 0;
 
       function flushBuffer() {
         while (buffer.length >= CHUNK_SIZE) {
           const chunk = buffer.subarray(0, CHUNK_SIZE);
           buffer = buffer.subarray(CHUNK_SIZE);
+          totalBytesSent += chunk.length;
           ws.send(buildAudioPacket(chunk, false));
         }
       }
@@ -100,6 +106,14 @@ export function createBytePlusProvider(config: BytePlusProviderConfig): ASRProvi
 
         if (isLast) {
           if (text.trim()) callbacks.onFinal?.(text);
+          const seconds = Math.ceil(totalBytesSent / BYTES_PER_SECOND);
+          callbacks.onUsage?.([
+            {
+              sku: "byteplus:seedasr:seconds",
+              unitPrice: BYTEPLUS_PRICE_PER_SECOND,
+              quantity: seconds,
+            },
+          ]);
           callbacks.onEnd?.();
           ws.close(1000, "done");
         } else if (text) {
@@ -120,6 +134,7 @@ export function createBytePlusProvider(config: BytePlusProviderConfig): ASRProvi
           if (finishing) return;
           finishing = true;
           if (ws.readyState !== WebSocket.OPEN) return;
+          totalBytesSent += buffer.length;
           ws.send(buildAudioPacket(buffer, true));
           buffer = Buffer.alloc(0);
         },

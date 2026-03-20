@@ -6,7 +6,7 @@ import { serve } from "@hono/node-server";
 import { createNodeWebSocket } from "@hono/node-ws";
 import type { WSContext, WSMessageReceive } from "hono/ws";
 import { createQwenProvider, withGroqEnhancement } from "vxasr";
-import type { ASRSession } from "vxasr";
+import type { ASRSession, UsageRecord } from "vxasr";
 import { createAccessToken, verifyAccessToken, verifyIdToken } from "./auth.ts";
 
 // --- Config ---
@@ -56,6 +56,7 @@ export interface Message {
   error?: string;
   createdAt: number;
   updatedAt: number;
+  usage?: UsageRecord[];
 }
 
 const messages: Message[] = [];
@@ -269,6 +270,10 @@ app.get(
         const qwen = createQwenProvider({ apiKey });
         const provider = groqApiKey ? withGroqEnhancement(qwen, { apiKey: groqApiKey }) : qwen;
         asrSession = provider.createSession({
+          onUsage(records) {
+            if (!message) return;
+            message.usage = [...(message.usage ?? []), ...records];
+          },
           onPartial(text) {
             if (!message) return;
             message.partial = text;

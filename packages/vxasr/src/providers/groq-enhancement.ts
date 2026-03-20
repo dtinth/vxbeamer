@@ -1,6 +1,9 @@
 import Groq from "groq-sdk";
 import type { ASRProvider, ASRSession, ASRSessionCallbacks } from "../asr.ts";
 
+const GROQ_INPUT_PRICE_PER_TOKEN = 0.15e-6;
+const GROQ_OUTPUT_PRICE_PER_TOKEN = 0.6e-6;
+
 export interface GroqEnhancementConfig {
   apiKey?: string;
   model?: string;
@@ -41,20 +44,42 @@ export function withGroqEnhancement(
         // Immediately show raw text while Groq processes
         callbacks.onPartial?.(rawText);
 
+        const model = config.model ?? "openai/gpt-oss-120b";
         const stream = (await (groq.chat.completions.create as Function)({
-          model: config.model ?? "openai/gpt-oss-120b",
+          model,
           messages: [{ role: "user", content: PROMPT(rawText) }],
           temperature: 1,
           max_completion_tokens: 8192,
           reasoning_effort: "medium",
           stream: true,
-        })) as AsyncIterable<{ choices: { delta: { content?: string } }[] }>;
+          stream_options: { include_usage: true },
+        })) as AsyncIterable<{
+          choices: { delta: { content?: string } }[];
+          usage?: { prompt_tokens: number; completion_tokens: number };
+        }>;
 
         let accumulated = "";
+        let usage: { prompt_tokens: number; completion_tokens: number } | undefined;
         for await (const chunk of stream) {
           accumulated += chunk.choices[0]?.delta?.content ?? "";
+          if (chunk.usage) usage = chunk.usage;
           const content = extractTagContent(accumulated);
           if (content !== null) callbacks.onPartial?.(content.trim());
+        }
+
+        if (usage) {
+          callbacks.onUsage?.([
+            {
+              sku: `groq:${model}:input-tokens`,
+              unitPrice: GROQ_INPUT_PRICE_PER_TOKEN,
+              quantity: usage.prompt_tokens,
+            },
+            {
+              sku: `groq:${model}:output-tokens`,
+              unitPrice: GROQ_OUTPUT_PRICE_PER_TOKEN,
+              quantity: usage.completion_tokens,
+            },
+          ]);
         }
 
         const final = (extractTagContent(accumulated) ?? rawText).trim();
@@ -71,6 +96,7 @@ export function withGroqEnhancement(
           void queue.finally(() => callbacks.onEnd?.());
         },
         onError: callbacks.onError,
+        onUsage: callbacks.onUsage,
       });
 
       return session;

@@ -4,6 +4,7 @@ packages:
   - tools/*
 
 catalog:
+  "@fontsource-variable/tasa-orbiter": ^5.2.2
   "@types/node": ^24
   jose: ^6.2.2
   typescript: ^5

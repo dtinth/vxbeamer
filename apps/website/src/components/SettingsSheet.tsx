@@ -36,7 +36,7 @@ export function SettingsSheet() {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="p-2 rounded-lg hover:bg-white/10 transition-colors text-white/70 hover:text-white"
+        className="p-2 rounded-lg hover:bg-(--m3-surface-container-high) transition-colors text-(--m3-on-surface-variant) hover:text-(--m3-on-surface)"
         aria-label="Settings"
       >
         <svg
@@ -59,18 +59,18 @@ export function SettingsSheet() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col justify-end bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex flex-col justify-end bg-(--m3-scrim)/60 backdrop-blur-sm"
       onClick={() => setOpen(false)}
     >
       <div
-        className="bg-gray-900 rounded-t-2xl px-4 pt-5 pb-10 space-y-5"
+        className="bg-(--m3-surface-container-high) rounded-t-2xl px-4 pt-5 pb-10 space-y-5"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold">Settings</h2>
           <button
             onClick={() => setOpen(false)}
-            className="p-1 text-white/50 hover:text-white transition-colors"
+            className="p-1 text-(--m3-on-surface-variant) hover:text-(--m3-on-surface) transition-colors"
           >
             ✕
           </button>
@@ -84,7 +84,7 @@ export function SettingsSheet() {
             value={urlInput}
             onChange={(e) => setUrlInput(e.target.value)}
             onBlur={() => setBackendUrl(urlInput.trim())}
-            className="w-full bg-white/10 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-white/30"
+            className="w-full bg-(--m3-surface-container-highest) rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-(--m3-outline)"
             autoComplete="off"
             autoCapitalize="off"
           />
@@ -92,17 +92,19 @@ export function SettingsSheet() {
 
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-white/50 uppercase tracking-wider">
+            <span className="text-xs font-medium text-(--m3-on-surface-variant) uppercase tracking-wider">
               Wake Lock
             </span>
-            <span className={`text-xs ${wakeLockActive ? "text-green-400" : "text-white/30"}`}>
+            <span
+              className={`text-xs ${wakeLockActive ? "text-(--m3-tertiary)" : "text-(--m3-on-surface-variant)"}`}
+            >
               {wakeLockActive ? "● Active" : "○ Inactive"}
             </span>
           </div>
           <select
             value={wakeLockMode}
             onChange={(e) => setWakeLockMode(e.target.value as WakeLockMode)}
-            className="w-full bg-white/10 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-white/30 appearance-none"
+            className="w-full bg-(--m3-surface-container-highest) rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-(--m3-outline) appearance-none"
           >
             <option value="off">Off</option>
             <option value="recording">On while recording</option>
@@ -114,7 +116,7 @@ export function SettingsSheet() {
           {sessionToken ? (
             <button
               onClick={() => clearSessionToken()}
-              className="w-full py-3 rounded-xl bg-white/10 hover:bg-white/15 text-sm font-medium transition-colors"
+              className="w-full py-3 rounded-xl bg-(--m3-surface-container-highest) hover:bg-(--m3-surface-bright) text-sm font-medium transition-colors"
             >
               Sign out
             </button>
@@ -122,7 +124,7 @@ export function SettingsSheet() {
             <button
               onClick={() => void handleSignIn()}
               disabled={signingIn}
-              className="w-full py-3 rounded-xl bg-white text-black text-sm font-semibold hover:bg-white/90 transition-colors disabled:opacity-50"
+              className="w-full py-3 rounded-xl bg-(--m3-primary) text-(--m3-on-primary) text-sm font-semibold hover:bg-(--m3-primary)/90 transition-colors disabled:opacity-50"
             >
               {signingIn ? "Redirecting…" : "Sign in with OIDC"}
             </button>

@@ -226,8 +226,8 @@ export function RecordingBar() {
   const canRecord = !!authToken;
 
   return (
-    <div className="flex-none border-t border-white/10 px-4 py-4">
-      {error && <p className="text-xs text-red-400 mb-2 text-center">{error}</p>}
+    <div className="flex-none border-t border-(--m3-outline-variant) px-4 py-4">
+      {error && <p className="text-xs text-(--m3-error) mb-2 text-center">{error}</p>}
       <div className="relative h-32 flex items-center justify-center">
         <canvas
           ref={canvasRef}
@@ -241,17 +241,17 @@ export function RecordingBar() {
           className={[
             "relative z-10 w-32 h-32 rounded-full flex items-center justify-center transition-all shadow-lg",
             isRecording
-              ? "bg-red-500 scale-110 shadow-red-500/50"
+              ? "bg-(--m3-error) scale-110 shadow-(--m3-error)/50"
               : canRecord
-                ? "bg-white/15 hover:bg-white/25 active:scale-95"
-                : "bg-white/5 opacity-40 cursor-not-allowed",
+                ? "bg-(--m3-surface-container-high) hover:bg-(--m3-surface-container-highest) active:scale-95"
+                : "bg-(--m3-surface-container) opacity-40 cursor-not-allowed",
           ].join(" ")}
           aria-label={isRecording ? "Stop recording" : "Start recording"}
         >
           {isRecording ? (
-            <span className="w-10 h-10 rounded-md bg-white" />
+            <span className="w-10 h-10 rounded-md bg-(--m3-on-error)" />
           ) : (
-            <span className="w-10 h-10 rounded-full bg-red-500" />
+            <span className="w-10 h-10 rounded-full bg-(--m3-error)" />
           )}
         </button>
       </div>

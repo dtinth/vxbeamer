@@ -6,6 +6,9 @@ settings:
 
 catalogs:
   default:
+    '@fontsource-variable/tasa-orbiter':
+      specifier: ^5.2.2
+      version: 5.2.2
     '@types/node':
       specifier: ^24
       version: 24.12.0
@@ -67,6 +70,9 @@ importers:
 
   apps/website:
     dependencies:
+      '@fontsource-variable/tasa-orbiter':
+        specifier: 'catalog:'
+        version: 5.2.2
       '@nanostores/react':
         specifier: ^0.7.3
         version: 0.7.3(nanostores@0.11.4)(react@19.2.4)
@@ -257,6 +263,9 @@ packages:
 
   '@emnapi/wasi-threads@1.2.0':
     resolution: {integrity: sha512-N10dEJNSsUx41Z6pZsXU8FjPjpBEplgH24sfkmITrBED1/U2Esum9F3lfLrMjKHHjmi557zQn7kR9R+XWXu5Rg==}
+
+  '@fontsource-variable/tasa-orbiter@5.2.2':
+    resolution: {integrity: sha512-mkKuhzI4Ir0wZ6k7v7Om5yrDWlyd5pRR1maeiMLrY01Rh4Tl2jecf6yCEeEfJQcQDTOT8Pw/5i2kv92SkasrXQ==}
 
   '@hono/node-server@1.19.11':
     resolution: {integrity: sha512-dr8/3zEaB+p0D2n/IUrlPF1HZm586qgJNXK1a9fhg/PzdtkK7Ksd5l312tJX2yBuALqDYBlG20QEbayqPyxn+g==}
@@ -1704,6 +1713,8 @@ snapshots:
     dependencies:
       tslib: 2.8.1
     optional: true
+
+  '@fontsource-variable/tasa-orbiter@5.2.2': {}
 
   '@hono/node-server@1.19.11(hono@4.12.8)':
     dependencies:

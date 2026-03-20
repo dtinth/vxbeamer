@@ -64,22 +64,22 @@ export function App() {
 
   const statusColor =
     sseStatus === "connected"
-      ? "bg-green-400"
+      ? "bg-(--m3-tertiary)"
       : sseStatus === "connecting"
-        ? "bg-yellow-400 animate-pulse"
-        : "bg-red-500";
+        ? "bg-(--m3-primary) animate-pulse"
+        : "bg-(--m3-error)";
 
   return (
     <div
-      className="flex flex-col bg-gray-950 text-white overflow-hidden"
+      className="flex flex-col bg-(--m3-background) text-(--m3-on-surface) overflow-hidden"
       style={{
         height: "100dvh",
         paddingTop: "env(safe-area-inset-top)",
         paddingBottom: "env(safe-area-inset-bottom)",
       }}
     >
-      <header className="flex-none px-4 py-3 flex items-center justify-between border-b border-white/10">
-        <h1 className="text-lg font-semibold tracking-tight">VXBeamer</h1>
+      <header className="flex-none px-4 py-3 flex items-center justify-between border-b border-(--m3-outline-variant)">
+        <h1 className="text-lg font-semibold tracking-tight">vxbeamer</h1>
         <div className="flex items-center gap-3">
           <span className={`w-2 h-2 rounded-full ${statusColor}`} title={sseStatus} />
           <SettingsSheet />

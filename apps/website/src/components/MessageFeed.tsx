@@ -88,9 +88,9 @@ function MessageCard({
         className={[
           "absolute inset-0 flex items-center px-5 transition-opacity",
           direction === "left"
-            ? "justify-end bg-red-500/80"
+            ? "justify-end bg-(--m3-error-container)"
             : direction === "right"
-              ? "justify-start bg-teal-500/80"
+              ? "justify-start bg-(--m3-tertiary-container)"
               : "opacity-0",
         ].join(" ")}
       >
@@ -140,21 +140,21 @@ function MessageCard({
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         onClick={handleClick}
-        className={`bg-gray-900 rounded-2xl px-4 py-3 ${copyable ? "cursor-pointer active:bg-white/5" : ""}`}
+        className={`bg-(--m3-surface-container-high) rounded-2xl px-4 py-3 ${copyable ? "cursor-pointer active:bg-(--m3-surface-container-highest)" : ""}`}
       >
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-xs text-white/40">{time}</span>
+          <span className="text-xs text-(--m3-on-surface-variant)">{time}</span>
           {message.status === "recording" && (
-            <span className="flex items-center gap-1 text-xs text-red-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse inline-block" />
+            <span className="flex items-center gap-1 text-xs text-(--m3-error)">
+              <span className="w-1.5 h-1.5 rounded-full bg-(--m3-error) animate-pulse inline-block" />
               Recording
             </span>
           )}
-          {message.status === "error" && <span className="text-xs text-red-400">Error</span>}
-          {copied && <span className="text-xs text-green-400 ml-auto">Copied</span>}
+          {message.status === "error" && <span className="text-xs text-(--m3-error)">Error</span>}
+          {copied && <span className="text-xs text-(--m3-tertiary) ml-auto">Copied</span>}
         </div>
         <p
-          className={`text-sm whitespace-pre-wrap leading-relaxed ${message.final ? "text-white/90" : "text-white/40"}`}
+          className={`text-sm whitespace-pre-wrap leading-relaxed ${message.final ? "text-(--m3-on-surface)" : "text-(--m3-on-surface-variant)"}`}
         >
           {text}
         </p>
@@ -176,7 +176,7 @@ export function MessageFeed() {
   if (messages.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <p className="text-white/30 text-sm">No messages yet. Start speaking.</p>
+        <p className="text-(--m3-on-surface-variant) text-sm">No messages yet. Start speaking.</p>
       </div>
     );
   }

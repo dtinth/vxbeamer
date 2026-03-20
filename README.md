@@ -20,6 +20,8 @@ This project is primarily for personal use and is not designed to be particularl
 
 ## Architecture
 
+<img width="3502" height="1254" alt="image" src="https://github.com/user-attachments/assets/883644c0-ebaf-4996-ba8d-1d85df7bca63" />
+
 - **Frontend** — React PWA (`apps/website`), deployed statically
 - **Backend** — Node.js/Hono server (`apps/backend`), deployed via Docker
 - **ASR** — Qwen3-ASR-Flash via DashScope (Alibaba Cloud)

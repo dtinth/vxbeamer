@@ -5,6 +5,7 @@ packages:
 
 catalog:
   "@fontsource-variable/tasa-orbiter": ^5.2.2
+  "@playwright/test": ^1.58.2
   "@types/node": ^24
   jose: ^6.2.2
   typescript: ^5

@@ -34,3 +34,6 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+
+      - name: Publish storyboard
+        run: npx 'github:dtinth/publish-storyboard#main' --input=test-storyboards || true

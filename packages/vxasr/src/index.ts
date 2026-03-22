@@ -5,3 +5,4 @@ export { createBytePlusProvider } from "./providers/byteplus.ts";
 export type { BytePlusProviderConfig } from "./providers/byteplus.ts";
 export { withGroqEnhancement } from "./providers/groq-enhancement.ts";
 export type { GroqEnhancementConfig } from "./providers/groq-enhancement.ts";
+export { createMockProvider } from "./providers/mock.ts";

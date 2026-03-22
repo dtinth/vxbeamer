@@ -1,28 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useStore } from "@nanostores/react";
 import { $sessionToken, $backendUrl, $wakeLockMode, $wakeLockActive } from "../store.ts";
+import { type AudioSource, createMicrophoneSource } from "../audio.ts";
 
-const SAMPLE_RATE = 16000;
-
-const PCM_WORKLET_CODE = `
-class PCMProcessor extends AudioWorkletProcessor {
-  process(inputs) {
-    const channel = inputs[0]?.[0];
-    if (channel) {
-      const int16 = new Int16Array(channel.length);
-      for (let i = 0; i < channel.length; i++) {
-        const s = Math.max(-1, Math.min(1, channel[i]));
-        int16[i] = s < 0 ? s * 32768 : s * 32767;
-      }
-      this.port.postMessage(int16.buffer, [int16.buffer]);
-    }
-    return true;
-  }
+export interface RecordingBarProps {
+  createAudioSource?: () => AudioSource;
 }
-registerProcessor('pcm-processor', PCMProcessor);
-`;
 
-export function RecordingBar() {
+export function RecordingBar({ createAudioSource = createMicrophoneSource }: RecordingBarProps) {
   const authToken = useStore($sessionToken);
   const backendUrl = useStore($backendUrl);
   const wakeLockMode = useStore($wakeLockMode);
@@ -30,10 +15,7 @@ export function RecordingBar() {
   const [error, setError] = useState<string | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const workletRef = useRef<AudioWorkletNode | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
+  const audioSourceRef = useRef<AudioSource | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animFrameRef = useRef<number | null>(null);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
@@ -52,20 +34,23 @@ export function RecordingBar() {
 
   const startVisualizer = useCallback(() => {
     const canvas = canvasRef.current;
-    const analyser = analyserRef.current;
-    if (!canvas || !analyser) return;
+    const audioSource = audioSourceRef.current;
+    if (!canvas || !audioSource) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const data = new Uint8Array(analyser.frequencyBinCount);
-
     function draw() {
-      if (!canvas || !ctx) return;
-      analyser!.getByteFrequencyData(data);
+      if (!canvas || !ctx || !audioSource) return;
+      const data = audioSource.getFrequencyData();
 
       const w = canvas.width;
       const h = canvas.height;
       ctx.clearRect(0, 0, w, h);
+
+      if (!data) {
+        animFrameRef.current = requestAnimationFrame(draw);
+        return;
+      }
 
       const bars = 32;
       const gap = 2;
@@ -92,13 +77,8 @@ export function RecordingBar() {
       ws.send(JSON.stringify({ type: "stop" }));
     }
 
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    streamRef.current = null;
-    workletRef.current?.disconnect();
-    workletRef.current = null;
-    analyserRef.current = null;
-    void audioCtxRef.current?.close();
-    audioCtxRef.current = null;
+    audioSourceRef.current?.stop();
+    audioSourceRef.current = null;
     wsRef.current = null;
 
     void wakeLockRef.current?.release().catch(() => undefined);
@@ -117,33 +97,19 @@ export function RecordingBar() {
     setError(null);
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
-
-      // Set up audio immediately so no audio is lost while WS connects
-      const audioCtx = new AudioContext({ sampleRate: SAMPLE_RATE });
-      audioCtxRef.current = audioCtx;
-
-      const blob = new Blob([PCM_WORKLET_CODE], { type: "application/javascript" });
-      const workletUrl = URL.createObjectURL(blob);
-      await audioCtx.audioWorklet.addModule(workletUrl);
-      URL.revokeObjectURL(workletUrl);
-
-      const source = audioCtx.createMediaStreamSource(stream);
-      const worklet = new AudioWorkletNode(audioCtx, "pcm-processor");
-      const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 256;
-      analyserRef.current = analyser;
-      workletRef.current = worklet;
-
-      source.connect(worklet);
-      source.connect(analyser);
+      const audioSource = createAudioSource();
+      audioSourceRef.current = audioSource;
 
       // Buffer audio while WS is connecting
       const buffer: ArrayBuffer[] = [];
-      worklet.port.onmessage = (evt: MessageEvent<ArrayBuffer>) => {
-        buffer.push(evt.data);
-      };
+      await audioSource.start((chunk) => {
+        const ws = wsRef.current;
+        if (ws?.readyState === WebSocket.OPEN) {
+          ws.send(chunk);
+        } else {
+          buffer.push(chunk);
+        }
+      });
 
       const wsUrl = new URL(backendUrl);
       wsUrl.protocol = wsUrl.protocol === "https:" ? "wss:" : "ws:";
@@ -160,11 +126,8 @@ export function RecordingBar() {
         ws.onerror = () => reject(new Error("WebSocket connection failed"));
       });
 
-      // Flush buffered audio then stream live
+      // Flush buffered audio
       for (const chunk of buffer) ws.send(chunk);
-      worklet.port.onmessage = (evt: MessageEvent<ArrayBuffer>) => {
-        if (ws.readyState === WebSocket.OPEN) ws.send(evt.data);
-      };
 
       if (wakeLockMode === "recording" || wakeLockMode === "always") {
         try {
@@ -181,10 +144,10 @@ export function RecordingBar() {
       setError(err instanceof Error ? err.message : "Failed to start");
       wsRef.current?.close();
       wsRef.current = null;
-      void audioCtxRef.current?.close();
-      audioCtxRef.current = null;
+      audioSourceRef.current?.stop();
+      audioSourceRef.current = null;
     }
-  }, [authToken, backendUrl, startVisualizer]);
+  }, [authToken, backendUrl, wakeLockMode, createAudioSource, startVisualizer]);
 
   const handleToggle = () => {
     if (isRecording) {

@@ -5,8 +5,8 @@ import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { createNodeWebSocket } from "@hono/node-ws";
 import type { WSContext, WSMessageReceive } from "hono/ws";
-import { createQwenProvider, withGroqEnhancement } from "vxasr";
-import type { ASRSession, UsageRecord } from "vxasr";
+import { createQwenProvider, createMockProvider, withGroqEnhancement } from "vxasr";
+import type { ASRProvider, ASRSession, UsageRecord } from "vxasr";
 import { createAccessToken, verifyAccessToken, verifyIdToken } from "./auth.ts";
 
 // --- Config ---
@@ -251,10 +251,18 @@ app.get(
 
     return {
       onOpen(_evt: Event, ws: WSContext) {
-        const apiKey = process.env.DASHSCOPE_API_KEY;
-        if (!apiKey) {
-          ws.close(1011, "DASHSCOPE_API_KEY not configured");
-          return;
+        let provider: ASRProvider;
+        if (process.env.ASR_PROVIDER === "mock") {
+          provider = createMockProvider();
+        } else {
+          const apiKey = process.env.DASHSCOPE_API_KEY;
+          if (!apiKey) {
+            ws.close(1011, "DASHSCOPE_API_KEY not configured");
+            return;
+          }
+          const groqApiKey = process.env.GROQ_API_KEY;
+          const qwen = createQwenProvider({ apiKey });
+          provider = groqApiKey ? withGroqEnhancement(qwen, { apiKey: groqApiKey }) : qwen;
         }
 
         message = {
@@ -265,10 +273,6 @@ app.get(
         };
         messages.push(message);
         broadcast({ type: "created", message });
-
-        const groqApiKey = process.env.GROQ_API_KEY;
-        const qwen = createQwenProvider({ apiKey });
-        const provider = groqApiKey ? withGroqEnhancement(qwen, { apiKey: groqApiKey }) : qwen;
         asrSession = provider.createSession({
           onUsage(records) {
             if (!message) return;

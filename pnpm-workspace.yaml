@@ -9,6 +9,7 @@ catalog:
   "@types/node": ^24
   jose: ^6.2.2
   typescript: ^5
+  visual-storyboard: ^0.3.0
   vite: npm:@voidzero-dev/vite-plus-core@latest
   vite-plus: latest
   vitest: npm:@voidzero-dev/vite-plus-test@latest

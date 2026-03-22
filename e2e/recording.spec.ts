@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { storyboard } from "./support.ts";
 
 const BACKEND_URL = "http://localhost:8788";
 
@@ -43,17 +44,26 @@ test("records audio and displays transcript from mock ASR", async ({ page }) => 
   await page.goto("/");
 
   // Wait for SSE connection (green dot)
-  await expect(page.locator('[title="connected"]')).toBeVisible({ timeout: 10_000 });
+  const connectedDot = page.locator('[title="connected"]');
+  await expect(connectedDot).toBeVisible({ timeout: 10_000 });
+  await storyboard.capture("Connected to backend", connectedDot);
 
   // Start recording
-  await page.getByLabel("Start recording").click();
+  const recordButton = page.getByLabel("Start recording");
+  await storyboard.capture("Ready to record", recordButton);
+  await recordButton.click();
 
   // Wait for partial transcript to appear (mock provider emits "received N bytes of audio")
-  await expect(page.getByText(/received \d+ bytes of audio/)).toBeVisible({ timeout: 10_000 });
+  const transcript = page.getByText(/received \d+ bytes of audio/);
+  await expect(transcript).toBeVisible({ timeout: 10_000 });
+  await storyboard.capture("Receiving transcript", transcript);
 
   // Stop recording
-  await page.getByLabel("Stop recording").click();
+  const stopButton = page.getByLabel("Stop recording");
+  await storyboard.capture("About to stop recording", stopButton);
+  await stopButton.click();
 
   // Wait for the final transcript (message transitions to done status)
-  await expect(page.getByText(/received \d+ bytes of audio/)).toBeVisible({ timeout: 10_000 });
+  await expect(transcript).toBeVisible({ timeout: 10_000 });
+  await storyboard.capture("Final transcript displayed", transcript);
 });

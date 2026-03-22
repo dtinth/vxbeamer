@@ -1,4 +1,4 @@
-import { defineConfig } from "@playwright/test";
+import { defineConfig, devices } from "@playwright/test";
 
 const backendPort = 8788;
 const frontendPort = 5174;
@@ -22,8 +22,8 @@ export default defineConfig({
   },
   projects: [
     {
-      name: "chromium",
-      use: { browserName: "chromium" },
+      name: "Mobile Chrome",
+      use: { ...devices["Pixel 7"] },
     },
   ],
   webServer: [

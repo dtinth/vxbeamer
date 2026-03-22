@@ -21,6 +21,9 @@ catalogs:
     typescript:
       specifier: ^5
       version: 5.9.3
+    visual-storyboard:
+      specifier: ^0.3.0
+      version: 0.3.0
     vite-plus:
       specifier: latest
       version: 0.1.12
@@ -36,6 +39,9 @@ importers:
       '@playwright/test':
         specifier: 'catalog:'
         version: 1.58.2
+      visual-storyboard:
+        specifier: 'catalog:'
+        version: 0.3.0
       vite-plus:
         specifier: 'catalog:'
         version: 0.1.12(@types/node@25.5.0)(jiti@2.6.1)(typescript@5.9.3)(vite@8.0.0(@types/node@25.5.0)(jiti@2.6.1)(yaml@2.8.2))(yaml@2.8.2)
@@ -1527,6 +1533,9 @@ packages:
     peerDependencies:
       browserslist: '>= 4.21.0'
 
+  visual-storyboard@0.3.0:
+    resolution: {integrity: sha512-e0cFuMwC38aBKs3dq7I0lcbW8mDxB+zvOA3Hb/fCFZMJFYJGnEqH+Yltyqj2ziUMW/AXSNZ79hq/Rid0ZqtlNQ==}
+
   vite-plus@0.1.12:
     resolution: {integrity: sha512-8s1RzomZkgrJRiwiYWGq3R0txFPYfBBJGp73XNHQnme0KTTVH5dNm/E2GNyBSMFJbeeF7eh1OSgqWVc2FpR6eA==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -2786,6 +2795,8 @@ snapshots:
       browserslist: 4.28.1
       escalade: 3.2.0
       picocolors: 1.1.1
+
+  visual-storyboard@0.3.0: {}
 
   vite-plus@0.1.12(@types/node@24.12.0)(jiti@2.6.1)(typescript@5.9.3)(vite@8.0.0(@types/node@24.12.0)(jiti@2.6.1)(yaml@2.8.2))(yaml@2.8.2):
     dependencies:

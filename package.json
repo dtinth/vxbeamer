@@ -11,6 +11,7 @@
   },
   "devDependencies": {
     "@playwright/test": "catalog:",
+    "visual-storyboard": "catalog:",
     "vite-plus": "catalog:"
   },
   "engines": {

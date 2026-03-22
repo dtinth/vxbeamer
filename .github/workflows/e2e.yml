@@ -12,22 +12,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
+      - run: npm install -g vite-plus
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
+      - run: vp install
 
-      - run: pnpm install
-
-      - run: pnpm exec playwright install --with-deps chromium
+      - run: vp exec playwright install --with-deps chromium
 
       - name: Build vxasr
-        run: pnpm -C packages/vxasr run build
+        run: vp run vxasr#build
 
       - name: Run Playwright tests
-        run: pnpm exec playwright test --reporter=github
+        run: vp exec playwright test --reporter=github
         env:
           CI: true
 

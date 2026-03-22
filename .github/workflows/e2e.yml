@@ -18,7 +18,7 @@ jobs:
 
       - run: vp install
 
-      - run: vp exec playwright install --with-deps chromium
+      - uses: dtinth/setup-playwright-test-docker@main
 
       - name: Build vxasr
         run: vp run vxasr#build

@@ -12,7 +12,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - run: npm install -g vite-plus
+      - uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version: "24"
 
       - run: vp install
 

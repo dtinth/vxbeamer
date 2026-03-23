@@ -81,10 +81,10 @@ test("records audio and displays transcript from mock ASR", async ({ page }) => 
   await storyboard.capture("Ready to record", recordButton);
   await recordButton.click();
 
-  // Wait for partial transcript to appear (mock provider emits "received N bytes of audio")
-  const transcript = page.getByText(/received \d+ bytes of audio/);
-  await expect(transcript).toBeVisible({ timeout: 10_000 });
-  await storyboard.capture("Receiving transcript", transcript);
+  // Wait for partial transcript to appear
+  const partialText = page.getByText("Good morning");
+  await expect(partialText).toBeVisible({ timeout: 10_000 });
+  await storyboard.capture("Receiving transcript", partialText);
 
   // Stop recording
   const stopButton = page.getByLabel("Stop recording");
@@ -92,6 +92,7 @@ test("records audio and displays transcript from mock ASR", async ({ page }) => 
   await stopButton.click();
 
   // Wait for the final transcript (message transitions to done status)
-  await expect(transcript).toBeVisible({ timeout: 10_000 });
-  await storyboard.capture("Final transcript displayed", transcript);
+  const finalText = page.getByText("quarterly results and our plans for the next quarter");
+  await expect(finalText).toBeVisible({ timeout: 10_000 });
+  await storyboard.capture("Final transcript displayed", finalText);
 });

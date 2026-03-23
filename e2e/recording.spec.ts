@@ -18,14 +18,6 @@ const E2E_TOKEN = (() => {
 })();
 
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript(
-    ({ backendUrl, token }) => {
-      localStorage.setItem("vxbeamer_backend_url", backendUrl);
-      localStorage.setItem("vxbeamer_access_token", token);
-    },
-    { backendUrl: BACKEND_URL, token: E2E_TOKEN },
-  );
-
   // Inject fake getUserMedia that returns a tone (so audio chunks are produced)
   await page.addInitScript(() => {
     navigator.mediaDevices.getUserMedia = async () => {
@@ -41,11 +33,43 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("records audio and displays transcript from mock ASR", async ({ page }) => {
+  // --- Signed-out state ---
   await page.goto("/");
+
+  const settingsButton = page.getByLabel("Settings");
+  await settingsButton.click();
+
+  const signInButton = page.getByRole("button", { name: "Sign in with OIDC" });
+  await expect(signInButton).toBeVisible();
+  await storyboard.capture("Settings - signed out", signInButton);
+
+  // Close settings
+  await page.locator(".fixed.inset-0").click({ position: { x: 0, y: 0 } });
+
+  // --- Inject token and reload to signed-in state ---
+  await page.evaluate(
+    ({ backendUrl, token }) => {
+      localStorage.setItem("vxbeamer_backend_url", backendUrl);
+      localStorage.setItem("vxbeamer_access_token", token);
+    },
+    { backendUrl: BACKEND_URL, token: E2E_TOKEN },
+  );
+  await page.reload();
 
   // Wait for SSE connection (green dot)
   const connectedDot = page.locator('[title="connected"]');
   await expect(connectedDot).toBeVisible({ timeout: 10_000 });
+
+  // Show settings again to see signed-in state
+  await settingsButton.click();
+  const signOutButton = page.getByRole("button", { name: "Sign out" });
+  await expect(signOutButton).toBeVisible();
+  await storyboard.capture("Settings - signed in", signOutButton);
+
+  // Close settings
+  await page.locator(".fixed.inset-0").click({ position: { x: 0, y: 0 } });
+  await expect(signOutButton).not.toBeVisible();
+
   await storyboard.capture("Connected to backend", connectedDot);
 
   // Start recording

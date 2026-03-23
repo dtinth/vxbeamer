@@ -27,6 +27,10 @@ This project is primarily for personal use and is not designed to be particularl
 - **ASR** — Qwen3-ASR-Flash via DashScope (Alibaba Cloud)
 - **Post-processing** — gpt-oss-120b via Groq
 
+## Costs & Stats
+
+![Cost per hour of audio: $0.1408](./stats.svg)
+
 ## Authentication
 
 vxbeamer comes with 2 two authentication methods:

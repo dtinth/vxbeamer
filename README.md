@@ -27,6 +27,16 @@ This project is primarily for personal use and is not designed to be particularl
 - **ASR** — Qwen3-ASR-Flash via DashScope (Alibaba Cloud)
 - **Post-processing** — gpt-oss-120b via Groq
 
+## Usage
+
+<img width="3200" height="1428" alt="image" src="https://github.com/user-attachments/assets/e1067d8e-48ec-4ba4-91df-c378b6914978" />
+
+1. Deploy and configure the backend URL
+2. Sign in with OIDC
+3. To start transcribing, click the start recording button
+4. To stop, click the same button
+5. Click on the transcript bubble to copy, swipe left to delete, swipe right to beam to custom integrations
+
 ## Costs & Stats
 
 ![Cost per hour of audio — $0.1532](./stats.svg)

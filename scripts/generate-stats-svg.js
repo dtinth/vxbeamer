@@ -4,8 +4,8 @@
 const QWEN_PER_SEC = 0.000035;
 const GROQ_INPUT_TOKENS_PER_HOUR = 37814;
 const GROQ_OUTPUT_TOKENS_PER_HOUR = 35944;
-const GROQ_INPUT_PRICE_PER_1M = 0.2; // gpt-oss-120b on Groq
-const GROQ_OUTPUT_PRICE_PER_1M = 0.2;
+const GROQ_INPUT_PRICE_PER_1M = 0.15; // gpt-oss-120b on Groq
+const GROQ_OUTPUT_PRICE_PER_1M = 0.6;
 
 const SECS_PER_HOUR = 3600;
 
@@ -70,3 +70,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const outPath = resolve(__dirname, "..", "stats.svg");
 writeFileSync(outPath, svg.trim());
 console.log(`Written: ${outPath}`);
+console.log(`ASR:   ${fmt(qwenCost)}/hr`);
+console.log(`LLM:   ${fmt(groqCost)}/hr`);
+console.log(`Total: ${fmt(totalCost)}/hr`);
+console.log(
+  `\nPlease update the alt text in README.md to:\n  ![Cost per hour of audio — ${fmt(totalCost)}](./stats.svg)`,
+);

@@ -39,6 +39,10 @@ test("records audio and displays transcript from mock ASR", async ({ page }) => 
   const settingsButton = page.getByLabel("Settings");
   await settingsButton.click();
 
+  // Fill in the backend URL so it matches the signed-in state
+  const backendUrlInput = page.getByRole("textbox");
+  await backendUrlInput.fill(BACKEND_URL);
+
   const signInButton = page.getByRole("button", { name: "Sign in with OIDC" });
   await expect(signInButton).toBeVisible();
   await storyboard.capture("Settings - signed out", signInButton);

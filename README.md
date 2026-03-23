@@ -18,15 +18,6 @@ The frontend is a PWA that can be added to the home screen. Tap the record butto
 
 This project is primarily for personal use and is not designed to be particularly flexible. That said, the setup is documented below.
 
-## Architecture
-
-<img width="3502" height="1254" alt="image" src="https://github.com/user-attachments/assets/883644c0-ebaf-4996-ba8d-1d85df7bca63" />
-
-- **Frontend** — React PWA (`apps/website`), deployed statically
-- **Backend** — Node.js/Hono server (`apps/backend`), deployed via Docker
-- **ASR** — Qwen3-ASR-Flash via DashScope (Alibaba Cloud)
-- **Post-processing** — gpt-oss-120b via Groq
-
 ## Usage
 
 <img width="3200" height="1428" alt="image" src="https://github.com/user-attachments/assets/e1067d8e-48ec-4ba4-91df-c378b6914978" />
@@ -40,6 +31,15 @@ This project is primarily for personal use and is not designed to be particularl
 ## Costs & Stats
 
 ![Cost per hour of audio — $0.1532](./stats.svg)
+
+## Architecture
+
+<img width="3502" height="1254" alt="image" src="https://github.com/user-attachments/assets/883644c0-ebaf-4996-ba8d-1d85df7bca63" />
+
+- **Frontend** — React PWA (`apps/website`), deployed statically
+- **Backend** — Node.js/Hono server (`apps/backend`), deployed via Docker
+- **ASR** — Qwen3-ASR-Flash via DashScope (Alibaba Cloud)
+- **Post-processing** — gpt-oss-120b via Groq
 
 ## Authentication
 

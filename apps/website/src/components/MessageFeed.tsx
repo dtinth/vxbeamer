@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "@nanostores/react";
 import { $messages, $sessionToken, $backendUrl, type Message } from "../store.ts";
+import { getMessageFeedScrollBehavior } from "./messageFeedScroll.ts";
 
 const SWIPE_THRESHOLD = 80;
 
@@ -168,9 +169,14 @@ export function MessageFeed() {
   const authToken = useStore($sessionToken);
   const backendUrl = useStore($backendUrl);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const hasScrolledInitiallyRef = useRef(false);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (messages.length === 0) return;
+    bottomRef.current?.scrollIntoView({
+      behavior: getMessageFeedScrollBehavior(hasScrolledInitiallyRef.current),
+    });
+    hasScrolledInitiallyRef.current = true;
   }, [messages]);
 
   if (messages.length === 0) {

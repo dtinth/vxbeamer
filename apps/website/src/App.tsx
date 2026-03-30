@@ -73,7 +73,7 @@ export function App() {
     <div
       className="flex flex-col bg-(--m3-background) text-(--m3-on-surface) overflow-hidden"
       style={{
-        height: "100dvh",
+        height: "100svh",
         paddingTop: "env(safe-area-inset-top)",
         paddingBottom: "env(safe-area-inset-bottom)",
       }}

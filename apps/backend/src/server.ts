@@ -244,10 +244,11 @@ app.post("/messages/:id/swipe", authMiddleware, (c) => {
 app.get(
   "/ws",
   authMiddleware,
-  upgradeWebSocket(() => {
+  upgradeWebSocket((c) => {
     let asrSession: ASRSession | null = null;
     let message: Message | null = null;
     let finished = false;
+    const recordingId = c.req.query("recordingId") || crypto.randomUUID();
 
     return {
       onOpen(_evt: Event, ws: WSContext) {
@@ -266,7 +267,7 @@ app.get(
         }
 
         message = {
-          id: crypto.randomUUID(),
+          id: recordingId,
           status: "recording",
           createdAt: Date.now(),
           updatedAt: Date.now(),

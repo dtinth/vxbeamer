@@ -111,13 +111,13 @@ export function RecordingBar({ createAudioSource = createMicrophoneSource }: Rec
         }
       });
 
-      const recordingId = crypto.randomUUID();
+      const referenceId = crypto.randomUUID();
       const wsUrl = new URL(backendUrl);
       wsUrl.protocol = wsUrl.protocol === "https:" ? "wss:" : "ws:";
       wsUrl.pathname = "/ws";
       wsUrl.search = "";
       wsUrl.searchParams.set("access_token", authToken);
-      wsUrl.searchParams.set("recording_id", recordingId);
+      wsUrl.searchParams.set("reference_id", referenceId);
 
       const ws = new WebSocket(wsUrl.toString());
       ws.binaryType = "arraybuffer";

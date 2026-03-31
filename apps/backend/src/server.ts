@@ -50,6 +50,7 @@ async function fetchDiscovery(): Promise<OidcDiscovery> {
 // --- Message Store ---
 export interface Message {
   id: string;
+  referenceId?: string;
   status: "recording" | "done" | "error";
   partial?: string;
   final?: string;
@@ -248,7 +249,7 @@ app.get(
     let asrSession: ASRSession | null = null;
     let message: Message | null = null;
     let finished = false;
-    const recordingId = c.req.query("recording_id") || crypto.randomUUID();
+    const referenceId = c.req.query("reference_id");
 
     return {
       onOpen(_evt: Event, ws: WSContext) {
@@ -267,7 +268,8 @@ app.get(
         }
 
         message = {
-          id: recordingId,
+          id: crypto.randomUUID(),
+          referenceId,
           status: "recording",
           createdAt: Date.now(),
           updatedAt: Date.now(),

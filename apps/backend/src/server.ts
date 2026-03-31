@@ -248,7 +248,7 @@ app.get(
     let asrSession: ASRSession | null = null;
     let message: Message | null = null;
     let finished = false;
-    const recordingId = c.req.query("recordingId") || crypto.randomUUID();
+    const recordingId = c.req.query("recording_id") || crypto.randomUUID();
 
     return {
       onOpen(_evt: Event, ws: WSContext) {

@@ -117,7 +117,7 @@ export function RecordingBar({ createAudioSource = createMicrophoneSource }: Rec
       wsUrl.pathname = "/ws";
       wsUrl.search = "";
       wsUrl.searchParams.set("access_token", authToken);
-      wsUrl.searchParams.set("recordingId", recordingId);
+      wsUrl.searchParams.set("recording_id", recordingId);
 
       const ws = new WebSocket(wsUrl.toString());
       ws.binaryType = "arraybuffer";

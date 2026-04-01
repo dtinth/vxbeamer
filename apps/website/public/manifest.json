@@ -7,9 +7,19 @@
   "theme_color": "#030712",
   "icons": [
     {
-      "src": "/favicon.svg",
+      "src": "/vxbeamer.svg",
       "sizes": "any",
       "type": "image/svg+xml"
+    },
+    {
+      "src": "/vxbeamer_192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/vxbeamer_512.png",
+      "sizes": "512x512",
+      "type": "image/png"
     }
   ]
 }

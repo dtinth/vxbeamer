@@ -6,6 +6,8 @@ use enigo::{
     Enigo, Key, Keyboard, Settings,
 };
 
+const CLIPBOARD_RESTORE_DELAY_MS: u64 = 250;
+
 #[derive(Debug)]
 enum ClipboardSnapshot {
     Text(String),
@@ -35,7 +37,7 @@ fn paste_text_with_restore(text: String) -> Result<(), String> {
     simulate_paste()?;
 
     thread::spawn(move || {
-        thread::sleep(Duration::from_millis(250));
+        thread::sleep(Duration::from_millis(CLIPBOARD_RESTORE_DELAY_MS));
         restore_clipboard_if_unchanged(snapshot, &text);
     });
 

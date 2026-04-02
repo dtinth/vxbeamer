@@ -72,11 +72,12 @@ function App() {
   }, [swipeAction]);
 
   useEffect(() => {
+    if (!lastSwipedAt) return;
     const interval = window.setInterval(() => {
       setNow(Date.now());
     }, 1_000);
     return () => window.clearInterval(interval);
-  }, []);
+  }, [lastSwipedAt]);
 
   useEffect(() => {
     if (!backendUrl || !accessToken) {
@@ -105,7 +106,8 @@ function App() {
         const text = payload.message.final?.trim() || payload.message.partial?.trim() || "";
         setLastSwipedAt(Date.now());
         void handleSwipe(text, swipeActionRef.current).then(setLatestMessage);
-      } catch {
+      } catch (error) {
+        console.warn("Failed to parse swipe event", error);
         setLatestMessage("Ignored a malformed event.");
       }
     };

@@ -5,16 +5,18 @@ const BACKEND_URL = "http://localhost:8788";
 
 /**
  * A token that works for both frontend and backend:
- * - Frontend: parses base64url part before "." as JSON, checks exp > now
+ * - Frontend: parses the JWT payload segment as JSON, checks exp > now
  * - Backend: matches the full string against the API_KEYS set
  *
  * We use a far-future exp (year 2099) so the token never expires during tests.
  * This same string must be listed in API_KEYS in playwright.config.ts.
  */
 const E2E_TOKEN = (() => {
+  const header = JSON.stringify({ alg: "HS256", typ: "JWT" });
   const payload = JSON.stringify({ sub: "e2e", exp: 4102444800 }); // 2099-12-31
-  const encoded = btoa(payload).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-  return `${encoded}.e2e`;
+  const encodedHeader = btoa(header).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  const encodedPayload = btoa(payload).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  return `${encodedHeader}.${encodedPayload}.e2e`;
 })();
 
 test.beforeEach(async ({ page }) => {
@@ -36,7 +38,7 @@ test("records audio and displays transcript from mock ASR", async ({ page }) => 
   // --- Signed-out state ---
   await page.goto("/");
 
-  const settingsButton = page.getByLabel("Settings");
+  const settingsButton = page.getByRole("button", { name: "Settings", exact: true });
   await settingsButton.click();
 
   // Fill in the backend URL so it matches the signed-in state

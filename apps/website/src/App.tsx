@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useStore } from "@nanostores/react";
 import {
   $sessionToken,
@@ -15,6 +15,7 @@ import { SettingsSheet } from "./components/SettingsSheet.tsx";
 import { handleCallback } from "./oidc.ts";
 
 export function App() {
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const authToken = useStore($sessionToken);
   const backendUrl = useStore($backendUrl);
   const sseStatus = useStore($sseStatus);
@@ -82,11 +83,11 @@ export function App() {
         <h1 className="text-lg font-semibold tracking-tight">vxbeamer</h1>
         <div className="flex items-center gap-3">
           <span className={`w-2 h-2 rounded-full ${statusColor}`} title={sseStatus} />
-          <SettingsSheet />
+          <SettingsSheet open={settingsOpen} onOpenChange={setSettingsOpen} />
         </div>
       </header>
-      <MessageFeed />
-      <RecordingBar />
+      <MessageFeed onOpenSettings={() => setSettingsOpen(true)} />
+      <RecordingBar onOpenSettings={() => setSettingsOpen(true)} />
     </div>
   );
 }

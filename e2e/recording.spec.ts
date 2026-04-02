@@ -38,7 +38,7 @@ test("records audio and displays transcript from mock ASR", async ({ page }) => 
   // --- Signed-out state ---
   await page.goto("/");
 
-  const settingsButton = page.getByLabel("Settings");
+  const settingsButton = page.getByRole("button", { name: "Settings", exact: true });
   await settingsButton.click();
 
   // Fill in the backend URL so it matches the signed-in state

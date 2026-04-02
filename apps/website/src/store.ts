@@ -2,6 +2,7 @@ import { atom } from "nanostores";
 
 export interface Message {
   id: string;
+  referenceId?: string;
   status: "recording" | "done" | "error";
   partial?: string;
   final?: string;
@@ -13,7 +14,6 @@ export interface Message {
 const BACKEND_URL_KEY = "vxbeamer_backend_url";
 const SESSION_TOKEN_KEY = "vxbeamer_access_token";
 const WAKE_LOCK_KEY = "vxbeamer_wake_lock";
-const TOKEN_REFRESH_INTERVAL_SECONDS = 3600;
 
 interface AccessTokenPayload {
   exp: number;
@@ -67,7 +67,13 @@ export const $sessionToken = atom<string | null>(loadSessionToken());
 
 export const $messages = atom<Message[]>([]);
 
+export const $activeRecordingReferenceId = atom<string | null>(null);
+
+export const $lastSwipedMessage = atom<{ messageId: string; key: number } | null>(null);
+
 export const $sseStatus = atom<"disconnected" | "connecting" | "connected">("disconnected");
+
+let swipeAnimationCounter = 0;
 
 export function setBackendUrl(url: string): void {
   $backendUrl.set(url);
@@ -85,27 +91,22 @@ export function clearSessionToken(): void {
   localStorage.removeItem(SESSION_TOKEN_KEY);
 }
 
-let refreshTimer: ReturnType<typeof setTimeout> | null = null;
-
-export function getTokenRefreshDelayMs(
-  token: string,
-  nowSeconds = Math.floor(Date.now() / 1000),
-): number | null {
-  const payload = decodeAccessTokenPayload(token);
-  if (!payload) return null;
-  const refreshAt = payload.iat
-    ? Math.min(payload.iat + TOKEN_REFRESH_INTERVAL_SECONDS, payload.exp)
-    : payload.exp - TOKEN_REFRESH_INTERVAL_SECONDS;
-  return Math.max(0, (refreshAt - nowSeconds) * 1000);
+export function setActiveRecordingReferenceId(referenceId: string | null): void {
+  $activeRecordingReferenceId.set(referenceId);
 }
+
+let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
 function scheduleTokenRefresh(token: string): void {
   if (refreshTimer !== null) {
     clearTimeout(refreshTimer);
     refreshTimer = null;
   }
-  const delayMs = getTokenRefreshDelayMs(token);
-  if (delayMs === null) return;
+  const payload = decodeAccessTokenPayload(token);
+  if (!payload) return;
+  const now = Math.floor(Date.now() / 1000);
+  const refreshAt = payload.exp - 3600; // 1 hour before expiry
+  const delayMs = Math.max(0, (refreshAt - now) * 1000);
   refreshTimer = setTimeout(() => void refreshToken(), delayMs);
 }
 
@@ -134,7 +135,8 @@ type SseEvent =
   | { type: "snapshot"; messages: Message[] }
   | { type: "created"; message: Message }
   | { type: "updated"; message: Message }
-  | { type: "deleted"; messageId: string };
+  | { type: "deleted"; messageId: string }
+  | { type: "swiped"; message: Message };
 
 export function applySSEEvent(raw: unknown): void {
   const event = raw as SseEvent;
@@ -146,5 +148,8 @@ export function applySSEEvent(raw: unknown): void {
     $messages.set($messages.get().map((m) => (m.id === event.message.id ? event.message : m)));
   } else if (event.type === "deleted") {
     $messages.set($messages.get().filter((m) => m.id !== event.messageId));
+  } else if (event.type === "swiped") {
+    swipeAnimationCounter += 1;
+    $lastSwipedMessage.set({ messageId: event.message.id, key: swipeAnimationCounter });
   }
 }

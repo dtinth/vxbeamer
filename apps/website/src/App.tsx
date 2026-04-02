@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useStore } from "@nanostores/react";
 import {
   $sessionToken,
@@ -18,7 +18,6 @@ export function App() {
   const authToken = useStore($sessionToken);
   const backendUrl = useStore($backendUrl);
   const sseStatus = useStore($sseStatus);
-  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Handle OIDC callback on mount
   useEffect(() => {
@@ -83,11 +82,11 @@ export function App() {
         <h1 className="text-lg font-semibold tracking-tight">vxbeamer</h1>
         <div className="flex items-center gap-3">
           <span className={`w-2 h-2 rounded-full ${statusColor}`} title={sseStatus} />
-          <SettingsSheet open={settingsOpen} onOpenChange={setSettingsOpen} />
+          <SettingsSheet />
         </div>
       </header>
-      <MessageFeed onOpenSettings={() => setSettingsOpen(true)} />
-      <RecordingBar onOpenSettings={() => setSettingsOpen(true)} />
+      <MessageFeed />
+      <RecordingBar />
     </div>
   );
 }

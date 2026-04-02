@@ -1,18 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useStore } from "@nanostores/react";
-import { $sessionToken, $backendUrl, $wakeLockMode, $wakeLockActive } from "../store.ts";
+import {
+  $sessionToken,
+  $backendUrl,
+  $wakeLockMode,
+  $wakeLockActive,
+  setActiveRecordingReferenceId,
+} from "../store.ts";
 import { type AudioSource, createMicrophoneSource } from "../audio.ts";
-import { SettingsIcon } from "./SettingsIcon.tsx";
 
 export interface RecordingBarProps {
   createAudioSource?: () => AudioSource;
-  onOpenSettings?: () => void;
 }
 
-export function RecordingBar({
-  createAudioSource = createMicrophoneSource,
-  onOpenSettings,
-}: RecordingBarProps) {
+export function RecordingBar({ createAudioSource = createMicrophoneSource }: RecordingBarProps) {
   const authToken = useStore($sessionToken);
   const backendUrl = useStore($backendUrl);
   const wakeLockMode = useStore($wakeLockMode);
@@ -77,6 +78,7 @@ export function RecordingBar({
   }, []);
 
   const stopRecording = useCallback(() => {
+    setActiveRecordingReferenceId(null);
     const ws = wsRef.current;
     if (ws?.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: "stop" }));
@@ -127,6 +129,13 @@ export function RecordingBar({
       const ws = new WebSocket(wsUrl.toString());
       ws.binaryType = "arraybuffer";
       wsRef.current = ws;
+      ws.addEventListener("close", () => {
+        wsRef.current = null;
+        setActiveRecordingReferenceId(null);
+      });
+      ws.addEventListener("error", () => {
+        setActiveRecordingReferenceId(null);
+      });
 
       await new Promise<void>((resolve, reject) => {
         ws.onopen = () => resolve();
@@ -145,9 +154,11 @@ export function RecordingBar({
         }
       }
 
+      setActiveRecordingReferenceId(referenceId);
       setIsRecording(true);
       startVisualizer();
     } catch (err) {
+      setActiveRecordingReferenceId(null);
       setError(err instanceof Error ? err.message : "Failed to start");
       wsRef.current?.close();
       wsRef.current = null;
@@ -157,10 +168,6 @@ export function RecordingBar({
   }, [authToken, backendUrl, wakeLockMode, createAudioSource, startVisualizer]);
 
   const handleToggle = () => {
-    if (!canRecord) {
-      onOpenSettings?.();
-      return;
-    }
     if (isRecording) {
       stopRecording();
     } else {
@@ -211,24 +218,21 @@ export function RecordingBar({
         />
         <button
           onClick={handleToggle}
+          disabled={!canRecord}
           className={[
             "relative z-10 w-32 h-32 rounded-full flex items-center justify-center transition-all shadow-lg",
             isRecording
               ? "bg-red-500 scale-110 shadow-red-500/50"
               : canRecord
                 ? "bg-(--m3-surface-container-high) hover:bg-(--m3-surface-container-highest) active:scale-95"
-                : "bg-(--m3-surface-container-high) hover:bg-(--m3-surface-container-highest) active:scale-95",
+                : "bg-(--m3-surface-container) opacity-40 cursor-not-allowed",
           ].join(" ")}
-          aria-label={
-            isRecording ? "Stop recording" : canRecord ? "Start recording" : "Open settings"
-          }
+          aria-label={isRecording ? "Stop recording" : "Start recording"}
         >
           {isRecording ? (
             <span className="w-10 h-10 rounded-md bg-(--m3-on-error)" />
-          ) : canRecord ? (
-            <span className="w-10 h-10 rounded-full bg-red-500" />
           ) : (
-            <SettingsIcon size={40} />
+            <span className="w-10 h-10 rounded-full bg-red-500" />
           )}
         </button>
       </div>

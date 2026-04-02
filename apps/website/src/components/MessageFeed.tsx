@@ -1,22 +1,35 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "@nanostores/react";
-import { $messages, $sessionToken, $backendUrl, type Message } from "../store.ts";
+import {
+  $activeRecordingReferenceId,
+  $backendUrl,
+  $lastSwipedMessage,
+  $messages,
+  $sessionToken,
+  type Message,
+} from "../store.ts";
 import { getMessageFeedScrollBehavior } from "./messageFeedScroll.ts";
 
 const SWIPE_THRESHOLD = 80;
+const SWIPE_GLOW_DURATION_MS = 900;
 
 function MessageCard({
   message,
   authToken,
   backendUrl,
+  isActiveRecording,
+  swipeHighlightKey,
 }: {
   message: Message;
   authToken: string;
   backendUrl: string;
+  isActiveRecording: boolean;
+  swipeHighlightKey: number | null;
 }) {
   const [copied, setCopied] = useState(false);
   const [offset, setOffset] = useState(0);
   const [transitioning, setTransitioning] = useState(false);
+  const [swipeGlowing, setSwipeGlowing] = useState(false);
   const startXRef = useRef(0);
   const draggingRef = useRef(false);
   const movedRef = useRef(false);
@@ -82,8 +95,24 @@ function MessageCard({
 
   const direction = offset < 0 ? "left" : offset > 0 ? "right" : null;
 
+  useEffect(() => {
+    if (swipeHighlightKey === null) return;
+    setSwipeGlowing(false);
+    const frame = window.requestAnimationFrame(() => setSwipeGlowing(true));
+    const timeout = window.setTimeout(() => setSwipeGlowing(false), SWIPE_GLOW_DURATION_MS);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timeout);
+    };
+  }, [swipeHighlightKey]);
+
   return (
-    <div className="relative mx-3 my-2 overflow-hidden rounded-2xl">
+    <div
+      className={[
+        "relative mx-3 my-2 overflow-hidden rounded-2xl transition-shadow duration-200",
+        swipeGlowing ? "message-card-swipe-glow" : "",
+      ].join(" ")}
+    >
       {/* Action background */}
       <div
         className={[
@@ -141,7 +170,11 @@ function MessageCard({
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         onClick={handleClick}
-        className={`bg-(--m3-surface-container-high) rounded-2xl px-4 py-3 ${copyable ? "cursor-pointer active:bg-(--m3-surface-container-highest)" : ""}`}
+        className={[
+          "bg-(--m3-surface-container-high) rounded-2xl px-4 py-3",
+          copyable ? "cursor-pointer active:bg-(--m3-surface-container-highest)" : "",
+          isActiveRecording ? "message-card-active-recording" : "",
+        ].join(" ")}
       >
         <div className="flex items-center gap-2 mb-1">
           <span className="text-xs text-(--m3-on-surface-variant)">{time}</span>
@@ -164,11 +197,9 @@ function MessageCard({
   );
 }
 
-export interface MessageFeedProps {
-  onOpenSettings?: () => void;
-}
-
-export function MessageFeed({ onOpenSettings }: MessageFeedProps = {}) {
+export function MessageFeed() {
+  const activeRecordingReferenceId = useStore($activeRecordingReferenceId);
+  const lastSwipedMessage = useStore($lastSwipedMessage);
   const messages = useStore($messages);
   const authToken = useStore($sessionToken);
   const backendUrl = useStore($backendUrl);
@@ -186,22 +217,7 @@ export function MessageFeed({ onOpenSettings }: MessageFeedProps = {}) {
   if (messages.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3 px-6 text-center">
-          <p className="text-(--m3-on-surface-variant) text-sm">
-            {authToken
-              ? "No messages yet. Start speaking."
-              : "No messages yet. Sign in first to start speaking."}
-          </p>
-          {!authToken && (
-            <button
-              type="button"
-              onClick={onOpenSettings}
-              className="rounded-full bg-(--m3-secondary-container) px-4 py-2 text-sm font-medium text-(--m3-on-secondary-container) transition-colors hover:brightness-105"
-            >
-              Open Settings
-            </button>
-          )}
-        </div>
+        <p className="text-(--m3-on-surface-variant) text-sm">No messages yet. Start speaking.</p>
       </div>
     );
   }
@@ -215,6 +231,10 @@ export function MessageFeed({ onOpenSettings }: MessageFeedProps = {}) {
           message={msg}
           authToken={authToken ?? ""}
           backendUrl={backendUrl}
+          isActiveRecording={
+            !!activeRecordingReferenceId && msg.referenceId === activeRecordingReferenceId
+          }
+          swipeHighlightKey={lastSwipedMessage?.messageId === msg.id ? lastSwipedMessage.key : null}
         />
       ))}
       <div ref={bottomRef} />

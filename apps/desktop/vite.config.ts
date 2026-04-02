@@ -4,8 +4,8 @@ import { defineConfig } from "vite";
 const host = process.env.TAURI_DEV_HOST;
 
 export default defineConfig({
-  plugins: [react()],
   clearScreen: false,
+  plugins: [react()],
   server: {
     port: 1420,
     strictPort: true,

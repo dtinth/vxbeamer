@@ -101,7 +101,7 @@ function App() {
     };
     stream.onmessage = (event) => {
       try {
-        const payload = JSON.parse(event.data as string) as SwipeEventPayload;
+        const payload = JSON.parse(event.data) as SwipeEventPayload;
         if (payload.type !== "swiped") return;
         const text = payload.message.final?.trim() || payload.message.partial?.trim() || "";
         setLastSwipedAt(Date.now());

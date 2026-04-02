@@ -6,6 +6,7 @@ use enigo::{
     Enigo, Key, Keyboard, Settings,
 };
 
+// Allow the synthetic paste shortcut to land before restoring the user's clipboard.
 const CLIPBOARD_RESTORE_DELAY_MS: u64 = 250;
 
 #[derive(Debug)]

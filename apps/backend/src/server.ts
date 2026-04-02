@@ -8,6 +8,7 @@ import type { WSContext, WSMessageReceive } from "hono/ws";
 import { createQwenProvider, createMockProvider, withGroqEnhancement } from "vxasr";
 import type { ASRProvider, ASRSession, UsageRecord } from "vxasr";
 import { createAccessToken, verifyAccessToken, verifyIdToken } from "./auth.ts";
+import { normalizeTranscriptText } from "./transcript.ts";
 
 // --- Config ---
 const oidcDiscoveryUrl = process.env.OIDC_DISCOVERY_URL ?? "";
@@ -288,13 +289,13 @@ app.get(
           },
           onPartial(text) {
             if (!message) return;
-            message.partial = text;
+            message.partial = normalizeTranscriptText(text);
             message.updatedAt = Date.now();
             broadcast({ type: "updated", message });
           },
           onFinal(text) {
             if (!message) return;
-            message.final = text;
+            message.final = normalizeTranscriptText(text);
             message.partial = undefined;
             message.updatedAt = Date.now();
             broadcast({ type: "updated", message });

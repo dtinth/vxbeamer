@@ -6,8 +6,8 @@
   "scripts": {
     "build": "vp pack",
     "dev": "node --watch src/server.ts",
-    "test": "vp test",
-    "check": "vp check"
+    "test": "vp run test:unit",
+    "check": "vp run check:types"
   },
   "dependencies": {
     "@hono/node-server": "^1.14.4",

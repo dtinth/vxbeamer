@@ -22,9 +22,11 @@ interface AccessTokenPayload {
 
 function decodeAccessTokenPayload(token: string): AccessTokenPayload | null {
   try {
-    const payload = JSON.parse(
-      atob(token.split(".")[0]!.replace(/-/g, "+").replace(/_/g, "/")),
-    ) as Partial<AccessTokenPayload>;
+    const payloadSegment = token.split(".")[1];
+    if (!payloadSegment) return null;
+    const base64 = payloadSegment.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+    const payload = JSON.parse(atob(padded)) as Partial<AccessTokenPayload>;
     if (typeof payload.exp !== "number") return null;
     if (payload.iat !== undefined && typeof payload.iat !== "number") return null;
     return { exp: payload.exp, iat: payload.iat };

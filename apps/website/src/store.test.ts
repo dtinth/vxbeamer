@@ -5,7 +5,7 @@ function encodeToken(payload: Record<string, unknown>): string {
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=+$/g, "");
-  return `${base64}.signature`;
+  return `header.${base64}.signature`;
 }
 
 beforeEach(() => {
@@ -37,4 +37,9 @@ test("falls back to the legacy exp-based schedule when iat is missing", async ()
 test("returns null for malformed tokens", async () => {
   const { getTokenRefreshDelayMs } = await import("./store.ts");
   expect(getTokenRefreshDelayMs("not-a-token")).toBeNull();
+});
+
+test("returns null for legacy two-part tokens", async () => {
+  const { getTokenRefreshDelayMs } = await import("./store.ts");
+  expect(getTokenRefreshDelayMs("payload.signature")).toBeNull();
 });

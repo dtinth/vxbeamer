@@ -219,7 +219,9 @@ export function RecordingBar({
                 ? "bg-(--m3-surface-container-high) hover:bg-(--m3-surface-container-highest) active:scale-95"
                 : "bg-(--m3-surface-container-high) hover:bg-(--m3-surface-container-highest) active:scale-95",
           ].join(" ")}
-          aria-label={isRecording ? "Stop recording" : canRecord ? "Start recording" : "Open settings"}
+          aria-label={
+            isRecording ? "Stop recording" : canRecord ? "Start recording" : "Open settings"
+          }
         >
           {isRecording ? (
             <span className="w-10 h-10 rounded-md bg-(--m3-on-error)" />

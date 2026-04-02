@@ -7,7 +7,7 @@ function createStorage() {
     getItem: (key: string) => values.get(key) ?? null,
     setItem: (key: string, value: string) => void values.set(key, value),
     removeItem: (key: string) => void values.delete(key),
-    clear: () => void values.clear(),
+    clear: () => values.clear(),
   };
 }
 

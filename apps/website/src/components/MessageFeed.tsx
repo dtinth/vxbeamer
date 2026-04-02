@@ -188,7 +188,9 @@ export function MessageFeed({ onOpenSettings }: MessageFeedProps = {}) {
       <div className="flex-1 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3 px-6 text-center">
           <p className="text-(--m3-on-surface-variant) text-sm">
-            {authToken ? "No messages yet. Start speaking." : "No messages yet. Sign in first to start speaking."}
+            {authToken
+              ? "No messages yet. Start speaking."
+              : "No messages yet. Sign in first to start speaking."}
           </p>
           {!authToken && (
             <button

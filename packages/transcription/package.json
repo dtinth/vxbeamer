@@ -7,8 +7,8 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "test": "vp test",
-    "check": "vp check"
+    "test": "vp run test:unit",
+    "check": "vp run check:types"
   },
   "dependencies": {
     "vxasr": "workspace:*"

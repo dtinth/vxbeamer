@@ -9,8 +9,9 @@ export function base64UrlEncode(input: Uint8Array): string {
     .replace(/=+$/g, "");
 }
 
-interface AccessTokenPayload {
+export interface AccessTokenPayload {
   sub: string;
+  iat: number;
   exp: number;
 }
 
@@ -31,9 +32,11 @@ export function createAccessToken(
   secret: string,
   ttlSeconds = DEFAULT_TOKEN_TTL_SECONDS,
 ): string {
+  const now = Math.floor(Date.now() / 1000);
   const payload: AccessTokenPayload = {
     sub: subject,
-    exp: Math.floor(Date.now() / 1000) + ttlSeconds,
+    iat: now,
+    exp: now + ttlSeconds,
   };
   const payloadRaw = JSON.stringify(payload);
   const encodedPayload = base64UrlEncode(Buffer.from(payloadRaw, "utf8"));
@@ -61,11 +64,22 @@ export function verifyAccessToken(token: string, secret: string): AccessTokenPay
     return null;
   }
 
-  const payload = JSON.parse(decodeBase64Url(encodedPayload)) as AccessTokenPayload;
-  if (payload.exp <= Math.floor(Date.now() / 1000)) {
+  try {
+    const payload = JSON.parse(decodeBase64Url(encodedPayload)) as Partial<AccessTokenPayload>;
+    if (
+      typeof payload.sub !== "string" ||
+      typeof payload.iat !== "number" ||
+      typeof payload.exp !== "number"
+    ) {
+      return null;
+    }
+    if (payload.exp <= Math.floor(Date.now() / 1000)) {
+      return null;
+    }
+    return payload as AccessTokenPayload;
+  } catch {
     return null;
   }
-  return payload;
 }
 
 const jwksSets = new Map<string, ReturnType<typeof createRemoteJWKSet>>();

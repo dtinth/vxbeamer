@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { createRemoteJWKSet, jwtVerify, SignJWT } from "jose";
 
 const textEncoder = new TextEncoder();
@@ -12,6 +13,8 @@ export function base64UrlEncode(input: Uint8Array): string {
 
 export interface AccessTokenPayload {
   sub: string;
+  sid: string;
+  jti: string;
   iat: number;
   exp: number;
 }
@@ -22,10 +25,12 @@ export async function createAccessToken(
   subject: string,
   secret: string,
   ttlSeconds = DEFAULT_TOKEN_TTL_SECONDS,
+  sid: string = randomUUID(),
 ): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
-  return await new SignJWT({})
+  return await new SignJWT({ sid })
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })
+    .setJti(randomUUID())
     .setSubject(subject)
     .setIssuedAt(now)
     .setExpirationTime(now + ttlSeconds)
@@ -43,6 +48,8 @@ export async function verifyAccessToken(
     });
     if (
       typeof payload.sub !== "string" ||
+      typeof payload.sid !== "string" ||
+      typeof payload.jti !== "string" ||
       typeof payload.iat !== "number" ||
       typeof payload.exp !== "number"
     ) {
@@ -53,6 +60,8 @@ export async function verifyAccessToken(
     }
     return {
       sub: payload.sub,
+      sid: payload.sid,
+      jti: payload.jti,
       iat: payload.iat,
       exp: payload.exp,
     };

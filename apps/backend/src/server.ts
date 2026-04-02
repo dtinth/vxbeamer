@@ -169,7 +169,12 @@ app.post("/auth/refresh", authMiddleware, async (c) => {
   const token = extractToken(c.req.header("Authorization"), c.req.query("access_token"));
   const payload = token ? await verifyAccessToken(token, authSecret) : null;
   if (!payload) return c.json({ error: "Invalid token" }, 401);
-  const accessToken = await createAccessToken(payload.sub, authSecret, ACCESS_TOKEN_TTL_SECONDS);
+  const accessToken = await createAccessToken(
+    payload.sub,
+    authSecret,
+    ACCESS_TOKEN_TTL_SECONDS,
+    payload.sid,
+  );
   return c.json({
     token_type: "Bearer",
     access_token: accessToken,

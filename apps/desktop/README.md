@@ -10,14 +10,14 @@ Install these first:
 - Rust via `rustup`
 - `corepack`
 
-You can verify the Node.js requirement in `/home/runner/work/vxbeamer/vxbeamer/package.json`.
+You can verify the Node.js requirement in the repository root `package.json`.
 
 ## Install dependencies
 
 From the repository root:
 
 ```bash
-cd /home/runner/work/vxbeamer/vxbeamer
+cd /path/to/vxbeamer
 corepack pnpm install
 ```
 
@@ -26,7 +26,7 @@ corepack pnpm install
 From the desktop app directory:
 
 ```bash
-cd /home/runner/work/vxbeamer/vxbeamer/apps/desktop
+cd /path/to/vxbeamer/apps/desktop
 corepack pnpm exec tauri dev
 ```
 
@@ -41,14 +41,14 @@ This command will:
 From the desktop app directory:
 
 ```bash
-cd /home/runner/work/vxbeamer/vxbeamer/apps/desktop
+cd /path/to/vxbeamer/apps/desktop
 corepack pnpm exec tauri build
 ```
 
 Build outputs are written under:
 
 ```text
-/home/runner/work/vxbeamer/vxbeamer/apps/desktop/src-tauri/target/release/bundle/
+apps/desktop/src-tauri/target/release/bundle/
 ```
 
 ## macOS
@@ -76,9 +76,9 @@ corepack enable
 ### Run on macOS
 
 ```bash
-cd /home/runner/work/vxbeamer/vxbeamer
+cd /path/to/vxbeamer
 corepack pnpm install
-cd /home/runner/work/vxbeamer/vxbeamer/apps/desktop
+cd apps/desktop
 corepack pnpm exec tauri dev
 ```
 
@@ -87,13 +87,13 @@ corepack pnpm exec tauri dev
 After `corepack pnpm exec tauri build`, the app bundle should be under:
 
 ```text
-/home/runner/work/vxbeamer/vxbeamer/apps/desktop/src-tauri/target/release/bundle/macos/
+apps/desktop/src-tauri/target/release/bundle/macos/
 ```
 
 You can open the generated `.app` bundle from Finder, or from Terminal:
 
 ```bash
-open "/home/runner/work/vxbeamer/vxbeamer/apps/desktop/src-tauri/target/release/bundle/macos/vxbeamer Desktop.app"
+open "/path/to/vxbeamer/apps/desktop/src-tauri/target/release/bundle/macos/vxbeamer Desktop.app"
 ```
 
 ### If macOS blocks the app
@@ -101,7 +101,7 @@ open "/home/runner/work/vxbeamer/vxbeamer/apps/desktop/src-tauri/target/release/
 If Gatekeeper blocks the unsigned app, right-click it in Finder and choose **Open**, or run:
 
 ```bash
-xattr -dr com.apple.quarantine "/home/runner/work/vxbeamer/vxbeamer/apps/desktop/src-tauri/target/release/bundle/macos/vxbeamer Desktop.app"
+xattr -dr com.apple.quarantine "/path/to/vxbeamer/apps/desktop/src-tauri/target/release/bundle/macos/vxbeamer Desktop.app"
 ```
 
 ## Windows

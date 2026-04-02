@@ -16,8 +16,12 @@
     "dist"
   ],
   "type": "module",
+  "types": "./src/index.ts",
   "exports": {
-    ".": "./dist/index.mjs",
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./dist/index.mjs"
+    },
     "./package.json": "./package.json"
   },
   "publishConfig": {

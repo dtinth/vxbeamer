@@ -4,12 +4,14 @@ const backendPort = 8788;
 const frontendPort = 5174;
 
 // This token must match E2E_TOKEN in e2e/recording.spec.ts.
-// Format: base64url({"sub":"e2e","exp":4102444800}).e2e
+// Format: base64url({"alg":"HS256","typ":"JWT"}).base64url({"sub":"e2e","exp":4102444800}).e2e
 // The backend accepts it as a raw API key; the frontend parses it as a valid session token.
 const e2eToken = (() => {
+  const header = JSON.stringify({ alg: "HS256", typ: "JWT" });
   const payload = JSON.stringify({ sub: "e2e", exp: 4102444800 });
-  const encoded = Buffer.from(payload).toString("base64url");
-  return `${encoded}.e2e`;
+  const encodedHeader = Buffer.from(header).toString("base64url");
+  const encodedPayload = Buffer.from(payload).toString("base64url");
+  return `${encodedHeader}.${encodedPayload}.e2e`;
 })();
 
 export default defineConfig({

@@ -14,6 +14,7 @@ export interface Message {
 const BACKEND_URL_KEY = "vxbeamer_backend_url";
 const SESSION_TOKEN_KEY = "vxbeamer_access_token";
 const WAKE_LOCK_KEY = "vxbeamer_wake_lock";
+const TOKEN_REFRESH_INTERVAL_SECONDS = 3600;
 
 interface AccessTokenPayload {
   exp: number;
@@ -22,7 +23,9 @@ interface AccessTokenPayload {
 
 function decodeAccessTokenPayload(token: string): AccessTokenPayload | null {
   try {
-    const payloadSegment = token.split(".")[1];
+    const segments = token.split(".");
+    if (segments.length !== 3) return null;
+    const payloadSegment = segments[1];
     if (!payloadSegment) return null;
     const base64 = payloadSegment.replace(/-/g, "+").replace(/_/g, "/");
     const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
@@ -97,16 +100,25 @@ export function setActiveRecordingReferenceId(referenceId: string | null): void 
 
 let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
+export function getTokenRefreshDelayMs(
+  token: string,
+  nowSeconds = Math.floor(Date.now() / 1000),
+): number | null {
+  const payload = decodeAccessTokenPayload(token);
+  if (!payload) return null;
+  const refreshAt = payload.iat
+    ? Math.min(payload.iat + TOKEN_REFRESH_INTERVAL_SECONDS, payload.exp)
+    : payload.exp - TOKEN_REFRESH_INTERVAL_SECONDS;
+  return Math.max(0, (refreshAt - nowSeconds) * 1000);
+}
+
 function scheduleTokenRefresh(token: string): void {
   if (refreshTimer !== null) {
     clearTimeout(refreshTimer);
     refreshTimer = null;
   }
-  const payload = decodeAccessTokenPayload(token);
-  if (!payload) return;
-  const now = Math.floor(Date.now() / 1000);
-  const refreshAt = payload.exp - 3600; // 1 hour before expiry
-  const delayMs = Math.max(0, (refreshAt - now) * 1000);
+  const delayMs = getTokenRefreshDelayMs(token);
+  if (delayMs === null) return;
   refreshTimer = setTimeout(() => void refreshToken(), delayMs);
 }
 

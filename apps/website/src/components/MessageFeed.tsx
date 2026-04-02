@@ -197,7 +197,11 @@ function MessageCard({
   );
 }
 
-export function MessageFeed() {
+export interface MessageFeedProps {
+  onOpenSettings?: () => void;
+}
+
+export function MessageFeed({ onOpenSettings }: MessageFeedProps = {}) {
   const activeRecordingReferenceId = useStore($activeRecordingReferenceId);
   const lastSwipedMessage = useStore($lastSwipedMessage);
   const messages = useStore($messages);
@@ -217,7 +221,22 @@ export function MessageFeed() {
   if (messages.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <p className="text-(--m3-on-surface-variant) text-sm">No messages yet. Start speaking.</p>
+        <div className="flex flex-col items-center gap-3 px-6 text-center">
+          <p className="text-(--m3-on-surface-variant) text-sm">
+            {authToken
+              ? "No messages yet. Start speaking."
+              : "No messages yet. Sign in first to start speaking."}
+          </p>
+          {!authToken && (
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              className="rounded-full bg-(--m3-secondary-container) px-4 py-2 text-sm font-medium text-(--m3-on-secondary-container) transition-colors hover:brightness-105"
+            >
+              Open Settings
+            </button>
+          )}
+        </div>
       </div>
     );
   }

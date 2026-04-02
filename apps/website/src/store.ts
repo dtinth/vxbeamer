@@ -60,7 +60,7 @@ export const $lastSwipedMessage = atom<{ messageId: string; key: number } | null
 
 export const $sseStatus = atom<"disconnected" | "connecting" | "connected">("disconnected");
 
-let swipedMessageKey = 0;
+let swipeAnimationCounter = 0;
 
 export function setBackendUrl(url: string): void {
   $backendUrl.set(url);
@@ -143,7 +143,7 @@ export function applySSEEvent(raw: unknown): void {
   } else if (event.type === "deleted") {
     $messages.set($messages.get().filter((m) => m.id !== event.messageId));
   } else if (event.type === "swiped") {
-    swipedMessageKey += 1;
-    $lastSwipedMessage.set({ messageId: event.message.id, key: swipedMessageKey });
+    swipeAnimationCounter += 1;
+    $lastSwipedMessage.set({ messageId: event.message.id, key: swipeAnimationCounter });
   }
 }

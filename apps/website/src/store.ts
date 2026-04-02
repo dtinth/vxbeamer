@@ -2,6 +2,7 @@ import { atom } from "nanostores";
 
 export interface Message {
   id: string;
+  referenceId?: string;
   status: "recording" | "done" | "error";
   partial?: string;
   final?: string;
@@ -53,7 +54,13 @@ export const $sessionToken = atom<string | null>(loadSessionToken());
 
 export const $messages = atom<Message[]>([]);
 
+export const $activeRecordingReferenceId = atom<string | null>(null);
+
+export const $lastSwipedMessage = atom<{ messageId: string; key: number } | null>(null);
+
 export const $sseStatus = atom<"disconnected" | "connecting" | "connected">("disconnected");
+
+let swipedMessageKey = 0;
 
 export function setBackendUrl(url: string): void {
   $backendUrl.set(url);
@@ -69,6 +76,10 @@ export function saveSessionToken(token: string): void {
 export function clearSessionToken(): void {
   $sessionToken.set(null);
   localStorage.removeItem(SESSION_TOKEN_KEY);
+}
+
+export function setActiveRecordingReferenceId(referenceId: string | null): void {
+  $activeRecordingReferenceId.set(referenceId);
 }
 
 let refreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -118,7 +129,8 @@ type SseEvent =
   | { type: "snapshot"; messages: Message[] }
   | { type: "created"; message: Message }
   | { type: "updated"; message: Message }
-  | { type: "deleted"; messageId: string };
+  | { type: "deleted"; messageId: string }
+  | { type: "swiped"; message: Message };
 
 export function applySSEEvent(raw: unknown): void {
   const event = raw as SseEvent;
@@ -130,5 +142,8 @@ export function applySSEEvent(raw: unknown): void {
     $messages.set($messages.get().map((m) => (m.id === event.message.id ? event.message : m)));
   } else if (event.type === "deleted") {
     $messages.set($messages.get().filter((m) => m.id !== event.messageId));
+  } else if (event.type === "swiped") {
+    swipedMessageKey += 1;
+    $lastSwipedMessage.set({ messageId: event.message.id, key: swipedMessageKey });
   }
 }

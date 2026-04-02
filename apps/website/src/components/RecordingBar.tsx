@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useStore } from "@nanostores/react";
-import { $sessionToken, $backendUrl, $wakeLockMode, $wakeLockActive } from "../store.ts";
+import {
+  $sessionToken,
+  $backendUrl,
+  $wakeLockMode,
+  $wakeLockActive,
+  setActiveRecordingReferenceId,
+} from "../store.ts";
 import { type AudioSource, createMicrophoneSource } from "../audio.ts";
 
 export interface RecordingBarProps {
@@ -72,6 +78,7 @@ export function RecordingBar({ createAudioSource = createMicrophoneSource }: Rec
   }, []);
 
   const stopRecording = useCallback(() => {
+    setActiveRecordingReferenceId(null);
     const ws = wsRef.current;
     if (ws?.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: "stop" }));
@@ -122,6 +129,13 @@ export function RecordingBar({ createAudioSource = createMicrophoneSource }: Rec
       const ws = new WebSocket(wsUrl.toString());
       ws.binaryType = "arraybuffer";
       wsRef.current = ws;
+      ws.addEventListener("close", () => {
+        wsRef.current = null;
+        setActiveRecordingReferenceId(null);
+      });
+      ws.addEventListener("error", () => {
+        setActiveRecordingReferenceId(null);
+      });
 
       await new Promise<void>((resolve, reject) => {
         ws.onopen = () => resolve();
@@ -140,9 +154,11 @@ export function RecordingBar({ createAudioSource = createMicrophoneSource }: Rec
         }
       }
 
+      setActiveRecordingReferenceId(referenceId);
       setIsRecording(true);
       startVisualizer();
     } catch (err) {
+      setActiveRecordingReferenceId(null);
       setError(err instanceof Error ? err.message : "Failed to start");
       wsRef.current?.close();
       wsRef.current = null;

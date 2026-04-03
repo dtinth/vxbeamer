@@ -6,9 +6,9 @@ This app is a Tauri desktop app with a React frontend.
 
 Install these first:
 
+- Vite+ (`vp`) available on your `PATH`
 - Node.js 22.12 or newer
 - Rust via `rustup`
-- `corepack`
 
 You can verify the Node.js requirement in the repository root `package.json`.
 
@@ -18,7 +18,7 @@ From the repository root:
 
 ```bash
 cd /path/to/vxbeamer
-corepack pnpm install
+vp install
 ```
 
 ## Run in development
@@ -27,7 +27,7 @@ From the desktop app directory:
 
 ```bash
 cd /path/to/vxbeamer/apps/desktop
-corepack pnpm exec tauri dev
+vp exec tauri dev
 ```
 
 This command will:
@@ -42,7 +42,7 @@ From the desktop app directory:
 
 ```bash
 cd /path/to/vxbeamer/apps/desktop
-corepack pnpm exec tauri build
+vp exec tauri build
 ```
 
 Build outputs are written under:
@@ -67,24 +67,24 @@ Install Rust:
 curl https://sh.rustup.rs -sSf | sh
 ```
 
-Enable Corepack if needed:
+Make sure `vp` is installed and available on your `PATH`.
 
 ```bash
-corepack enable
+vp --version
 ```
 
 ### Run on macOS
 
 ```bash
 cd /path/to/vxbeamer
-corepack pnpm install
+vp install
 cd apps/desktop
-corepack pnpm exec tauri dev
+vp exec tauri dev
 ```
 
 ### Open the built app
 
-After `corepack pnpm exec tauri build`, the app bundle should be under:
+After `vp exec tauri build`, the app bundle should be under:
 
 ```text
 apps/desktop/src-tauri/target/release/bundle/macos/
@@ -115,10 +115,10 @@ Install:
 - Rust via `rustup`
 - Node.js 22.12 or newer
 
-Enable Corepack if needed:
+Make sure `vp` is installed and available on your `PATH`.
 
 ```powershell
-corepack enable
+vp --version
 ```
 
 ### Run on Windows
@@ -127,16 +127,16 @@ In PowerShell:
 
 ```powershell
 cd C:\path\to\vxbeamer
-corepack pnpm install
+vp install
 cd apps\desktop
-corepack pnpm exec tauri dev
+vp exec tauri dev
 ```
 
 ### Build on Windows
 
 ```powershell
 cd C:\path\to\vxbeamer\apps\desktop
-corepack pnpm exec tauri build
+vp exec tauri build
 ```
 
 The Windows bundle should be under `apps\desktop\src-tauri\target\release\bundle\`.

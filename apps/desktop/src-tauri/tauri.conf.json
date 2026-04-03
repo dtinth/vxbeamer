@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "th.in.dt.vxbeamer.desktop",
   "build": {
-    "beforeDevCommand": "corepack pnpm exec vp dev",
+    "beforeDevCommand": "vp dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "corepack pnpm exec vp build",
+    "beforeBuildCommand": "vp build",
     "frontendDist": "../dist"
   },
   "app": {

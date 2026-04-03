@@ -1,8 +1,13 @@
 export type DesktopSwipeBehavior = "none" | "copy" | "paste";
 
+interface TauriWindow extends Window {
+  __TAURI__?: unknown;
+  __TAURI_INTERNALS__?: unknown;
+}
+
 export function isDesktopApp(): boolean {
   if (typeof window === "undefined") return false;
-  const tauriWindow = window as { __TAURI__?: unknown; __TAURI_INTERNALS__?: unknown };
+  const tauriWindow = window as TauriWindow;
   return (
     typeof tauriWindow.__TAURI__ !== "undefined" ||
     typeof tauriWindow.__TAURI_INTERNALS__ !== "undefined"

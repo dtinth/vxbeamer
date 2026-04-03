@@ -18,6 +18,7 @@ const REFRESH_TOKEN_KEY = "vxbeamer_refresh_token";
 const WAKE_LOCK_KEY = "vxbeamer_wake_lock";
 const DESKTOP_SWIPE_BEHAVIOR_KEY = "vxbeamer_desktop_swipe_behavior";
 const TOKEN_CHECK_INTERVAL_SECONDS = 60; // Check every minute if we need to refresh
+const PENDING_LOCAL_SWIPE_TIMEOUT_MS = 5000;
 
 interface AccessTokenPayload {
   sub?: string;
@@ -146,7 +147,7 @@ export function setActiveRecordingReferenceId(referenceId: string | null): void 
 
 export function markPendingLocalSwipe(messageId: string): void {
   pendingLocalSwipes.add(messageId);
-  setTimeout(() => pendingLocalSwipes.delete(messageId), 5000);
+  setTimeout(() => pendingLocalSwipes.delete(messageId), PENDING_LOCAL_SWIPE_TIMEOUT_MS);
 }
 
 let refreshTimer: ReturnType<typeof setTimeout> | null = null;

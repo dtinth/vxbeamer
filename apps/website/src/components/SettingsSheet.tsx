@@ -17,7 +17,7 @@ import {
 import { startSignIn } from "../oidc.ts";
 import { SettingsIcon } from "./SettingsIcon.tsx";
 import { AuthUrlModal } from "./AuthUrlModal.tsx";
-import { isDesktopApp } from "../desktop.ts";
+import { isDesktopApp, type DesktopSwipeBehavior } from "../desktop.ts";
 
 export interface SettingsSheetProps {
   open?: boolean;
@@ -126,7 +126,7 @@ export function SettingsSheet({ open: controlledOpen, onOpenChange }: SettingsSh
             </div>
             <select
               value={desktopSwipeBehavior}
-              onChange={(e) => setDesktopSwipeBehavior(e.target.value as "none" | "copy" | "paste")}
+              onChange={(e) => setDesktopSwipeBehavior(e.target.value as DesktopSwipeBehavior)}
               className="w-full bg-(--m3-surface-container-highest) rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-(--m3-outline) appearance-none"
             >
               <option value="none">Do nothing</option>

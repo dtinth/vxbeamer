@@ -20,6 +20,23 @@ const BACKEND_URL_KEY = "vxbeamer_desktop_backend_url";
 const ACCESS_TOKEN_KEY = "vxbeamer_desktop_access_token";
 const SWIPE_ACTION_KEY = "vxbeamer_desktop_swipe_action";
 const DEFAULT_BACKEND_URL = "http://localhost:8787";
+const SWIPE_ACTION_OPTIONS: Array<{ value: SwipeAction; label: string; description: string }> = [
+  {
+    value: "none",
+    label: "Do nothing",
+    description: "Listen only and leave the clipboard unchanged.",
+  },
+  {
+    value: "copy",
+    label: "Copy transcript",
+    description: "Copy the latest transcript to the clipboard.",
+  },
+  {
+    value: "paste",
+    label: "Paste transcript",
+    description: "Paste the transcript, then restore the previous clipboard contents.",
+  },
+];
 
 function readStoredValue(key: string, fallback = ""): string {
   return localStorage.getItem(key) ?? fallback;
@@ -128,6 +145,10 @@ function App() {
     if (!lastSwipedAt) return "Last swiped: never";
     return `Last swiped: ${formatRelativeTime(lastSwipedAt, now)}`;
   }, [lastSwipedAt, now]);
+  const swipeActionDescription = useMemo(
+    () => SWIPE_ACTION_OPTIONS.find((option) => option.value === swipeAction)?.description ?? "",
+    [swipeAction],
+  );
 
   function handleSave(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
@@ -151,87 +172,75 @@ function App() {
 
   return (
     <main className="app-shell">
-      <section className="card">
-        <div className="header-row">
-          <div>
-            <p className="eyebrow">vxbeamer desktop</p>
-            <h1>Swipe listener</h1>
+      <section className="panel">
+        <header className="title-row">
+          <div className="brand">
+            <img alt="" className="brand-icon" height="28" src="/vxbeamer.svg" width="28" />
+            <div>
+              <h1>vxbeamer</h1>
+              <p>Desktop swipe listener</p>
+            </div>
           </div>
-          <span className={`status-pill tone-${statusTone(connectionState)}`}>{statusLabel}</span>
-        </div>
+          <span className={`status-chip tone-${statusTone(connectionState)}`}>{statusLabel}</span>
+        </header>
 
-        <div className="status-block">
-          <p>{lastSwipedLabel}</p>
-          <p className="muted">{latestMessage}</p>
-        </div>
+        <section className="summary-grid">
+          <div className="summary-card">
+            <span className="summary-label">Last swipe</span>
+            <strong>{lastSwipedLabel.replace("Last swiped: ", "")}</strong>
+          </div>
+          <div className="summary-card">
+            <span className="summary-label">Status</span>
+            <strong>{latestMessage}</strong>
+          </div>
+        </section>
 
         <form className="settings-form" onSubmit={handleSave}>
-          <label>
-            <span>Backend URL</span>
-            <input
-              autoComplete="url"
-              onChange={(event) => setBackendUrlInput(event.currentTarget.value)}
-              placeholder={DEFAULT_BACKEND_URL}
-              type="url"
-              value={backendUrlInput}
-            />
-          </label>
+          <section className="form-section">
+            <label>
+              <span>Backend URL</span>
+              <input
+                autoComplete="url"
+                onChange={(event) => setBackendUrlInput(event.currentTarget.value)}
+                placeholder={DEFAULT_BACKEND_URL}
+                type="url"
+                value={backendUrlInput}
+              />
+            </label>
 
-          <label>
-            <span>API key</span>
-            <input
-              autoComplete="off"
-              onChange={(event) => setAccessTokenInput(event.currentTarget.value)}
-              placeholder="Paste your vxbeamer API key"
-              type="password"
-              value={accessTokenInput}
-            />
-          </label>
+            <label>
+              <span>API key</span>
+              <input
+                autoComplete="off"
+                onChange={(event) => setAccessTokenInput(event.currentTarget.value)}
+                placeholder="Paste your vxbeamer API key"
+                type="password"
+                value={accessTokenInput}
+              />
+            </label>
+          </section>
 
-          <fieldset>
-            <legend>On swipe</legend>
-            <label className="radio-option">
-              <input
-                checked={swipeAction === "none"}
-                name="swipe-action"
-                onChange={() => setSwipeAction("none")}
-                type="radio"
-              />
-              <span>
-                <strong>None</strong>
-                <small>No-op.</small>
-              </span>
+          <section className="form-section">
+            <label>
+              <span>Swipe action</span>
+              <select
+                onChange={(event) => setSwipeAction(event.currentTarget.value as SwipeAction)}
+                value={swipeAction}
+              >
+                {SWIPE_ACTION_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </label>
-            <label className="radio-option">
-              <input
-                checked={swipeAction === "copy"}
-                name="swipe-action"
-                onChange={() => setSwipeAction("copy")}
-                type="radio"
-              />
-              <span>
-                <strong>Copy</strong>
-                <small>Copy the transcript persistently.</small>
-              </span>
-            </label>
-            <label className="radio-option">
-              <input
-                checked={swipeAction === "paste"}
-                name="swipe-action"
-                onChange={() => setSwipeAction("paste")}
-                type="radio"
-              />
-              <span>
-                <strong>Paste</strong>
-                <small>Copy temporarily, paste, then restore the clipboard.</small>
-              </span>
-            </label>
-          </fieldset>
+            <p className="help-text">{swipeActionDescription}</p>
+          </section>
 
           <div className="button-row">
-            <button type="submit">Save and connect</button>
+            <button type="submit">Save</button>
             <button className="secondary-button" onClick={handleForget} type="button">
-              Forget saved key
+              Forget key
             </button>
           </div>
         </form>

@@ -13,8 +13,10 @@
     "windows": [
       {
         "title": "vxbeamer Desktop",
-        "width": 520,
-        "height": 640,
+        "width": 460,
+        "height": 520,
+        "minWidth": 360,
+        "minHeight": 460,
         "resizable": true
       }
     ],

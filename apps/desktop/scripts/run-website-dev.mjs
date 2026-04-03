@@ -6,7 +6,7 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 const appDir = resolve(scriptDir, "..");
 const repoRoot = resolve(appDir, "..", "..");
 
-const child = spawn("corepack", ["pnpm", "exec", "vp", "run", "website#dev"], {
+const child = spawn("vp", ["run", "website#dev"], {
   cwd: repoRoot,
   stdio: "inherit",
 });

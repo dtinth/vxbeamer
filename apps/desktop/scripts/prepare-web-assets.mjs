@@ -9,7 +9,7 @@ const repoRoot = resolve(appDir, "..", "..");
 const websiteDist = resolve(repoRoot, "apps", "website", "dist");
 const desktopDist = resolve(appDir, "dist");
 
-execFileSync("corepack", ["pnpm", "exec", "vp", "run", "website#build"], {
+execFileSync("vp", ["run", "website#build"], {
   cwd: repoRoot,
   stdio: "inherit",
 });

@@ -94,7 +94,7 @@ export function SettingsSheet({ open: controlledOpen, onOpenChange }: SettingsSh
             className="w-full bg-(--m3-surface-container-highest) rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-(--m3-outline)"
             autoComplete="off"
             autoCapitalize="off"
-            placeholder="https://your-backend.example.com"
+            placeholder="https://your-backend-url.example.com"
           />
         </label>
 

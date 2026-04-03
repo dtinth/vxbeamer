@@ -8,7 +8,8 @@ use tauri_plugin_clipboard_manager::ClipboardExt;
 
 // Give the target app a brief moment to consume the temporary clipboard contents before restoring them.
 const PASTE_RESTORE_DELAY_MS: u64 = 150;
-const APP_BACKGROUND_COLOR: tauri::utils::config::Color = tauri::utils::config::Color(0x12, 0x14, 0x0d, 0xff);
+const DESKTOP_WINDOW_BACKGROUND_COLOR: tauri::utils::config::Color =
+    tauri::utils::config::Color(0x12, 0x14, 0x0d, 0xff);
 
 enum ClipboardSnapshot {
     Empty,
@@ -146,7 +147,7 @@ pub fn run() {
         .setup(|app| {
             if let Some(main_window) = app.get_webview_window("main") {
                 main_window.set_theme(Some(Theme::Dark))?;
-                main_window.set_background_color(Some(APP_BACKGROUND_COLOR))?;
+                main_window.set_background_color(Some(DESKTOP_WINDOW_BACKGROUND_COLOR))?;
             }
             Ok(())
         })

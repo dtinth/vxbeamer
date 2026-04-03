@@ -30,6 +30,12 @@ export interface AudioSource {
   getFrequencyData(): Uint8Array<ArrayBuffer> | null;
 }
 
+export function isMicrophoneCaptureSupported(): boolean {
+  return (
+    typeof navigator !== "undefined" && typeof navigator.mediaDevices?.getUserMedia === "function"
+  );
+}
+
 /**
  * Creates an AudioSource backed by the browser's getUserMedia API.
  */
@@ -42,6 +48,10 @@ export function createMicrophoneSource(): AudioSource {
 
   return {
     async start(onChunk) {
+      if (!isMicrophoneCaptureSupported()) {
+        throw new Error("Microphone access is not available in this desktop webview.");
+      }
+
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
       audioCtx = new AudioContext({ sampleRate: SAMPLE_RATE });

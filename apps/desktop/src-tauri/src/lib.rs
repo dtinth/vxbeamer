@@ -2,12 +2,15 @@ use enigo::{
     Direction::{Click, Press, Release},
     Enigo, Key, Keyboard, Settings,
 };
-use std::{process::Command, sync::mpsc, thread, time::Duration};
+use std::{process::Command, thread, time::Duration};
+#[cfg(target_os = "macos")]
+use std::sync::mpsc;
 use tauri::{image::Image, AppHandle, Manager, Theme};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
 // Give the target app a brief moment to consume the temporary clipboard contents before restoring them.
 const PASTE_RESTORE_DELAY_MS: u64 = 150;
+// Match the requested desktop window/title-bar color with the app's dark surface.
 const DESKTOP_WINDOW_BACKGROUND_COLOR: tauri::utils::config::Color =
     tauri::utils::config::Color(0x12, 0x14, 0x0d, 0xff);
 

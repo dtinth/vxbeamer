@@ -16,11 +16,17 @@ const oidcClientId = process.env.OIDC_CLIENT_ID ?? "vxbeamer-mobile";
 const oidcAudience = process.env.OIDC_AUDIENCE ?? oidcClientId;
 const authSecret = process.env.OIDC_SECRET ?? "local-dev-secret";
 const port = Number(process.env.PORT ?? "8787");
-const apiKeys = new Set(
+const apiKeys = new Map(
   (process.env.API_KEYS ?? "")
     .split(",")
     .map((k) => k.trim())
-    .filter(Boolean),
+    .filter(Boolean)
+    .map((entry) => {
+      const colonIdx = entry.indexOf(":");
+      if (colonIdx === -1)
+        throw new Error(`Invalid API_KEYS entry (expected sub:secret): ${entry}`);
+      return [entry.slice(colonIdx + 1), entry.slice(0, colonIdx)] as const;
+    }),
 );
 const webhookUrl = process.env.WEBHOOK_URL ?? "";
 const ACCESS_TOKEN_TTL_SECONDS = 259200; // 3 days
@@ -95,7 +101,6 @@ async function sendWebhook(message: Message): Promise<void> {
 
 // --- Auth ---
 async function authenticate(token: string): Promise<boolean> {
-  if (apiKeys.has(token)) return true;
   return (await verifyAccessToken(token, authSecret)) !== null;
 }
 
@@ -154,7 +159,12 @@ app.post("/auth/session", async (c) => {
       discovery.jwks_uri,
       oidcAudience,
     );
-    const accessToken = await createAccessToken(claims.sub, authSecret, ACCESS_TOKEN_TTL_SECONDS);
+    const accessToken = await createAccessToken({
+      subject: claims.sub,
+      secret: authSecret,
+      ttlSeconds: ACCESS_TOKEN_TTL_SECONDS,
+      name: claims.name,
+    });
     return c.json({
       token_type: "Bearer",
       access_token: accessToken,
@@ -166,16 +176,39 @@ app.post("/auth/session", async (c) => {
   }
 });
 
+app.post("/auth/token", async (c) => {
+  let body: { api_key?: string };
+  try {
+    body = (await c.req.json()) as typeof body;
+  } catch {
+    return c.json({ error: "Invalid request body" }, 400);
+  }
+  if (!body.api_key) return c.json({ error: "Missing api_key" }, 400);
+  const sub = apiKeys.get(body.api_key);
+  if (!sub) return c.json({ error: "Invalid API key" }, 401);
+  const accessToken = await createAccessToken({
+    subject: sub,
+    secret: authSecret,
+    ttlSeconds: ACCESS_TOKEN_TTL_SECONDS,
+  });
+  return c.json({
+    token_type: "Bearer",
+    access_token: accessToken,
+    expires_in: ACCESS_TOKEN_TTL_SECONDS,
+  });
+});
+
 app.post("/auth/refresh", authMiddleware, async (c) => {
   const token = extractToken(c.req.header("Authorization"), c.req.query("access_token"));
   const payload = token ? await verifyAccessToken(token, authSecret) : null;
   if (!payload) return c.json({ error: "Invalid token" }, 401);
-  const accessToken = await createAccessToken(
-    payload.sub,
-    authSecret,
-    ACCESS_TOKEN_TTL_SECONDS,
-    payload.sid,
-  );
+  const accessToken = await createAccessToken({
+    subject: payload.sub,
+    secret: authSecret,
+    ttlSeconds: ACCESS_TOKEN_TTL_SECONDS,
+    sid: payload.sid,
+    name: payload.name,
+  });
   return c.json({
     token_type: "Bearer",
     access_token: accessToken,

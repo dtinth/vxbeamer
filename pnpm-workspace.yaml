@@ -5,14 +5,14 @@ packages:
 
 catalog:
   "@fontsource-variable/tasa-orbiter": ^5.2.2
-  "@playwright/test": ^1.58.2
+  "@playwright/test": ^1.59.1
   "@types/node": ^24
   jose: ^6.2.2
   typescript: ^5
-  visual-storyboard: ^0.3.0
-  vite: npm:@voidzero-dev/vite-plus-core@latest
-  vite-plus: latest
-  vitest: npm:@voidzero-dev/vite-plus-test@latest
+  visual-storyboard: ^0.3.6
+  vite: npm:@voidzero-dev/vite-plus-core@^0.1.15
+  vite-plus: ^0.1.15
+  vitest: npm:@voidzero-dev/vite-plus-test@^0.1.15
 
 catalogMode: prefer
 overrides:

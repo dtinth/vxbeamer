@@ -3,6 +3,7 @@ import { useStore } from "@nanostores/react";
 import {
   $backendUrl,
   $sessionToken,
+  $userInfo,
   $wakeLockMode,
   $wakeLockActive,
   setBackendUrl,
@@ -21,6 +22,7 @@ export function SettingsSheet({ open: controlledOpen, onOpenChange }: SettingsSh
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const backendUrl = useStore($backendUrl);
   const sessionToken = useStore($sessionToken);
+  const userInfo = useStore($userInfo);
   const wakeLockMode = useStore($wakeLockMode);
   const wakeLockActive = useStore($wakeLockActive);
   const [urlInput, setUrlInput] = useState(backendUrl);
@@ -121,15 +123,36 @@ export function SettingsSheet({ open: controlledOpen, onOpenChange }: SettingsSh
 
         <div className="pt-1 space-y-2">
           {sessionToken ? (
-            <button
-              onClick={() => {
-                clearSessionToken();
-                setOpen(false);
-              }}
-              className="w-full py-3 rounded-xl bg-(--m3-surface-container-highest) hover:bg-(--m3-surface-bright) text-sm font-medium transition-colors"
-            >
-              Sign out
-            </button>
+            <>
+              {userInfo && (
+                <div className="space-y-1.5">
+                  <span className="text-xs font-medium text-(--m3-on-surface-variant) uppercase tracking-wider">
+                    Signed in
+                  </span>
+                  <div className="bg-(--m3-surface-container-highest) rounded-xl px-3 py-2.5 text-sm space-y-1">
+                    {userInfo.name && <div className="text-(--m3-on-surface)">{userInfo.name}</div>}
+                    {userInfo.sub && (
+                      <button
+                        onClick={() => void navigator.clipboard.writeText(userInfo.sub!)}
+                        className="text-(--m3-on-surface-variant) text-xs font-mono hover:text-(--m3-on-surface) transition-colors cursor-pointer"
+                        title="Click to copy"
+                      >
+                        {userInfo.sub}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+              <button
+                onClick={() => {
+                  clearSessionToken();
+                  setOpen(false);
+                }}
+                className="w-full py-3 rounded-xl bg-(--m3-surface-container-highest) hover:bg-(--m3-surface-bright) text-sm font-medium transition-colors"
+              >
+                Sign out
+              </button>
+            </>
           ) : (
             <button
               onClick={() => void handleSignIn()}

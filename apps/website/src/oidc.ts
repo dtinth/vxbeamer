@@ -62,7 +62,7 @@ export async function startSignIn(backendUrl: string): Promise<never> {
   authUrl.searchParams.set("response_type", "code");
   authUrl.searchParams.set("client_id", config.clientId);
   authUrl.searchParams.set("redirect_uri", redirectUri);
-  authUrl.searchParams.set("scope", "openid");
+  authUrl.searchParams.set("scope", "openid profile");
   authUrl.searchParams.set("code_challenge", codeChallenge);
   authUrl.searchParams.set("code_challenge_method", "S256");
   authUrl.searchParams.set("state", state);

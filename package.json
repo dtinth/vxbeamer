@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "ready": "vp fmt && vp lint && vp run test -r && vp run build -r",
+    "ready": "vp fmt && vp lint && vp run -r test && vp run -r build",
     "dev:frontend": "vp run website#dev",
     "dev:backend": "vp run backend#dev",
     "prepare": "vp config"

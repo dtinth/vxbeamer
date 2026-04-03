@@ -1,4 +1,4 @@
-import { atom } from "nanostores";
+import { atom, computed } from "nanostores";
 
 export interface Message {
   id: string;
@@ -17,6 +17,8 @@ const WAKE_LOCK_KEY = "vxbeamer_wake_lock";
 const TOKEN_REFRESH_INTERVAL_SECONDS = 3600;
 
 interface AccessTokenPayload {
+  sub?: string;
+  name?: string;
   exp: number;
   iat?: number;
 }
@@ -32,7 +34,12 @@ function decodeAccessTokenPayload(token: string): AccessTokenPayload | null {
     const payload = JSON.parse(atob(padded)) as Partial<AccessTokenPayload>;
     if (typeof payload.exp !== "number") return null;
     if (payload.iat !== undefined && typeof payload.iat !== "number") return null;
-    return { exp: payload.exp, iat: payload.iat };
+    return {
+      sub: typeof payload.sub === "string" ? payload.sub : undefined,
+      name: typeof payload.name === "string" ? payload.name : undefined,
+      exp: payload.exp,
+      iat: payload.iat,
+    };
   } catch {
     return null;
   }
@@ -67,6 +74,13 @@ export const $backendUrl = atom<string>(
 );
 
 export const $sessionToken = atom<string | null>(loadSessionToken());
+
+export const $userInfo = computed($sessionToken, (token) => {
+  if (!token) return null;
+  const payload = decodeAccessTokenPayload(token);
+  if (!payload) return null;
+  return { sub: payload.sub, name: payload.name };
+});
 
 export const $messages = atom<Message[]>([]);
 

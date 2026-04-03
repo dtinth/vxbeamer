@@ -13,6 +13,7 @@ export function base64UrlEncode(input: Uint8Array): string {
 
 export interface AccessTokenPayload {
   sub: string;
+  name?: string;
   sid: string;
   jti: string;
   iat: number;
@@ -21,14 +22,22 @@ export interface AccessTokenPayload {
 
 const DEFAULT_TOKEN_TTL_SECONDS = 600;
 
-export async function createAccessToken(
-  subject: string,
-  secret: string,
-  ttlSeconds = DEFAULT_TOKEN_TTL_SECONDS,
-  sid: string = randomUUID(),
-): Promise<string> {
+export async function createAccessToken(options: {
+  subject: string;
+  secret: string;
+  ttlSeconds?: number;
+  sid?: string;
+  name?: string;
+}): Promise<string> {
+  const {
+    subject,
+    secret,
+    ttlSeconds = DEFAULT_TOKEN_TTL_SECONDS,
+    sid = randomUUID(),
+    name,
+  } = options;
   const now = Math.floor(Date.now() / 1000);
-  return await new SignJWT({ sid })
+  return await new SignJWT({ sid, ...(name ? { name } : {}) })
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })
     .setJti(randomUUID())
     .setSubject(subject)
@@ -58,8 +67,10 @@ export async function verifyAccessToken(
     if (payload.exp <= Math.floor(Date.now() / 1000)) {
       return null;
     }
+    const name = typeof payload.name === "string" ? payload.name : undefined;
     return {
       sub: payload.sub,
+      name,
       sid: payload.sid,
       jti: payload.jti,
       iat: payload.iat,
@@ -86,10 +97,11 @@ export async function verifyIdToken(
   issuer: string,
   jwksUri: string,
   audience: string,
-): Promise<{ sub: string }> {
+): Promise<{ sub: string; name?: string }> {
   const { payload } = await jwtVerify(token, getJwkSet(jwksUri), { issuer, audience });
   if (!payload.sub) {
     throw new Error("Missing sub claim");
   }
-  return { sub: payload.sub };
+  const name = typeof payload.name === "string" ? payload.name : undefined;
+  return { sub: payload.sub, name };
 }

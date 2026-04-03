@@ -59,9 +59,9 @@ The OIDC provider must support:
 
 [Authentik](https://goauthentik.io) is a self-hosted, open-source identity provider that meets all of these requirements.
 
-### API keys
+### API keys (personal access tokens)
 
-Set the `API_KEYS` environment variable. Scripts can use this key to integrate with vxbeamer.
+Set the `API_KEYS` environment variable in the format `sub:secret` (e.g. `API_KEYS=myuser123:s3cretk3y`). These keys are not used directly for authentication — instead, scripts exchange them for session tokens via `POST /auth/token`. This way all protected endpoints use the same session token format regardless of how the user authenticated.
 
 ## Deployment
 
@@ -98,7 +98,7 @@ services:
 | Variable             | Required | Description                                                  |
 | -------------------- | -------- | ------------------------------------------------------------ |
 | `DASHSCOPE_API_KEY`  | Yes      | Alibaba Cloud DashScope key for Qwen3-ASR-Flash              |
-| `API_KEYS`           | Yes      | Comma-separated static API keys for authentication           |
+| `API_KEYS`           | No       | Comma-separated `sub:secret` pairs for API key exchange      |
 | `GROQ_API_KEY`       | No       | Groq API key for gpt-oss-120b post-processing                |
 | `OIDC_DISCOVERY_URL` | No       | OIDC provider discovery URL (alternative to API keys)        |
 | `OIDC_CLIENT_ID`     | No       | OIDC client ID (default: `vxbeamer-mobile`)                  |
@@ -109,7 +109,7 @@ services:
 
 ## API
 
-The backend exposes a REST + SSE + WebSocket API on port 8787. All endpoints (except `/healthz` and `/auth/*`) require a bearer token — either a static API key or a session token obtained via OIDC.
+The backend exposes a REST + SSE + WebSocket API on port 8787. All endpoints (except `/healthz` and `/auth/*`) require a bearer token — a session token obtained via OIDC (`/auth/session`) or API key exchange (`/auth/token`).
 
 ### Endpoints
 
@@ -118,6 +118,7 @@ The backend exposes a REST + SSE + WebSocket API on port 8787. All endpoints (ex
 | `GET`       | `/healthz`            | Health check                                    |
 | `GET`       | `/auth/config`        | OIDC configuration for the frontend             |
 | `POST`      | `/auth/session`       | Exchange an OIDC `id_token` for a session token |
+| `POST`      | `/auth/token`         | Exchange an API key for a session token         |
 | `POST`      | `/auth/refresh`       | Refresh a session token (3-day TTL)             |
 | `GET`       | `/sse`                | Server-Sent Events stream of all activity       |
 | `GET`       | `/messages`           | List all messages (last 24 hours)               |
@@ -144,7 +145,9 @@ Connect to `/ws?access_token=<token>`. Send raw PCM audio as binary frames (16 k
 
 ### Authentication
 
-Pass a token as:
+All protected endpoints accept session tokens. Pass a token as:
 
 - `Authorization: Bearer <token>` header, or
 - `?access_token=<token>` query parameter
+
+Session tokens can be obtained by exchanging an OIDC id_token (`POST /auth/session`) or an API key (`POST /auth/token`).

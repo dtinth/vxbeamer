@@ -89,4 +89,4 @@ For GitHub Actions, consider using [`voidzero-dev/setup-vp`](https://github.com/
 
 ## Agent notes for vxbeamer
 
-- To build all packages, run `vp run build -r`
+- To build all packages, run `vp run -r build`

@@ -4,6 +4,7 @@ import { formatRelativeTime } from "./relativeTime.ts";
 
 type SwipeAction = "none" | "copy" | "paste";
 type ConnectionState = "idle" | "connecting" | "connected" | "reconnecting";
+type SwipeActionOption = { value: SwipeAction; label: string; description: string };
 
 interface SwipeEventMessage {
   id: string;
@@ -20,7 +21,7 @@ const BACKEND_URL_KEY = "vxbeamer_desktop_backend_url";
 const ACCESS_TOKEN_KEY = "vxbeamer_desktop_access_token";
 const SWIPE_ACTION_KEY = "vxbeamer_desktop_swipe_action";
 const DEFAULT_BACKEND_URL = "http://localhost:8787";
-const SWIPE_ACTION_OPTIONS: Array<{ value: SwipeAction; label: string; description: string }> = [
+const SWIPE_ACTION_OPTIONS: SwipeActionOption[] = [
   {
     value: "none",
     label: "Do nothing",

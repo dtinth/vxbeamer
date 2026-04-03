@@ -35,30 +35,72 @@ export function App() {
       });
   }, []);
 
-  // SSE connection
+  // SSE connection with heartbeat checking
   useEffect(() => {
     if (!authToken || !backendUrl) {
       $sseStatus.set("disconnected");
       return;
     }
 
-    $sseStatus.set("connecting");
-    const url = new URL("/sse", backendUrl);
-    url.searchParams.set("access_token", authToken);
+    let sse: EventSource | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let heartbeatCheckTimer: ReturnType<typeof setInterval> | null = null;
+    let lastHeartbeatTime = Date.now();
 
-    const sse = new EventSource(url.toString());
-    sse.onopen = () => $sseStatus.set("connected");
-    sse.onmessage = (evt) => {
-      try {
-        applySSEEvent(JSON.parse(evt.data as string));
-      } catch {
-        // ignore malformed events
-      }
+    const connect = () => {
+      $sseStatus.set("connecting");
+      const url = new URL("/sse", backendUrl);
+      url.searchParams.set("access_token", authToken);
+
+      sse = new EventSource(url.toString());
+      lastHeartbeatTime = Date.now();
+
+      sse.onopen = () => {
+        $sseStatus.set("connected");
+        lastHeartbeatTime = Date.now();
+      };
+
+      sse.onmessage = (evt) => {
+        lastHeartbeatTime = Date.now();
+        try {
+          applySSEEvent(JSON.parse(evt.data as string));
+        } catch {
+          // ignore malformed events
+        }
+      };
+
+      sse.onerror = () => {
+        if (sse) {
+          sse.close();
+          sse = null;
+        }
+        $sseStatus.set("disconnected");
+        // Reconnect after 2 seconds
+        if (reconnectTimer) clearTimeout(reconnectTimer);
+        reconnectTimer = setTimeout(() => connect(), 2000);
+      };
     };
-    sse.onerror = () => $sseStatus.set("disconnected");
+
+    // Check heartbeat every 5 seconds
+    heartbeatCheckTimer = setInterval(() => {
+      if (Date.now() - lastHeartbeatTime > 30_000) {
+        // No heartbeat for 30+ seconds, close and reconnect
+        if (sse) {
+          sse.close();
+          sse = null;
+        }
+        $sseStatus.set("disconnected");
+        if (reconnectTimer) clearTimeout(reconnectTimer);
+        reconnectTimer = setTimeout(() => connect(), 2000);
+      }
+    }, 5000);
+
+    connect();
 
     return () => {
-      sse.close();
+      if (sse) sse.close();
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (heartbeatCheckTimer) clearInterval(heartbeatCheckTimer);
       $sseStatus.set("disconnected");
     };
   }, [authToken, backendUrl]);

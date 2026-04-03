@@ -12,6 +12,7 @@ import {
   type WakeLockMode,
 } from "../store.ts";
 import { startSignIn } from "../oidc.ts";
+import { SettingsIcon } from "./SettingsIcon.tsx";
 
 export interface SettingsSheetProps {
   open?: boolean;
@@ -48,20 +49,7 @@ export function SettingsSheet({ open: controlledOpen, onOpenChange }: SettingsSh
         className="p-2 rounded-lg hover:bg-(--m3-surface-container-high) transition-colors text-(--m3-on-surface-variant) hover:text-(--m3-on-surface)"
         aria-label="Settings"
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <circle cx="12" cy="12" r="3" />
-          <path d="M19.1 5l-1.4 1.4M4.9 5l1.4 1.4M12 2v2M12 20v2M2 12h2M20 12h2M4.9 19l1.4-1.4M19.1 19l-1.4-1.4" />
-        </svg>
+        <SettingsIcon size={20} />
       </button>
     );
   }

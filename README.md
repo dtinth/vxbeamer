@@ -61,16 +61,21 @@ The OIDC provider must support:
 
 ### API keys (personal access tokens)
 
-Set the `API_KEYS` environment variable with one or more `sub:secret` pairs, comma-separated:
+Set the `API_KEYS` environment variable in the format `<sub>:key1,<sub>:key2`:
 
 ```
-API_KEYS=user123:key1,user123:key2,another-user:key3
+API_KEYS=your-sub-claim:my-secret-key,your-sub-claim:another-secret
 ```
 
-- `sub` — user identifier (will be included in the `sub` claim of issued access tokens)
-- `secret` — the API key string itself (what scripts use to authenticate)
+To find your `sub` claim:
 
-You can have multiple keys for the same user (useful for key rotation or different integrations). API keys are not used directly for authenticated requests. Instead, scripts exchange them for short-lived access tokens via `POST /auth/token`. This keeps all authentication consistent: protected endpoints only accept session tokens, regardless of whether they came from OIDC or API key exchange.
+1. Sign in to the web app with OIDC
+2. Open Settings (⚙️ icon)
+3. Copy your `sub` from the "Signed in" section
+
+The `<sub>` must match the `sub` claim of your OIDC user. You can have multiple keys for the same user (useful for key rotation or different integrations).
+
+API keys are not used directly for authenticated requests. Instead, scripts exchange them for short-lived access tokens via `POST /auth/token`. This keeps all authentication consistent: protected endpoints only accept session tokens, regardless of whether they came from OIDC or API key exchange.
 
 ## Deployment
 

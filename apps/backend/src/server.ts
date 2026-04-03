@@ -179,6 +179,7 @@ app.post("/auth/session", async (c) => {
       secret: authSecret,
       ttlSeconds: REFRESH_TOKEN_TTL_SECONDS,
       sid,
+      name: claims.name,
     });
     return c.json({
       token_type: "Bearer",
@@ -230,12 +231,14 @@ app.post("/auth/refresh", async (c) => {
     secret: authSecret,
     ttlSeconds: ACCESS_TOKEN_TTL_SECONDS,
     sid: refreshPayload.sid,
+    name: refreshPayload.name,
   });
   const refreshToken = await createRefreshToken({
     subject: refreshPayload.sub,
     secret: authSecret,
     ttlSeconds: REFRESH_TOKEN_TTL_SECONDS,
     sid: refreshPayload.sid,
+    name: refreshPayload.name,
   });
   return c.json({
     token_type: "Bearer",

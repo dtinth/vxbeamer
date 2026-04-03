@@ -52,10 +52,11 @@ export async function createRefreshToken(options: {
   secret: string;
   ttlSeconds?: number;
   sid?: string;
+  name?: string;
 }): Promise<string> {
-  const { subject, secret, ttlSeconds = 259200, sid = randomUUID() } = options;
+  const { subject, secret, ttlSeconds = 259200, sid = randomUUID(), name } = options;
   const now = Math.floor(Date.now() / 1000);
-  return await new SignJWT({ sid, token_type: "refresh" })
+  return await new SignJWT({ sid, token_type: "refresh", ...(name ? { name } : {}) })
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })
     .setJti(randomUUID())
     .setSubject(subject)
@@ -66,6 +67,7 @@ export async function createRefreshToken(options: {
 
 export interface RefreshTokenPayload {
   sub: string;
+  name?: string;
   sid: string;
   token_type: "refresh";
   jti: string;
@@ -95,8 +97,10 @@ export async function verifyRefreshToken(
     if (payload.exp <= Math.floor(Date.now() / 1000)) {
       return null;
     }
+    const name = typeof payload.name === "string" ? payload.name : undefined;
     return {
       sub: payload.sub,
+      name,
       sid: payload.sid,
       token_type: "refresh",
       jti: payload.jti,

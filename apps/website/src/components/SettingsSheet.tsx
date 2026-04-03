@@ -134,8 +134,8 @@ export function SettingsSheet({ open: controlledOpen, onOpenChange }: SettingsSh
                     {userInfo.sub && (
                       <button
                         onClick={() => void navigator.clipboard.writeText(userInfo.sub!)}
-                        className="text-(--m3-on-surface-variant) text-xs font-mono hover:text-(--m3-on-surface) transition-colors cursor-pointer"
-                        title="Click to copy"
+                        className="text-(--m3-on-surface-variant) text-xs font-mono hover:text-(--m3-on-surface) transition-colors cursor-pointer truncate"
+                        title={userInfo.sub}
                       >
                         {userInfo.sub}
                       </button>

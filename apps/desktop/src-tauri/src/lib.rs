@@ -2,17 +2,17 @@ use enigo::{
     Direction::{Click, Press, Release},
     Enigo, Key, Keyboard, Settings,
 };
-use std::{process::Command, thread, time::Duration};
 #[cfg(target_os = "macos")]
 use std::sync::mpsc;
-use tauri::{image::Image, AppHandle, Manager, Theme};
+use std::{process::Command, thread, time::Duration};
 #[cfg(target_os = "macos")]
 use tauri::TitleBarStyle;
+use tauri::{image::Image, AppHandle, Manager, Theme};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
 // Give the target app a brief moment to consume the temporary clipboard contents before restoring them.
 const PASTE_RESTORE_DELAY_MS: u64 = 150;
-#[cfg(target_os = "macos")]
+// macOS virtual keycode for the physical ANSI "V" key (`kVK_ANSI_V`), which stays stable across input sources.
 const MACOS_PASTE_KEYCODE_V: u16 = 9;
 // Match the desktop window/title-bar background to the web app's Material Design 3 dark surface.
 const DESKTOP_WINDOW_BACKGROUND_COLOR: tauri::utils::config::Color =
@@ -28,20 +28,25 @@ enum ClipboardSnapshot {
     },
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PasteKey {
+    Raw(u16),
+    Unicode(char),
+}
+
 #[tauri::command]
 async fn copy_text_to_clipboard(app: AppHandle, text: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        app.clipboard().write_text(text).map_err(|err| err.to_string())
+        app.clipboard()
+            .write_text(text)
+            .map_err(|err| err.to_string())
     })
     .await
     .map_err(|err| err.to_string())?
 }
 
 #[tauri::command]
-async fn paste_text_into_active_app(
-    app: AppHandle,
-    text: String,
-) -> Result<(), String> {
+async fn paste_text_into_active_app(app: AppHandle, text: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         let snapshot = snapshot_clipboard(&app);
         app.clipboard()
@@ -114,22 +119,27 @@ fn send_paste_shortcut() -> Result<(), String> {
 
     enigo.key(modifier, Press).map_err(|err| err.to_string())?;
     send_paste_key(&mut enigo)?;
-    enigo.key(modifier, Release).map_err(|err| err.to_string())?;
+    enigo
+        .key(modifier, Release)
+        .map_err(|err| err.to_string())?;
     Ok(())
 }
 
-#[cfg(target_os = "macos")]
-fn send_paste_key(enigo: &mut Enigo) -> Result<(), String> {
-    enigo
-        .raw(MACOS_PASTE_KEYCODE_V, Click)
-        .map_err(|err| err.to_string())
+fn paste_key_for_platform(is_macos: bool) -> PasteKey {
+    if is_macos {
+        PasteKey::Raw(MACOS_PASTE_KEYCODE_V)
+    } else {
+        PasteKey::Unicode('v')
+    }
 }
 
-#[cfg(not(target_os = "macos"))]
 fn send_paste_key(enigo: &mut Enigo) -> Result<(), String> {
-    enigo
-        .key(Key::Unicode('v'), Click)
-        .map_err(|err| err.to_string())
+    match paste_key_for_platform(cfg!(target_os = "macos")) {
+        PasteKey::Raw(keycode) => enigo.raw(keycode, Click).map_err(|err| err.to_string()),
+        PasteKey::Unicode(character) => enigo
+            .key(Key::Unicode(character), Click)
+            .map_err(|err| err.to_string()),
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -140,9 +150,7 @@ fn trigger_paste_shortcut(app: &AppHandle) -> Result<(), String> {
     })
     .map_err(|err| err.to_string())?;
 
-    receiver
-        .recv()
-        .map_err(|err| err.to_string())?
+    receiver.recv().map_err(|err| err.to_string())?
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -198,4 +206,22 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running vxbeamer desktop");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{paste_key_for_platform, PasteKey, MACOS_PASTE_KEYCODE_V};
+
+    #[test]
+    fn paste_key_uses_raw_v_keycode_on_macos() {
+        assert_eq!(
+            paste_key_for_platform(true),
+            PasteKey::Raw(MACOS_PASTE_KEYCODE_V)
+        );
+    }
+
+    #[test]
+    fn paste_key_uses_unicode_v_on_other_platforms() {
+        assert_eq!(paste_key_for_platform(false), PasteKey::Unicode('v'));
+    }
 }

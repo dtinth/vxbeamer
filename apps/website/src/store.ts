@@ -99,7 +99,7 @@ export const $userInfo = computed($sessionToken, (token) => {
   return { sub: payload.sub, name: payload.name };
 });
 
-export const $messages = atom<Message[]>([]);
+export const $messages = atom<Map<string, Message>>(new Map());
 
 export const $activeRecordingReferenceId = atom<string | null>(null);
 
@@ -244,13 +244,20 @@ type SseEvent =
 export function applySSEEvent(raw: unknown): void {
   const event = raw as SseEvent;
   if (event.type === "snapshot") {
-    $messages.set(event.messages);
+    const map = new Map(event.messages.map((m) => [m.id, m]));
+    $messages.set(map);
   } else if (event.type === "created") {
-    $messages.set([...$messages.get(), event.message]);
+    const map = new Map($messages.get());
+    map.set(event.message.id, event.message);
+    $messages.set(map);
   } else if (event.type === "updated") {
-    $messages.set($messages.get().map((m) => (m.id === event.message.id ? event.message : m)));
+    const map = new Map($messages.get());
+    map.set(event.message.id, event.message);
+    $messages.set(map);
   } else if (event.type === "deleted") {
-    $messages.set($messages.get().filter((m) => m.id !== event.messageId));
+    const map = new Map($messages.get());
+    map.delete(event.messageId);
+    $messages.set(map);
   } else if (event.type === "swiped") {
     const isLocalSwipe = pendingLocalSwipes.delete(event.message.id);
     swipeAnimationCounter += 1;

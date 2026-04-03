@@ -61,7 +61,16 @@ The OIDC provider must support:
 
 ### API keys (personal access tokens)
 
-Set the `API_KEYS` environment variable in the format `sub:secret` (e.g. `API_KEYS=myuser123:s3cretk3y`). These keys are not used directly for authentication — instead, scripts exchange them for session tokens via `POST /auth/token`. This way all protected endpoints use the same session token format regardless of how the user authenticated.
+Set the `API_KEYS` environment variable with one or more `sub:secret` pairs, comma-separated:
+
+```
+API_KEYS=user123:key1,user123:key2,another-user:key3
+```
+
+- `sub` — user identifier (will be included in the `sub` claim of issued access tokens)
+- `secret` — the API key string itself (what scripts use to authenticate)
+
+You can have multiple keys for the same user (useful for key rotation or different integrations). API keys are not used directly for authenticated requests. Instead, scripts exchange them for short-lived access tokens via `POST /auth/token`. This keeps all authentication consistent: protected endpoints only accept session tokens, regardless of whether they came from OIDC or API key exchange.
 
 ## Deployment
 

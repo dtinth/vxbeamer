@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { createAuthUrl, exchangeDesktopCode } from "../oidc.ts";
+import { openExternalUrl } from "../desktop.ts";
 
 export interface AuthUrlModalProps {
   backendUrl: string;
@@ -37,8 +38,13 @@ export function AuthUrlModal({ backendUrl, onSuccess, onClose }: AuthUrlModalPro
     await navigator.clipboard.writeText(authUrl);
   };
 
-  const handleOpen = () => {
-    window.open(authUrl, "_blank");
+  const handleOpen = async () => {
+    try {
+      setErrorMessage("");
+      await openExternalUrl(authUrl);
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : "Failed to open URL");
+    }
   };
 
   const handleSubmit = async () => {
@@ -93,7 +99,7 @@ export function AuthUrlModal({ backendUrl, onSuccess, onClose }: AuthUrlModalPro
               Copy
             </button>
             <button
-              onClick={handleOpen}
+              onClick={() => void handleOpen()}
               disabled={status !== "ready"}
               className="flex-1 px-3 py-2 bg-(--m3-secondary-container) text-(--m3-on-secondary-container) rounded text-sm font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
             >

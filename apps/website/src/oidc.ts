@@ -73,6 +73,7 @@ export async function startSignIn(backendUrl: string): Promise<never> {
 
 export async function handleCallback(): Promise<{
   accessToken: string;
+  refreshToken: string;
   backendUrl: string;
 } | null> {
   const params = new URLSearchParams(window.location.search);
@@ -119,8 +120,9 @@ export async function handleCallback(): Promise<{
     throw new Error(err.error ?? "Session creation failed");
   }
 
-  const session = (await sessionRes.json()) as { access_token?: string };
+  const session = (await sessionRes.json()) as { access_token?: string; refresh_token?: string };
   if (!session.access_token) throw new Error("No access_token in session response");
+  if (!session.refresh_token) throw new Error("No refresh_token in session response");
 
-  return { accessToken: session.access_token, backendUrl };
+  return { accessToken: session.access_token, refreshToken: session.refresh_token, backendUrl };
 }

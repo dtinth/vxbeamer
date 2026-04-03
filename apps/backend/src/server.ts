@@ -7,7 +7,13 @@ import { createNodeWebSocket } from "@hono/node-ws";
 import type { WSContext, WSMessageReceive } from "hono/ws";
 import { createQwenProvider, createMockProvider, withGroqEnhancement } from "vxasr";
 import type { ASRProvider, ASRSession, UsageRecord } from "vxasr";
-import { createAccessToken, verifyAccessToken, verifyIdToken } from "./auth.ts";
+import {
+  createAccessToken,
+  createRefreshToken,
+  verifyAccessToken,
+  verifyRefreshToken,
+  verifyIdToken,
+} from "./auth.ts";
 import { normalizeTranscriptText } from "./transcript.ts";
 
 // --- Config ---
@@ -29,7 +35,8 @@ const apiKeys = new Map(
     }),
 );
 const webhookUrl = process.env.WEBHOOK_URL ?? "";
-const ACCESS_TOKEN_TTL_SECONDS = 259200; // 3 days
+const ACCESS_TOKEN_TTL_SECONDS = 900; // 15 minutes
+const REFRESH_TOKEN_TTL_SECONDS = 259200; // 3 days
 const DISCOVERY_CACHE_TTL_MS = 3_600_000;
 const ONE_DAY_MS = 86_400_000;
 
@@ -159,15 +166,24 @@ app.post("/auth/session", async (c) => {
       discovery.jwks_uri,
       oidcAudience,
     );
+    const sid = crypto.randomUUID();
     const accessToken = await createAccessToken({
       subject: claims.sub,
       secret: authSecret,
       ttlSeconds: ACCESS_TOKEN_TTL_SECONDS,
+      sid,
       name: claims.name,
+    });
+    const refreshToken = await createRefreshToken({
+      subject: claims.sub,
+      secret: authSecret,
+      ttlSeconds: REFRESH_TOKEN_TTL_SECONDS,
+      sid,
     });
     return c.json({
       token_type: "Bearer",
       access_token: accessToken,
+      refresh_token: refreshToken,
       expires_in: ACCESS_TOKEN_TTL_SECONDS,
     });
   } catch (error) {
@@ -198,20 +214,33 @@ app.post("/auth/token", async (c) => {
   });
 });
 
-app.post("/auth/refresh", authMiddleware, async (c) => {
-  const token = extractToken(c.req.header("Authorization"), c.req.query("access_token"));
-  const payload = token ? await verifyAccessToken(token, authSecret) : null;
-  if (!payload) return c.json({ error: "Invalid token" }, 401);
+app.post("/auth/refresh", async (c) => {
+  let body: { refresh_token?: string };
+  try {
+    body = (await c.req.json()) as typeof body;
+  } catch {
+    return c.json({ error: "Invalid request body" }, 400);
+  }
+  if (!body.refresh_token) return c.json({ error: "Missing refresh_token" }, 400);
+  const refreshPayload = await verifyRefreshToken(body.refresh_token, authSecret);
+  if (!refreshPayload) return c.json({ error: "Invalid refresh_token" }, 401);
+
   const accessToken = await createAccessToken({
-    subject: payload.sub,
+    subject: refreshPayload.sub,
     secret: authSecret,
     ttlSeconds: ACCESS_TOKEN_TTL_SECONDS,
-    sid: payload.sid,
-    name: payload.name,
+    sid: refreshPayload.sid,
+  });
+  const refreshToken = await createRefreshToken({
+    subject: refreshPayload.sub,
+    secret: authSecret,
+    ttlSeconds: REFRESH_TOKEN_TTL_SECONDS,
+    sid: refreshPayload.sid,
   });
   return c.json({
     token_type: "Bearer",
     access_token: accessToken,
+    refresh_token: refreshToken,
     expires_in: ACCESS_TOKEN_TTL_SECONDS,
   });
 });

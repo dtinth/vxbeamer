@@ -13,8 +13,9 @@ export interface Message {
 
 const BACKEND_URL_KEY = "vxbeamer_backend_url";
 const SESSION_TOKEN_KEY = "vxbeamer_access_token";
+const REFRESH_TOKEN_KEY = "vxbeamer_refresh_token";
 const WAKE_LOCK_KEY = "vxbeamer_wake_lock";
-const TOKEN_REFRESH_INTERVAL_SECONDS = 3600;
+const TOKEN_CHECK_INTERVAL_SECONDS = 60; // Check every minute if we need to refresh
 
 interface AccessTokenPayload {
   sub?: string;
@@ -50,7 +51,18 @@ function loadSessionToken(): string | null {
   if (!token) return null;
   const payload = decodeAccessTokenPayload(token);
   if (!payload || payload.exp <= Math.floor(Date.now() / 1000)) {
-    localStorage.removeItem(SESSION_TOKEN_KEY);
+    clearSessionToken();
+    return null;
+  }
+  return token;
+}
+
+function loadRefreshToken(): string | null {
+  const token = localStorage.getItem(REFRESH_TOKEN_KEY);
+  if (!token) return null;
+  const payload = decodeAccessTokenPayload(token);
+  if (!payload || payload.exp <= Math.floor(Date.now() / 1000)) {
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
     return null;
   }
   return token;
@@ -74,6 +86,7 @@ export const $backendUrl = atom<string>(
 );
 
 export const $sessionToken = atom<string | null>(loadSessionToken());
+export const $refreshToken = atom<string | null>(loadRefreshToken());
 
 export const $userInfo = computed($sessionToken, (token) => {
   if (!token) return null;
@@ -97,15 +110,19 @@ export function setBackendUrl(url: string): void {
   localStorage.setItem(BACKEND_URL_KEY, url);
 }
 
-export function saveSessionToken(token: string): void {
-  $sessionToken.set(token);
-  localStorage.setItem(SESSION_TOKEN_KEY, token);
-  scheduleTokenRefresh(token);
+export function saveSessionToken(accessToken: string, refreshToken: string): void {
+  $sessionToken.set(accessToken);
+  $refreshToken.set(refreshToken);
+  localStorage.setItem(SESSION_TOKEN_KEY, accessToken);
+  localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+  scheduleTokenRefresh();
 }
 
 export function clearSessionToken(): void {
   $sessionToken.set(null);
+  $refreshToken.set(null);
   localStorage.removeItem(SESSION_TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
 }
 
 export function setActiveRecordingReferenceId(referenceId: string | null): void {
@@ -114,48 +131,62 @@ export function setActiveRecordingReferenceId(referenceId: string | null): void 
 
 let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
-export function getTokenRefreshDelayMs(
-  token: string,
-  nowSeconds = Math.floor(Date.now() / 1000),
-): number | null {
+function shouldRefreshToken(token: string, nowSeconds = Math.floor(Date.now() / 1000)): boolean {
   const payload = decodeAccessTokenPayload(token);
-  if (!payload) return null;
-  const refreshAt = payload.iat
-    ? Math.min(payload.iat + TOKEN_REFRESH_INTERVAL_SECONDS, payload.exp)
-    : payload.exp - TOKEN_REFRESH_INTERVAL_SECONDS;
-  return Math.max(0, (refreshAt - nowSeconds) * 1000);
+  if (!payload) return false;
+  // Refresh if less than 10 minutes remaining
+  const refreshThreshold = 10 * 60; // 10 minutes in seconds
+  return payload.exp - nowSeconds < refreshThreshold;
 }
 
-function scheduleTokenRefresh(token: string): void {
+function scheduleTokenRefresh(): void {
   if (refreshTimer !== null) {
     clearTimeout(refreshTimer);
     refreshTimer = null;
   }
-  const delayMs = getTokenRefreshDelayMs(token);
-  if (delayMs === null) return;
-  refreshTimer = setTimeout(() => void refreshToken(), delayMs);
+  // Check every minute if we need to refresh
+  refreshTimer = setTimeout(() => void checkAndRefreshToken(), TOKEN_CHECK_INTERVAL_SECONDS * 1000);
+}
+
+async function checkAndRefreshToken(): Promise<void> {
+  const token = $sessionToken.get();
+  if (!token) return;
+  if (shouldRefreshToken(token)) {
+    await refreshToken();
+  }
+  // Reschedule the next check
+  scheduleTokenRefresh();
 }
 
 async function refreshToken(): Promise<void> {
-  const token = $sessionToken.get();
+  const refreshToken = $refreshToken.get();
   const backendUrl = $backendUrl.get();
-  if (!token || !backendUrl) return;
+  if (!refreshToken || !backendUrl) return;
   try {
     const res = await fetch(new URL("/auth/refresh", backendUrl).toString(), {
       method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ refresh_token: refreshToken }),
     });
-    if (!res.ok) return;
-    const data = (await res.json()) as { access_token: string };
-    saveSessionToken(data.access_token);
+    if (res.status === 401) {
+      // Token is invalid, clear both tokens
+      clearSessionToken();
+      return;
+    }
+    if (!res.ok) {
+      // Other error, keep tokens and retry later
+      return;
+    }
+    const data = (await res.json()) as { access_token: string; refresh_token: string };
+    saveSessionToken(data.access_token, data.refresh_token);
   } catch {
-    // silently ignore, token remains valid until expiry
+    // Network error, keep tokens and retry later
   }
 }
 
-// Schedule refresh for any token already in storage on page load
+// Schedule refresh check for any token already in storage on page load
 const _initialToken = $sessionToken.get();
-if (_initialToken) scheduleTokenRefresh(_initialToken);
+if (_initialToken) scheduleTokenRefresh();
 
 type SseEvent =
   | { type: "snapshot"; messages: Message[] }

@@ -109,23 +109,23 @@ services:
 
 ## API
 
-The backend exposes a REST + SSE + WebSocket API on port 8787. All endpoints (except `/healthz` and `/auth/*`) require a bearer token — a session token obtained via OIDC (`/auth/session`) or API key exchange (`/auth/token`).
+The backend exposes a REST + SSE + WebSocket API on port 8787. All endpoints (except `/healthz` and `/auth/*`) require an access token, obtained by exchanging OIDC id_tokens or API keys.
 
 ### Endpoints
 
-| Method      | Path                  | Description                                     |
-| ----------- | --------------------- | ----------------------------------------------- |
-| `GET`       | `/healthz`            | Health check                                    |
-| `GET`       | `/auth/config`        | OIDC configuration for the frontend             |
-| `POST`      | `/auth/session`       | Exchange an OIDC `id_token` for a session token |
-| `POST`      | `/auth/token`         | Exchange an API key for a session token         |
-| `POST`      | `/auth/refresh`       | Refresh a session token (3-day TTL)             |
-| `GET`       | `/sse`                | Server-Sent Events stream of all activity       |
-| `GET`       | `/messages`           | List all messages (last 24 hours)               |
-| `GET`       | `/messages/:id`       | Get a single message                            |
-| `DELETE`    | `/messages/:id`       | Delete a message                                |
-| `POST`      | `/messages/:id/swipe` | Broadcast a swipe event for integrators         |
-| `WebSocket` | `/ws`                 | Stream PCM audio for transcription              |
+| Method      | Path                  | Description                                              |
+| ----------- | --------------------- | -------------------------------------------------------- |
+| `GET`       | `/healthz`            | Health check                                             |
+| `GET`       | `/auth/config`        | OIDC configuration for the frontend                      |
+| `POST`      | `/auth/session`       | Exchange an OIDC `id_token` for access & refresh tokens  |
+| `POST`      | `/auth/token`         | Exchange an API key for an access token (no refresh)     |
+| `POST`      | `/auth/refresh`       | Exchange a refresh token for new access & refresh tokens |
+| `GET`       | `/sse`                | Server-Sent Events stream of all activity                |
+| `GET`       | `/messages`           | List all messages (last 24 hours)                        |
+| `GET`       | `/messages/:id`       | Get a single message                                     |
+| `DELETE`    | `/messages/:id`       | Delete a message                                         |
+| `POST`      | `/messages/:id/swipe` | Broadcast a swipe event for integrators                  |
+| `WebSocket` | `/ws`                 | Stream PCM audio for transcription                       |
 
 ### SSE events
 
@@ -145,9 +145,22 @@ Connect to `/ws?access_token=<token>`. Send raw PCM audio as binary frames (16 k
 
 ### Authentication
 
-All protected endpoints accept session tokens. Pass a token as:
+All protected endpoints require an access token. Pass it as:
 
 - `Authorization: Bearer <token>` header, or
 - `?access_token=<token>` query parameter
 
-Session tokens can be obtained by exchanging an OIDC id_token (`POST /auth/session`) or an API key (`POST /auth/token`).
+#### Token flow
+
+**For OIDC users (interactive frontend):**
+
+1. Exchange OIDC id_token for access & refresh tokens: `POST /auth/session` with `id_token`
+2. Access token (15 min TTL) is used for protected endpoints
+3. When access token < 10 minutes remaining, refresh both tokens: `POST /auth/refresh` with `refresh_token`
+4. Refresh token is valid for 3 days from the last refresh
+
+**For API keys (scripts/integrations):**
+
+1. Exchange API key for access token: `POST /auth/token` with `api_key`
+2. Access token (15 min TTL) is used for protected endpoints
+3. No refresh token is issued; obtain a new access token by exchanging the API key again

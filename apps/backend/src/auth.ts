@@ -15,6 +15,7 @@ export interface AccessTokenPayload {
   sub: string;
   name?: string;
   sid: string;
+  token_type: "access" | "refresh";
   jti: string;
   iat: number;
   exp: number;
@@ -37,13 +38,74 @@ export async function createAccessToken(options: {
     name,
   } = options;
   const now = Math.floor(Date.now() / 1000);
-  return await new SignJWT({ sid, ...(name ? { name } : {}) })
+  return await new SignJWT({ sid, token_type: "access", ...(name ? { name } : {}) })
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })
     .setJti(randomUUID())
     .setSubject(subject)
     .setIssuedAt(now)
     .setExpirationTime(now + ttlSeconds)
     .sign(textEncoder.encode(secret));
+}
+
+export async function createRefreshToken(options: {
+  subject: string;
+  secret: string;
+  ttlSeconds?: number;
+  sid?: string;
+}): Promise<string> {
+  const { subject, secret, ttlSeconds = 259200, sid = randomUUID() } = options;
+  const now = Math.floor(Date.now() / 1000);
+  return await new SignJWT({ sid, token_type: "refresh" })
+    .setProtectedHeader({ alg: "HS256", typ: "JWT" })
+    .setJti(randomUUID())
+    .setSubject(subject)
+    .setIssuedAt(now)
+    .setExpirationTime(now + ttlSeconds)
+    .sign(textEncoder.encode(secret));
+}
+
+export interface RefreshTokenPayload {
+  sub: string;
+  sid: string;
+  token_type: "refresh";
+  jti: string;
+  iat: number;
+  exp: number;
+}
+
+export async function verifyRefreshToken(
+  token: string,
+  secret: string,
+): Promise<RefreshTokenPayload | null> {
+  try {
+    const { payload } = await jwtVerify(token, textEncoder.encode(secret), {
+      algorithms: ["HS256"],
+      typ: "JWT",
+    });
+    if (
+      typeof payload.sub !== "string" ||
+      typeof payload.sid !== "string" ||
+      typeof payload.jti !== "string" ||
+      typeof payload.iat !== "number" ||
+      typeof payload.exp !== "number" ||
+      payload.token_type !== "refresh"
+    ) {
+      return null;
+    }
+    if (payload.exp <= Math.floor(Date.now() / 1000)) {
+      return null;
+    }
+    return {
+      sub: payload.sub,
+      sid: payload.sid,
+      token_type: "refresh",
+      jti: payload.jti,
+      iat: payload.iat,
+      exp: payload.exp,
+    };
+  } catch {
+    return null;
+  }
 }
 
 export async function verifyAccessToken(
@@ -60,7 +122,8 @@ export async function verifyAccessToken(
       typeof payload.sid !== "string" ||
       typeof payload.jti !== "string" ||
       typeof payload.iat !== "number" ||
-      typeof payload.exp !== "number"
+      typeof payload.exp !== "number" ||
+      payload.token_type !== "access"
     ) {
       return null;
     }
@@ -72,6 +135,7 @@ export async function verifyAccessToken(
       sub: payload.sub,
       name,
       sid: payload.sid,
+      token_type: "access",
       jti: payload.jti,
       iat: payload.iat,
       exp: payload.exp,

@@ -1,5 +1,10 @@
 import { expect, test } from "vite-plus/test";
-import { createAccessToken, verifyAccessToken } from "./auth.ts";
+import {
+  createAccessToken,
+  createRefreshToken,
+  verifyAccessToken,
+  verifyRefreshToken,
+} from "./auth.ts";
 
 test("verifyAccessToken validates signature and expiry", async () => {
   const token = await createAccessToken({ subject: "user-1", secret: "secret", ttlSeconds: 60 });
@@ -22,4 +27,20 @@ test("verifyAccessToken validates signature and expiry", async () => {
 
   const invalid = await verifyAccessToken(token, "another-secret");
   expect(invalid).toBeNull();
+});
+
+test("verifyRefreshToken validates signature and token_type", async () => {
+  const token = await createRefreshToken({ subject: "user-1", secret: "secret", ttlSeconds: 60 });
+  const payload = await verifyRefreshToken(token, "secret");
+  expect(payload?.sub).toBe("user-1");
+  expect(payload?.token_type).toBe("refresh");
+  expect(payload?.sid).toBeTypeOf("string");
+
+  const accessToken = await createAccessToken({
+    subject: "user-1",
+    secret: "secret",
+    ttlSeconds: 60,
+  });
+  const accessPayload = await verifyRefreshToken(accessToken, "secret");
+  expect(accessPayload).toBeNull();
 });

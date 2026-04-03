@@ -25,7 +25,7 @@ export function App() {
     void handleCallback()
       .then((result) => {
         if (result) {
-          saveSessionToken(result.accessToken);
+          saveSessionToken(result.accessToken, result.refreshToken);
           setBackendUrl(result.backendUrl);
         }
       })

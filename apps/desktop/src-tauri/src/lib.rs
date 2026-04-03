@@ -6,6 +6,7 @@ use std::{thread, time::Duration};
 use tauri::{image::Image, AppHandle};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
+// Give the target app a brief moment to consume the temporary clipboard contents before restoring them.
 const PASTE_RESTORE_DELAY_MS: u64 = 150;
 
 enum ClipboardSnapshot {

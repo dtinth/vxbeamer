@@ -12,14 +12,21 @@ import {
 } from "../store.ts";
 import { startSignIn } from "../oidc.ts";
 
-export function SettingsSheet() {
-  const [open, setOpen] = useState(false);
+export interface SettingsSheetProps {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}
+
+export function SettingsSheet({ open: controlledOpen, onOpenChange }: SettingsSheetProps = {}) {
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const backendUrl = useStore($backendUrl);
   const sessionToken = useStore($sessionToken);
   const wakeLockMode = useStore($wakeLockMode);
   const wakeLockActive = useStore($wakeLockActive);
   const [urlInput, setUrlInput] = useState(backendUrl);
   const [signingIn, setSigningIn] = useState(false);
+  const open = controlledOpen ?? uncontrolledOpen;
+  const setOpen = onOpenChange ?? setUncontrolledOpen;
 
   const handleSignIn = async () => {
     setSigningIn(true);
@@ -115,7 +122,10 @@ export function SettingsSheet() {
         <div className="pt-1 space-y-2">
           {sessionToken ? (
             <button
-              onClick={() => clearSessionToken()}
+              onClick={() => {
+                clearSessionToken();
+                setOpen(false);
+              }}
               className="w-full py-3 rounded-xl bg-(--m3-surface-container-highest) hover:bg-(--m3-surface-bright) text-sm font-medium transition-colors"
             >
               Sign out

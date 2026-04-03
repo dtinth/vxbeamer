@@ -14,19 +14,35 @@ export interface Message {
 const BACKEND_URL_KEY = "vxbeamer_backend_url";
 const SESSION_TOKEN_KEY = "vxbeamer_access_token";
 const WAKE_LOCK_KEY = "vxbeamer_wake_lock";
+const TOKEN_REFRESH_INTERVAL_SECONDS = 3600;
+
+interface AccessTokenPayload {
+  exp: number;
+  iat?: number;
+}
+
+function decodeAccessTokenPayload(token: string): AccessTokenPayload | null {
+  try {
+    const segments = token.split(".");
+    if (segments.length !== 3) return null;
+    const payloadSegment = segments[1];
+    if (!payloadSegment) return null;
+    const base64 = payloadSegment.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+    const payload = JSON.parse(atob(padded)) as Partial<AccessTokenPayload>;
+    if (typeof payload.exp !== "number") return null;
+    if (payload.iat !== undefined && typeof payload.iat !== "number") return null;
+    return { exp: payload.exp, iat: payload.iat };
+  } catch {
+    return null;
+  }
+}
 
 function loadSessionToken(): string | null {
   const token = localStorage.getItem(SESSION_TOKEN_KEY);
   if (!token) return null;
-  try {
-    const payload = JSON.parse(
-      atob(token.split(".")[0]!.replace(/-/g, "+").replace(/_/g, "/")),
-    ) as { exp: number };
-    if (payload.exp <= Math.floor(Date.now() / 1000)) {
-      localStorage.removeItem(SESSION_TOKEN_KEY);
-      return null;
-    }
-  } catch {
+  const payload = decodeAccessTokenPayload(token);
+  if (!payload || payload.exp <= Math.floor(Date.now() / 1000)) {
     localStorage.removeItem(SESSION_TOKEN_KEY);
     return null;
   }
@@ -84,23 +100,25 @@ export function setActiveRecordingReferenceId(referenceId: string | null): void 
 
 let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
+export function getTokenRefreshDelayMs(
+  token: string,
+  nowSeconds = Math.floor(Date.now() / 1000),
+): number | null {
+  const payload = decodeAccessTokenPayload(token);
+  if (!payload) return null;
+  const refreshAt = payload.iat
+    ? Math.min(payload.iat + TOKEN_REFRESH_INTERVAL_SECONDS, payload.exp)
+    : payload.exp - TOKEN_REFRESH_INTERVAL_SECONDS;
+  return Math.max(0, (refreshAt - nowSeconds) * 1000);
+}
+
 function scheduleTokenRefresh(token: string): void {
   if (refreshTimer !== null) {
     clearTimeout(refreshTimer);
     refreshTimer = null;
   }
-  let exp: number;
-  try {
-    const payload = JSON.parse(
-      atob(token.split(".")[0]!.replace(/-/g, "+").replace(/_/g, "/")),
-    ) as { exp: number };
-    exp = payload.exp;
-  } catch {
-    return;
-  }
-  const now = Math.floor(Date.now() / 1000);
-  const refreshAt = exp - 3600; // 1 hour before expiry
-  const delayMs = Math.max(0, (refreshAt - now) * 1000);
+  const delayMs = getTokenRefreshDelayMs(token);
+  if (delayMs === null) return;
   refreshTimer = setTimeout(() => void refreshToken(), delayMs);
 }
 

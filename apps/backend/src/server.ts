@@ -8,6 +8,7 @@ import type { WSContext, WSMessageReceive } from "hono/ws";
 import { createQwenProvider, createMockProvider, withGroqEnhancement } from "vxasr";
 import type { ASRProvider, ASRSession, UsageRecord } from "vxasr";
 import { createAccessToken, verifyAccessToken, verifyIdToken } from "./auth.ts";
+import { normalizeTranscriptText } from "./transcript.ts";
 
 // --- Config ---
 const oidcDiscoveryUrl = process.env.OIDC_DISCOVERY_URL ?? "";
@@ -93,9 +94,9 @@ async function sendWebhook(message: Message): Promise<void> {
 }
 
 // --- Auth ---
-function authenticate(token: string): boolean {
+async function authenticate(token: string): Promise<boolean> {
   if (apiKeys.has(token)) return true;
-  return verifyAccessToken(token, authSecret) !== null;
+  return (await verifyAccessToken(token, authSecret)) !== null;
 }
 
 function extractToken(
@@ -115,7 +116,7 @@ app.use("*", cors({ origin: "*" }));
 
 const authMiddleware = createMiddleware(async (c, next) => {
   const token = extractToken(c.req.header("Authorization"), c.req.query("access_token"));
-  if (!token || !authenticate(token)) return c.json({ error: "Unauthorized" }, 401);
+  if (!token || !(await authenticate(token))) return c.json({ error: "Unauthorized" }, 401);
   await next();
 });
 
@@ -153,7 +154,7 @@ app.post("/auth/session", async (c) => {
       discovery.jwks_uri,
       oidcAudience,
     );
-    const accessToken = createAccessToken(claims.sub, authSecret, ACCESS_TOKEN_TTL_SECONDS);
+    const accessToken = await createAccessToken(claims.sub, authSecret, ACCESS_TOKEN_TTL_SECONDS);
     return c.json({
       token_type: "Bearer",
       access_token: accessToken,
@@ -165,11 +166,16 @@ app.post("/auth/session", async (c) => {
   }
 });
 
-app.post("/auth/refresh", authMiddleware, (c) => {
+app.post("/auth/refresh", authMiddleware, async (c) => {
   const token = extractToken(c.req.header("Authorization"), c.req.query("access_token"));
-  const payload = token ? verifyAccessToken(token, authSecret) : null;
+  const payload = token ? await verifyAccessToken(token, authSecret) : null;
   if (!payload) return c.json({ error: "Invalid token" }, 401);
-  const accessToken = createAccessToken(payload.sub, authSecret, ACCESS_TOKEN_TTL_SECONDS);
+  const accessToken = await createAccessToken(
+    payload.sub,
+    authSecret,
+    ACCESS_TOKEN_TTL_SECONDS,
+    payload.sid,
+  );
   return c.json({
     token_type: "Bearer",
     access_token: accessToken,
@@ -283,13 +289,13 @@ app.get(
           },
           onPartial(text) {
             if (!message) return;
-            message.partial = text;
+            message.partial = normalizeTranscriptText(text);
             message.updatedAt = Date.now();
             broadcast({ type: "updated", message });
           },
           onFinal(text) {
             if (!message) return;
-            message.final = text;
+            message.final = normalizeTranscriptText(text);
             message.partial = undefined;
             message.updatedAt = Date.now();
             broadcast({ type: "updated", message });

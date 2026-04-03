@@ -13,6 +13,7 @@
   "dependencies": {
     "@fontsource-variable/tasa-orbiter": "catalog:",
     "@nanostores/react": "^0.7.3",
+    "@tauri-apps/api": "2.10.1",
     "nanostores": "^0.11.4",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"

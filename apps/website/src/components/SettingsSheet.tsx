@@ -2,12 +2,14 @@ import { useState } from "react";
 import { useStore } from "@nanostores/react";
 import {
   $backendUrl,
+  $desktopSwipeBehavior,
   $sessionToken,
   $userInfo,
   $wakeLockMode,
   $wakeLockActive,
   setBackendUrl,
   clearSessionToken,
+  setDesktopSwipeBehavior,
   setWakeLockMode,
   saveSessionToken,
   type WakeLockMode,
@@ -15,6 +17,7 @@ import {
 import { startSignIn } from "../oidc.ts";
 import { SettingsIcon } from "./SettingsIcon.tsx";
 import { AuthUrlModal } from "./AuthUrlModal.tsx";
+import { isDesktopApp } from "../desktop.ts";
 
 export interface SettingsSheetProps {
   open?: boolean;
@@ -24,6 +27,7 @@ export interface SettingsSheetProps {
 export function SettingsSheet({ open: controlledOpen, onOpenChange }: SettingsSheetProps = {}) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const backendUrl = useStore($backendUrl);
+  const desktopSwipeBehavior = useStore($desktopSwipeBehavior);
   const sessionToken = useStore($sessionToken);
   const userInfo = useStore($userInfo);
   const wakeLockMode = useStore($wakeLockMode);
@@ -33,7 +37,7 @@ export function SettingsSheet({ open: controlledOpen, onOpenChange }: SettingsSh
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const open = controlledOpen ?? uncontrolledOpen;
   const setOpen = onOpenChange ?? setUncontrolledOpen;
-  const isDesktop = typeof (window as any).__TAURI__ !== "undefined";
+  const isDesktop = isDesktopApp();
 
   const handleSignIn = async () => {
     setSigningIn(true);
@@ -112,6 +116,25 @@ export function SettingsSheet({ open: controlledOpen, onOpenChange }: SettingsSh
             <option value="always">Always on</option>
           </select>
         </div>
+
+        {isDesktop && (
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-(--m3-on-surface-variant) uppercase tracking-wider">
+                Swipe from another device
+              </span>
+            </div>
+            <select
+              value={desktopSwipeBehavior}
+              onChange={(e) => setDesktopSwipeBehavior(e.target.value as "none" | "copy" | "paste")}
+              className="w-full bg-(--m3-surface-container-highest) rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-(--m3-outline) appearance-none"
+            >
+              <option value="none">Do nothing</option>
+              <option value="copy">Copy to clipboard</option>
+              <option value="paste">Paste into active application</option>
+            </select>
+          </div>
+        )}
 
         <div className="pt-1 space-y-2">
           {sessionToken ? (

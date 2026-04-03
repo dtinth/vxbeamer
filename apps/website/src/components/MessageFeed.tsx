@@ -6,6 +6,7 @@ import {
   $lastSwipedMessage,
   $messages,
   $sessionToken,
+  markPendingLocalSwipe,
   type Message,
 } from "../store.ts";
 import { getMessageFeedScrollBehavior } from "./messageFeedScroll.ts";
@@ -74,6 +75,7 @@ function MessageCard({
         headers: { Authorization: `Bearer ${authToken}` },
       });
     } else if (offset > SWIPE_THRESHOLD) {
+      markPendingLocalSwipe(message.id);
       void fetch(new URL(`/messages/${message.id}/swipe`, backendUrl).toString(), {
         method: "POST",
         headers: { Authorization: `Bearer ${authToken}` },

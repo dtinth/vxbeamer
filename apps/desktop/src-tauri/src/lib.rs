@@ -68,7 +68,10 @@ fn snapshot_clipboard(app: &AppHandle) -> ClipboardSnapshot {
 fn restore_clipboard(app: &AppHandle, snapshot: ClipboardSnapshot) -> Result<(), String> {
     match snapshot {
         ClipboardSnapshot::Empty => app.clipboard().clear().map_err(|err| err.to_string()),
-        ClipboardSnapshot::Text(text) => app.clipboard().write_text(text).map_err(|err| err.to_string()),
+        ClipboardSnapshot::Text(text) => app
+            .clipboard()
+            .write_text(text)
+            .map_err(|err| err.to_string()),
         ClipboardSnapshot::Image {
             bytes,
             width,

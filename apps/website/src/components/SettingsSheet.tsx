@@ -121,7 +121,7 @@ export function SettingsSheet({ open: controlledOpen, onOpenChange }: SettingsSh
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-(--m3-on-surface-variant) uppercase tracking-wider">
-                Swipe from another device
+                Remote swipe action
               </span>
             </div>
             <select

@@ -6,11 +6,13 @@ use std::{process::Command, thread, time::Duration};
 #[cfg(target_os = "macos")]
 use std::sync::mpsc;
 use tauri::{image::Image, AppHandle, Manager, Theme};
+#[cfg(target_os = "macos")]
+use tauri::TitleBarStyle;
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
 // Give the target app a brief moment to consume the temporary clipboard contents before restoring them.
 const PASTE_RESTORE_DELAY_MS: u64 = 150;
-// Match the requested desktop window/title-bar color with the app's dark surface.
+// Match the desktop window/title-bar background to the web app's Material Design 3 dark surface.
 const DESKTOP_WINDOW_BACKGROUND_COLOR: tauri::utils::config::Color =
     tauri::utils::config::Color(0x12, 0x14, 0x0d, 0xff);
 
@@ -166,9 +168,12 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
+            app.set_theme(Some(Theme::Dark));
             if let Some(main_window) = app.get_webview_window("main") {
                 main_window.set_theme(Some(Theme::Dark))?;
                 main_window.set_background_color(Some(DESKTOP_WINDOW_BACKGROUND_COLOR))?;
+                #[cfg(target_os = "macos")]
+                main_window.set_title_bar_style(TitleBarStyle::Transparent)?;
             }
             Ok(())
         })

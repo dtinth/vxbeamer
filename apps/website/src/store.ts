@@ -53,22 +53,12 @@ function decodeAccessTokenPayload(token: string): AccessTokenPayload | null {
 function loadSessionToken(): string | null {
   const token = localStorage.getItem(SESSION_TOKEN_KEY);
   if (!token) return null;
-  const payload = decodeAccessTokenPayload(token);
-  if (!payload || payload.exp <= Math.floor(Date.now() / 1000)) {
-    clearSessionToken();
-    return null;
-  }
   return token;
 }
 
 function loadRefreshToken(): string | null {
   const token = localStorage.getItem(REFRESH_TOKEN_KEY);
   if (!token) return null;
-  const payload = decodeAccessTokenPayload(token);
-  if (!payload || payload.exp <= Math.floor(Date.now() / 1000)) {
-    localStorage.removeItem(REFRESH_TOKEN_KEY);
-    return null;
-  }
   return token;
 }
 
@@ -150,14 +140,10 @@ export function markPendingLocalSwipe(messageId: string): void {
 }
 
 let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingRefresh: Promise<void> | null = null;
 
-function shouldRefreshToken(token: string, nowSeconds = Math.floor(Date.now() / 1000)): boolean {
-  const payload = decodeAccessTokenPayload(token);
-  if (!payload) return false;
-  // Refresh if less than 10 minutes remaining
-  const refreshThreshold = 10 * 60; // 10 minutes in seconds
-  return payload.exp - nowSeconds < refreshThreshold;
-}
+const FRESH_THRESHOLD_SECONDS = 5 * 60; // 5 minutes
+const EXPIRY_BUFFER_SECONDS = 5 * 60; // 5 minutes
 
 function scheduleTokenRefresh(): void {
   if (refreshTimer !== null) {
@@ -168,11 +154,51 @@ function scheduleTokenRefresh(): void {
   refreshTimer = setTimeout(() => void checkAndRefreshToken(), TOKEN_CHECK_INTERVAL_SECONDS * 1000);
 }
 
+export async function obtainSessionToken(): Promise<string> {
+  const token = $sessionToken.get();
+  if (!token) throw new Error("Not authenticated");
+
+  const payload = decodeAccessTokenPayload(token);
+  if (!payload) throw new Error("Invalid session token");
+
+  const nowSeconds = Math.floor(Date.now() / 1000);
+
+  // Zone 1: fresh — return immediately
+  if (payload.iat !== undefined && nowSeconds - payload.iat < FRESH_THRESHOLD_SECONDS) {
+    return token;
+  }
+
+  const secondsUntilExpiry = payload.exp - nowSeconds;
+
+  // Zone 3: near-expiry or expired — blocking refresh
+  if (secondsUntilExpiry < EXPIRY_BUFFER_SECONDS) {
+    if (!pendingRefresh) {
+      pendingRefresh = refreshToken().finally(() => {
+        pendingRefresh = null;
+      });
+    }
+    await pendingRefresh;
+    const newToken = $sessionToken.get();
+    if (!newToken) throw new Error("Failed to obtain a valid session token");
+    return newToken;
+  }
+
+  // Zone 2: stale — return current token, refresh in background
+  if (!pendingRefresh) {
+    pendingRefresh = refreshToken().finally(() => {
+      pendingRefresh = null;
+    });
+  }
+  return token;
+}
+
 async function checkAndRefreshToken(): Promise<void> {
   const token = $sessionToken.get();
   if (!token) return;
-  if (shouldRefreshToken(token)) {
-    await refreshToken();
+  try {
+    await obtainSessionToken();
+  } catch {
+    // obtainSessionToken will handle refresh failures; ignore here
   }
   // Reschedule the next check
   scheduleTokenRefresh();

@@ -8,6 +8,7 @@ import {
   saveSessionToken,
   setBackendUrl,
   clearSessionToken,
+  obtainSessionToken,
 } from "./store.ts";
 import { MessageFeed } from "./components/MessageFeed.tsx";
 import { RecordingBar } from "./components/RecordingBar.tsx";
@@ -52,10 +53,17 @@ export function App() {
     let heartbeatCheckTimer: ReturnType<typeof setInterval> | null = null;
     let lastHeartbeatTime = Date.now();
 
-    const connect = () => {
+    const connect = async () => {
       $sseStatus.set("connecting");
+      let token: string;
+      try {
+        token = await obtainSessionToken();
+      } catch {
+        $sseStatus.set("disconnected");
+        return;
+      }
       const url = new URL("/sse", backendUrl);
-      url.searchParams.set("access_token", authToken);
+      url.searchParams.set("access_token", token);
 
       sse = new EventSource(url.toString());
       lastHeartbeatTime = Date.now();
@@ -100,7 +108,7 @@ export function App() {
       }
     }, 5000);
 
-    connect();
+    void connect();
 
     return () => {
       if (sse) sse.close();

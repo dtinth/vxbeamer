@@ -12,10 +12,12 @@ import {
 import { MessageFeed } from "./components/MessageFeed.tsx";
 import { RecordingBar } from "./components/RecordingBar.tsx";
 import { SettingsSheet } from "./components/SettingsSheet.tsx";
+import { DesktopAuthCode } from "./components/DesktopAuthCode.tsx";
 import { handleCallback } from "./oidc.ts";
 
 export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [desktopCallbackPayload, setDesktopCallbackPayload] = useState<string | null>(null);
   const authToken = useStore($sessionToken);
   const backendUrl = useStore($backendUrl);
   const sseStatus = useStore($sseStatus);
@@ -24,9 +26,12 @@ export function App() {
   useEffect(() => {
     void handleCallback()
       .then((result) => {
-        if (result) {
+        if (!result) return;
+        if (result.type === "session") {
           saveSessionToken(result.accessToken, result.refreshToken);
           setBackendUrl(result.backendUrl);
+        } else if (result.type === "desktop") {
+          setDesktopCallbackPayload(result.payload);
         }
       })
       .catch((err: unknown) => {
@@ -113,23 +118,31 @@ export function App() {
         : "bg-(--m3-error)";
 
   return (
-    <div
-      className="flex flex-col bg-(--m3-background) text-(--m3-on-surface) overflow-hidden"
-      style={{
-        height: "100svh",
-        paddingTop: "env(safe-area-inset-top)",
-        paddingBottom: "env(safe-area-inset-bottom)",
-      }}
-    >
-      <header className="flex-none px-4 py-3 flex items-center justify-between border-b border-(--m3-outline-variant)">
-        <h1 className="text-lg font-semibold tracking-tight">vxbeamer</h1>
-        <div className="flex items-center gap-3">
-          <span className={`w-2 h-2 rounded-full ${statusColor}`} title={sseStatus} />
-          <SettingsSheet open={settingsOpen} onOpenChange={setSettingsOpen} />
-        </div>
-      </header>
-      <MessageFeed onOpenSettings={() => setSettingsOpen(true)} />
-      <RecordingBar onOpenSettings={() => setSettingsOpen(true)} />
-    </div>
+    <>
+      {desktopCallbackPayload && (
+        <DesktopAuthCode
+          payload={desktopCallbackPayload}
+          onDone={() => setDesktopCallbackPayload(null)}
+        />
+      )}
+      <div
+        className="flex flex-col bg-(--m3-background) text-(--m3-on-surface) overflow-hidden"
+        style={{
+          height: "100svh",
+          paddingTop: "env(safe-area-inset-top)",
+          paddingBottom: "env(safe-area-inset-bottom)",
+        }}
+      >
+        <header className="flex-none px-4 py-3 flex items-center justify-between border-b border-(--m3-outline-variant)">
+          <h1 className="text-lg font-semibold tracking-tight">vxbeamer</h1>
+          <div className="flex items-center gap-3">
+            <span className={`w-2 h-2 rounded-full ${statusColor}`} title={sseStatus} />
+            <SettingsSheet open={settingsOpen} onOpenChange={setSettingsOpen} />
+          </div>
+        </header>
+        <MessageFeed onOpenSettings={() => setSettingsOpen(true)} />
+        <RecordingBar onOpenSettings={() => setSettingsOpen(true)} />
+      </div>
+    </>
   );
 }

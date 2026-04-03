@@ -6,14 +6,16 @@ import { serve } from "@hono/node-server";
 import { createNodeWebSocket } from "@hono/node-ws";
 import type { WSContext, WSMessageReceive } from "hono/ws";
 import { createQwenProvider, createMockProvider, withGroqEnhancement } from "vxasr";
-import type { ASRProvider, ASRSession, UsageRecord } from "vxasr";
+import type { ASRProvider, ASRSession } from "vxasr";
 import {
+  type AccessTokenPayload,
   createAccessToken,
   createRefreshToken,
   verifyAccessToken,
   verifyRefreshToken,
   verifyIdToken,
 } from "./auth.ts";
+import { createSubjectStore, type Message } from "./store.ts";
 import { normalizeTranscriptText } from "./transcript.ts";
 
 // --- Config ---
@@ -38,7 +40,6 @@ const webhookUrl = process.env.WEBHOOK_URL ?? "";
 const ACCESS_TOKEN_TTL_SECONDS = 900; // 15 minutes
 const REFRESH_TOKEN_TTL_SECONDS = 259200; // 3 days
 const DISCOVERY_CACHE_TTL_MS = 3_600_000;
-const ONE_DAY_MS = 86_400_000;
 
 // --- OIDC Discovery ---
 interface OidcDiscovery {
@@ -62,35 +63,7 @@ async function fetchDiscovery(): Promise<OidcDiscovery> {
 }
 
 // --- Message Store ---
-export interface Message {
-  id: string;
-  referenceId?: string;
-  status: "recording" | "done" | "error";
-  partial?: string;
-  final?: string;
-  error?: string;
-  createdAt: number;
-  updatedAt: number;
-  usage?: UsageRecord[];
-}
-
-const messages: Message[] = [];
-
-function pruneMessages(): void {
-  const cutoff = Date.now() - ONE_DAY_MS;
-  let i = 0;
-  while (i < messages.length && messages[i]!.updatedAt < cutoff) i++;
-  if (i > 0) messages.splice(0, i);
-}
-
-// --- SSE Broadcast ---
-type SseSend = (data: string) => void;
-const sseClients = new Set<SseSend>();
-
-function broadcast(payload: unknown): void {
-  const data = JSON.stringify(payload);
-  for (const send of sseClients) send(data);
-}
+const store = createSubjectStore();
 
 // --- Webhook ---
 async function sendWebhook(message: Message): Promise<void> {
@@ -107,8 +80,8 @@ async function sendWebhook(message: Message): Promise<void> {
 }
 
 // --- Auth ---
-async function authenticate(token: string): Promise<boolean> {
-  return (await verifyAccessToken(token, authSecret)) !== null;
+async function authenticate(token: string): Promise<AccessTokenPayload | null> {
+  return await verifyAccessToken(token, authSecret);
 }
 
 function extractToken(
@@ -120,7 +93,7 @@ function extractToken(
 }
 
 // --- Hono App ---
-const app = new Hono();
+const app = new Hono<{ Variables: { auth: AccessTokenPayload } }>();
 const nodeWs = createNodeWebSocket({ app });
 const { upgradeWebSocket } = nodeWs;
 
@@ -128,7 +101,9 @@ app.use("*", cors({ origin: "*" }));
 
 const authMiddleware = createMiddleware(async (c, next) => {
   const token = extractToken(c.req.header("Authorization"), c.req.query("access_token"));
-  if (!token || !(await authenticate(token))) return c.json({ error: "Unauthorized" }, 401);
+  const auth = token ? await authenticate(token) : null;
+  if (!auth) return c.json({ error: "Unauthorized" }, 401);
+  c.set("auth", auth);
   await next();
 });
 
@@ -249,18 +224,18 @@ app.post("/auth/refresh", async (c) => {
 });
 
 app.get("/sse", authMiddleware, (c) => {
+  const subject = c.get("auth").sub;
   const eventsParam = c.req.query("events");
   const filter = eventsParam ? new Set(eventsParam.split(",").map((e) => e.trim())) : null;
 
   return streamSSE(c, async (stream) => {
     if (!filter) {
-      pruneMessages();
       await stream.writeSSE({
-        data: JSON.stringify({ type: "snapshot", messages }),
+        data: JSON.stringify({ type: "snapshot", messages: store.listMessages(subject) }),
       });
     }
 
-    const send: SseSend = (data) => {
+    const send = (data: string) => {
       if (filter) {
         try {
           const event = JSON.parse(data) as { type?: string };
@@ -271,7 +246,7 @@ app.get("/sse", authMiddleware, (c) => {
       }
       void stream.writeSSE({ data });
     };
-    sseClients.add(send);
+    const unsubscribe = store.subscribe(subject, send);
 
     const heartbeat = setInterval(() => {
       void stream.write(": keepalive\n\n");
@@ -282,34 +257,33 @@ app.get("/sse", authMiddleware, (c) => {
     });
 
     clearInterval(heartbeat);
-    sseClients.delete(send);
+    unsubscribe();
   });
 });
 
 app.get("/messages", authMiddleware, (c) => {
-  pruneMessages();
-  return c.json({ messages });
+  return c.json({ messages: store.listMessages(c.get("auth").sub) });
 });
 
 app.get("/messages/:id", authMiddleware, (c) => {
-  const msg = messages.find((m) => m.id === c.req.param("id"));
+  const msg = store.findMessage(c.get("auth").sub, c.req.param("id"));
   if (!msg) return c.json({ error: "Not found" }, 404);
   return c.json(msg);
 });
 
 app.delete("/messages/:id", authMiddleware, (c) => {
+  const subject = c.get("auth").sub;
   const id = c.req.param("id");
-  const idx = messages.findIndex((m) => m.id === id);
-  if (idx === -1) return c.json({ error: "Not found" }, 404);
-  messages.splice(idx, 1);
-  broadcast({ type: "deleted", messageId: id });
+  if (!store.deleteMessage(subject, id)) return c.json({ error: "Not found" }, 404);
+  store.broadcast(subject, { type: "deleted", messageId: id });
   return c.json({ ok: true });
 });
 
 app.post("/messages/:id/swipe", authMiddleware, (c) => {
-  const msg = messages.find((m) => m.id === c.req.param("id"));
+  const subject = c.get("auth").sub;
+  const msg = store.findMessage(subject, c.req.param("id"));
   if (!msg) return c.json({ error: "Not found" }, 404);
-  broadcast({ type: "swiped", message: msg });
+  store.broadcast(subject, { type: "swiped", message: msg });
   return c.json({ ok: true });
 });
 
@@ -317,6 +291,7 @@ app.get(
   "/ws",
   authMiddleware,
   upgradeWebSocket((c) => {
+    const subject = c.get("auth").sub;
     let asrSession: ASRSession | null = null;
     let message: Message | null = null;
     let finished = false;
@@ -345,8 +320,8 @@ app.get(
           createdAt: Date.now(),
           updatedAt: Date.now(),
         };
-        messages.push(message);
-        broadcast({ type: "created", message });
+        store.addMessage(subject, message);
+        store.broadcast(subject, { type: "created", message });
         asrSession = provider.createSession({
           onUsage(records) {
             if (!message) return;
@@ -356,20 +331,20 @@ app.get(
             if (!message) return;
             message.partial = normalizeTranscriptText(text);
             message.updatedAt = Date.now();
-            broadcast({ type: "updated", message });
+            store.broadcast(subject, { type: "updated", message });
           },
           onFinal(text) {
             if (!message) return;
             message.final = normalizeTranscriptText(text);
             message.partial = undefined;
             message.updatedAt = Date.now();
-            broadcast({ type: "updated", message });
+            store.broadcast(subject, { type: "updated", message });
           },
           onEnd() {
             if (!message) return;
             message.status = "done";
             message.updatedAt = Date.now();
-            broadcast({ type: "updated", message });
+            store.broadcast(subject, { type: "updated", message });
             void sendWebhook(message);
             ws.close(1000, "done");
           },
@@ -378,7 +353,7 @@ app.get(
             message.status = "error";
             message.error = err instanceof Error ? err.message : String(err);
             message.updatedAt = Date.now();
-            broadcast({ type: "updated", message });
+            store.broadcast(subject, { type: "updated", message });
             void sendWebhook(message);
             ws.close(1011, "ASR error");
           },

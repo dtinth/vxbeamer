@@ -12,6 +12,8 @@ use tauri_plugin_clipboard_manager::ClipboardExt;
 
 // Give the target app a brief moment to consume the temporary clipboard contents before restoring them.
 const PASTE_RESTORE_DELAY_MS: u64 = 150;
+#[cfg(target_os = "macos")]
+const MACOS_PASTE_KEYCODE_V: u16 = 9;
 // Match the desktop window/title-bar background to the web app's Material Design 3 dark surface.
 const DESKTOP_WINDOW_BACKGROUND_COLOR: tauri::utils::config::Color =
     tauri::utils::config::Color(0x12, 0x14, 0x0d, 0xff);
@@ -111,11 +113,23 @@ fn send_paste_shortcut() -> Result<(), String> {
     let modifier = Key::Control;
 
     enigo.key(modifier, Press).map_err(|err| err.to_string())?;
-    enigo
-        .key(Key::Unicode('v'), Click)
-        .map_err(|err| err.to_string())?;
+    send_paste_key(&mut enigo)?;
     enigo.key(modifier, Release).map_err(|err| err.to_string())?;
     Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn send_paste_key(enigo: &mut Enigo) -> Result<(), String> {
+    enigo
+        .raw(MACOS_PASTE_KEYCODE_V, Click)
+        .map_err(|err| err.to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn send_paste_key(enigo: &mut Enigo) -> Result<(), String> {
+    enigo
+        .key(Key::Unicode('v'), Click)
+        .map_err(|err| err.to_string())
 }
 
 #[cfg(target_os = "macos")]

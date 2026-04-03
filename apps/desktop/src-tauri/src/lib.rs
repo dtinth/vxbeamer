@@ -2,7 +2,7 @@ use enigo::{
     Direction::{Click, Press, Release},
     Enigo, Key, Keyboard, Settings,
 };
-use std::{process::Command, thread, time::Duration};
+use std::{process::Command, sync::mpsc, thread, time::Duration};
 use tauri::{image::Image, AppHandle, Manager, Theme};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
@@ -41,7 +41,7 @@ async fn paste_text_into_active_app(
             .write_text(&text)
             .map_err(|err| err.to_string())?;
 
-        let paste_result = send_paste_shortcut();
+        let paste_result = trigger_paste_shortcut(&app);
         thread::sleep(Duration::from_millis(PASTE_RESTORE_DELAY_MS));
         let restore_result = restore_clipboard(&app, snapshot);
 
@@ -111,6 +111,24 @@ fn send_paste_shortcut() -> Result<(), String> {
         .map_err(|err| err.to_string())?;
     enigo.key(modifier, Release).map_err(|err| err.to_string())?;
     Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn trigger_paste_shortcut(app: &AppHandle) -> Result<(), String> {
+    let (sender, receiver) = mpsc::channel();
+    app.run_on_main_thread(move || {
+        let _ = sender.send(send_paste_shortcut());
+    })
+    .map_err(|err| err.to_string())?;
+
+    receiver
+        .recv()
+        .map_err(|err| err.to_string())?
+}
+
+#[cfg(not(target_os = "macos"))]
+fn trigger_paste_shortcut(_app: &AppHandle) -> Result<(), String> {
+    send_paste_shortcut()
 }
 
 fn open_external_url_blocking(url: &str) -> Result<(), String> {

@@ -16,30 +16,28 @@ export interface Message {
 
 type SseSend = (data: string) => void;
 
+interface SubjectState {
+  messages: Message[];
+  sseClients: Set<SseSend>;
+}
+
 export function createSubjectStore() {
-  const messagesBySubject = new Map<string, Message[]>();
-  const sseClientsBySubject = new Map<string, Set<SseSend>>();
+  const stateBySubject = new Map<string, SubjectState>();
 
-  function ensureMessages(subject: string): Message[] {
-    let messages = messagesBySubject.get(subject);
-    if (!messages) {
-      messages = [];
-      messagesBySubject.set(subject, messages);
+  function ensureState(subject: string): SubjectState {
+    let state = stateBySubject.get(subject);
+    if (!state) {
+      state = {
+        messages: [],
+        sseClients: new Set(),
+      };
+      stateBySubject.set(subject, state);
     }
-    return messages;
-  }
-
-  function ensureSseClients(subject: string): Set<SseSend> {
-    let clients = sseClientsBySubject.get(subject);
-    if (!clients) {
-      clients = new Set();
-      sseClientsBySubject.set(subject, clients);
-    }
-    return clients;
+    return state;
   }
 
   function pruneMessages(subject: string): Message[] {
-    const messages = ensureMessages(subject);
+    const { messages } = ensureState(subject);
     const cutoff = Date.now() - ONE_DAY_MS;
     let i = 0;
     while (i < messages.length && messages[i]!.updatedAt < cutoff) i++;
@@ -57,7 +55,7 @@ export function createSubjectStore() {
     },
 
     addMessage(subject: string, message: Message): void {
-      ensureMessages(subject).push(message);
+      ensureState(subject).messages.push(message);
     },
 
     deleteMessage(subject: string, id: string): boolean {
@@ -69,17 +67,21 @@ export function createSubjectStore() {
     },
 
     subscribe(subject: string, send: SseSend): () => void {
-      const clients = ensureSseClients(subject);
-      clients.add(send);
+      const { sseClients } = ensureState(subject);
+      sseClients.add(send);
       return () => {
-        clients.delete(send);
-        if (clients.size === 0) sseClientsBySubject.delete(subject);
+        const state = stateBySubject.get(subject);
+        if (!state) return;
+        state.sseClients.delete(send);
+        if (state.messages.length === 0 && state.sseClients.size === 0) {
+          stateBySubject.delete(subject);
+        }
       };
     },
 
     broadcast(subject: string, payload: unknown): void {
       const data = JSON.stringify(payload);
-      const clients = sseClientsBySubject.get(subject);
+      const clients = stateBySubject.get(subject)?.sseClients;
       if (!clients) return;
       for (const send of clients) send(data);
     },

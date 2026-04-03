@@ -10,7 +10,7 @@ paste into the active application).
 | Requirement                   | Notes                                                                                                                              |
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | **Node.js ≥ 20**              | Managed by `voidzero-dev/setup-vp` in CI; use [nvm](https://github.com/nvm-sh/nvm) or [fnm](https://github.com/Schniz/fnm) locally |
-| **pnpm**                      | Enabled via `corepack enable pnpm`                                                                                                 |
+| **Vite+ (`vp`)**              | Install and expose the global `vp` command as described by the Vite+ toolchain                                                     |
 | **Rust (stable)**             | Install from <https://rustup.rs/>                                                                                                  |
 | **Platform system libraries** | See table below                                                                                                                    |
 
@@ -48,13 +48,13 @@ opens the Tauri webview against it):
 
 ```bash
 # From the repository root
-corepack pnpm install           # install all workspace dependencies
+vp install
 
 # Then either:
-corepack pnpm exec vp run desktop#dev
+vp run desktop#dev
 # or, from apps/desktop:
 cd apps/desktop
-corepack pnpm exec vp run website#dev   # in a separate terminal
+vp run website#dev   # in a separate terminal
 node_modules/.bin/tauri dev
 ```
 
@@ -65,8 +65,8 @@ The website dev server listens on port **20470** (see `tauri.conf.json`).
 From the **repository root**:
 
 ```bash
-corepack pnpm install          # ensure all dependencies are installed
-corepack pnpm exec vp run desktop#build
+vp install
+vp run desktop#build
 ```
 
 Or from the `apps/desktop` directory:
@@ -76,7 +76,7 @@ node scripts/prepare-web-assets.mjs   # builds the website and copies dist/
 node_modules/.bin/tauri build
 ```
 
-`prepare-web-assets.mjs` builds the website via `vp run website#build` and
+`prepare-web-assets.mjs` builds the website via the global `vp run website#build` and
 copies the output into `apps/desktop/dist/`, which Tauri then bundles.
 
 ### Output bundles

@@ -2,22 +2,7 @@ import { test, expect } from "@playwright/test";
 import { storyboard } from "./support.ts";
 
 const BACKEND_URL = "http://localhost:8788";
-
-/**
- * A token that works for both frontend and backend:
- * - Frontend: parses the JWT payload segment as JSON, checks exp > now
- * - Backend: matches the full string against the API_KEYS set
- *
- * We use a far-future exp (year 2099) so the token never expires during tests.
- * This same string must be listed in API_KEYS in playwright.config.ts.
- */
-const E2E_TOKEN = (() => {
-  const header = JSON.stringify({ alg: "HS256", typ: "JWT" });
-  const payload = JSON.stringify({ sub: "e2e", exp: 4102444800 }); // 2099-12-31
-  const encodedHeader = btoa(header).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-  const encodedPayload = btoa(payload).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-  return `${encodedHeader}.${encodedPayload}.e2e`;
-})();
+const E2E_API_KEY = "e2e-test-api-key";
 
 test.beforeEach(async ({ page }) => {
   // Inject fake getUserMedia that returns a tone (so audio chunks are produced)
@@ -52,13 +37,24 @@ test("records audio and displays transcript from mock ASR", async ({ page }) => 
   // Close settings
   await page.locator(".fixed.inset-0").click({ position: { x: 0, y: 0 } });
 
-  // --- Inject token and reload to signed-in state ---
+  // --- Exchange API key for access token ---
+  const tokenRes = await page.request.post(`${BACKEND_URL}/auth/token`, {
+    data: { api_key: E2E_API_KEY },
+  });
+  const tokenData = (await tokenRes.json()) as {
+    access_token: string;
+    refresh_token?: string;
+  };
+
+  // --- Inject tokens and reload to signed-in state ---
   await page.evaluate(
-    ({ backendUrl, token }) => {
+    ({ backendUrl, accessToken }) => {
       localStorage.setItem("vxbeamer_backend_url", backendUrl);
-      localStorage.setItem("vxbeamer_access_token", token);
+      localStorage.setItem("vxbeamer_access_token", accessToken);
+      // Dummy refresh token for testing (won't actually refresh during e2e)
+      localStorage.setItem("vxbeamer_refresh_token", "dummy-refresh-token");
     },
-    { backendUrl: BACKEND_URL, token: E2E_TOKEN },
+    { backendUrl: BACKEND_URL, accessToken: tokenData.access_token },
   );
   await page.reload();
 

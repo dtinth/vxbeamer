@@ -23,7 +23,7 @@ test("web sign-in actions are disabled until the backend URL is filled", async (
   const { SettingsSheet } = await import("./SettingsSheet.tsx");
   const markup = renderToStaticMarkup(<SettingsSheet open />);
 
-  expect(markup).toContain('placeholder="https://your-backend.example.com"');
+  expect(markup).toContain('placeholder="https://your-backend-url.example.com"');
   expect(markup).toContain("Sign in with OIDC");
   expect(markup).toContain("Log in with another browser");
   expect(markup).toContain("disabled");

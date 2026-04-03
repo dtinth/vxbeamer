@@ -8,14 +8,20 @@ function encodeToken(payload: Record<string, unknown>): string {
   return `header.${base64}.signature`;
 }
 
+function createStorage() {
+  const values = new Map<string, string>();
+  return {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => void values.set(key, value),
+    removeItem: (key: string) => void values.delete(key),
+    clear: () => values.clear(),
+  };
+}
+
 beforeEach(() => {
   vi.resetModules();
   vi.unstubAllGlobals();
-  vi.stubGlobal("localStorage", {
-    getItem: () => null,
-    setItem: () => undefined,
-    removeItem: () => undefined,
-  });
+  vi.stubGlobal("localStorage", createStorage());
   vi.stubGlobal("window", { location: { origin: "https://example.com" } });
 });
 
@@ -28,4 +34,13 @@ test("stores and loads session token from localStorage", async () => {
 
   clearSessionToken();
   expect($sessionToken.get()).toBeNull();
+});
+
+test("stores desktop swipe behavior in localStorage", async () => {
+  const { $desktopSwipeBehavior, setDesktopSwipeBehavior } = await import("./store.ts");
+
+  expect($desktopSwipeBehavior.get()).toBe("none");
+
+  setDesktopSwipeBehavior("paste");
+  expect($desktopSwipeBehavior.get()).toBe("paste");
 });

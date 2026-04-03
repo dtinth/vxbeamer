@@ -1,4 +1,5 @@
 import { atom, computed } from "nanostores";
+import { handleDesktopSwipeBehavior, type DesktopSwipeBehavior } from "./desktop.ts";
 
 export interface Message {
   id: string;
@@ -15,6 +16,7 @@ const BACKEND_URL_KEY = "vxbeamer_backend_url";
 const SESSION_TOKEN_KEY = "vxbeamer_access_token";
 const REFRESH_TOKEN_KEY = "vxbeamer_refresh_token";
 const WAKE_LOCK_KEY = "vxbeamer_wake_lock";
+const DESKTOP_SWIPE_BEHAVIOR_KEY = "vxbeamer_desktop_swipe_behavior";
 const TOKEN_CHECK_INTERVAL_SECONDS = 60; // Check every minute if we need to refresh
 
 interface AccessTokenPayload {
@@ -76,9 +78,21 @@ export const $wakeLockMode = atom<WakeLockMode>(
 
 export const $wakeLockActive = atom<boolean>(false);
 
+function loadDesktopSwipeBehavior(): DesktopSwipeBehavior {
+  const value = localStorage.getItem(DESKTOP_SWIPE_BEHAVIOR_KEY);
+  return value === "copy" || value === "paste" ? value : "none";
+}
+
+export const $desktopSwipeBehavior = atom<DesktopSwipeBehavior>(loadDesktopSwipeBehavior());
+
 export function setWakeLockMode(mode: WakeLockMode): void {
   $wakeLockMode.set(mode);
   localStorage.setItem(WAKE_LOCK_KEY, mode);
+}
+
+export function setDesktopSwipeBehavior(mode: DesktopSwipeBehavior): void {
+  $desktopSwipeBehavior.set(mode);
+  localStorage.setItem(DESKTOP_SWIPE_BEHAVIOR_KEY, mode);
 }
 
 export const $backendUrl = atom<string>(
@@ -104,6 +118,7 @@ export const $lastSwipedMessage = atom<{ messageId: string; key: number } | null
 export const $sseStatus = atom<"disconnected" | "connecting" | "connected">("disconnected");
 
 let swipeAnimationCounter = 0;
+const pendingLocalSwipes = new Set<string>();
 
 export function setBackendUrl(url: string): void {
   $backendUrl.set(url);
@@ -127,6 +142,11 @@ export function clearSessionToken(): void {
 
 export function setActiveRecordingReferenceId(referenceId: string | null): void {
   $activeRecordingReferenceId.set(referenceId);
+}
+
+export function markPendingLocalSwipe(messageId: string): void {
+  pendingLocalSwipes.add(messageId);
+  setTimeout(() => pendingLocalSwipes.delete(messageId), 5000);
 }
 
 let refreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -206,7 +226,15 @@ export function applySSEEvent(raw: unknown): void {
   } else if (event.type === "deleted") {
     $messages.set($messages.get().filter((m) => m.id !== event.messageId));
   } else if (event.type === "swiped") {
+    const isLocalSwipe = pendingLocalSwipes.delete(event.message.id);
     swipeAnimationCounter += 1;
     $lastSwipedMessage.set({ messageId: event.message.id, key: swipeAnimationCounter });
+    if (!isLocalSwipe) {
+      const text =
+        event.message.final ??
+        event.message.partial ??
+        (event.message.status === "recording" ? "" : (event.message.error ?? ""));
+      void handleDesktopSwipeBehavior($desktopSwipeBehavior.get(), text);
+    }
   }
 }

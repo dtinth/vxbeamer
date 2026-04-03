@@ -23,7 +23,7 @@ test("message feed asks signed-out users to open settings", async () => {
     import("./MessageFeed.tsx"),
     import("../store.ts"),
   ]);
-  $messages.set([]);
+  $messages.set(new Map());
   $sessionToken.set(null);
 
   const markup = renderToStaticMarkup(<MessageFeed onOpenSettings={() => undefined} />);

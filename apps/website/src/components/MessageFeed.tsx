@@ -206,11 +206,13 @@ export interface MessageFeedProps {
 export function MessageFeed({ onOpenSettings }: MessageFeedProps = {}) {
   const activeRecordingReferenceId = useStore($activeRecordingReferenceId);
   const lastSwipedMessage = useStore($lastSwipedMessage);
-  const messages = useStore($messages);
+  const messagesMap = useStore($messages);
   const authToken = useStore($sessionToken);
   const backendUrl = useStore($backendUrl);
   const bottomRef = useRef<HTMLDivElement>(null);
   const hasScrolledInitiallyRef = useRef(false);
+
+  const messages = Array.from(messagesMap.values()).sort((a, b) => a.createdAt - b.createdAt);
 
   useEffect(() => {
     if (messages.length === 0) return;

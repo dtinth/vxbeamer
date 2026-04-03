@@ -9,10 +9,12 @@ import {
   setBackendUrl,
   clearSessionToken,
   setWakeLockMode,
+  saveSessionToken,
   type WakeLockMode,
 } from "../store.ts";
 import { startSignIn } from "../oidc.ts";
 import { SettingsIcon } from "./SettingsIcon.tsx";
+import { AuthUrlModal } from "./AuthUrlModal.tsx";
 
 export interface SettingsSheetProps {
   open?: boolean;
@@ -28,8 +30,10 @@ export function SettingsSheet({ open: controlledOpen, onOpenChange }: SettingsSh
   const wakeLockActive = useStore($wakeLockActive);
   const [urlInput, setUrlInput] = useState(backendUrl);
   const [signingIn, setSigningIn] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
   const open = controlledOpen ?? uncontrolledOpen;
   const setOpen = onOpenChange ?? setUncontrolledOpen;
+  const isDesktop = typeof (window as any).__TAURI__ !== "undefined";
 
   const handleSignIn = async () => {
     setSigningIn(true);
@@ -142,15 +146,46 @@ export function SettingsSheet({ open: controlledOpen, onOpenChange }: SettingsSh
               </button>
             </>
           ) : (
-            <button
-              onClick={() => void handleSignIn()}
-              disabled={signingIn}
-              className="w-full py-3 rounded-xl bg-(--m3-primary) text-(--m3-on-primary) text-sm font-semibold hover:bg-(--m3-primary)/90 transition-colors disabled:opacity-50"
-            >
-              {signingIn ? "Redirecting…" : "Sign in with OIDC"}
-            </button>
+            <>
+              {isDesktop ? (
+                <button
+                  onClick={() => setAuthModalOpen(true)}
+                  className="w-full py-3 rounded-xl bg-(--m3-primary) text-(--m3-on-primary) text-sm font-semibold hover:bg-(--m3-primary)/90 transition-colors"
+                >
+                  Sign in with OIDC
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={() => void handleSignIn()}
+                    disabled={signingIn}
+                    className="w-full py-3 rounded-xl bg-(--m3-primary) text-(--m3-on-primary) text-sm font-semibold hover:bg-(--m3-primary)/90 transition-colors disabled:opacity-50"
+                  >
+                    {signingIn ? "Redirecting…" : "Sign in with OIDC"}
+                  </button>
+                  <button
+                    onClick={() => setAuthModalOpen(true)}
+                    className="w-full text-sm text-(--m3-on-surface-variant) hover:text-(--m3-on-surface) transition-colors underline"
+                  >
+                    Log in with another browser
+                  </button>
+                </>
+              )}
+            </>
           )}
         </div>
+
+        {authModalOpen && (
+          <AuthUrlModal
+            backendUrl={urlInput.trim() || backendUrl}
+            onSuccess={(accessToken, refreshToken) => {
+              saveSessionToken(accessToken, refreshToken);
+              setAuthModalOpen(false);
+              setOpen(false);
+            }}
+            onClose={() => setAuthModalOpen(false)}
+          />
+        )}
       </div>
     </div>
   );

@@ -97,9 +97,7 @@ export function setDesktopSwipeBehavior(mode: DesktopSwipeBehavior): void {
   localStorage.setItem(DESKTOP_SWIPE_BEHAVIOR_KEY, mode);
 }
 
-export const $backendUrl = atom<string>(
-  localStorage.getItem(BACKEND_URL_KEY) ?? window.location.origin,
-);
+export const $backendUrl = atom<string>(localStorage.getItem(BACKEND_URL_KEY) ?? "");
 
 export const $sessionToken = atom<string | null>(loadSessionToken());
 export const $refreshToken = atom<string | null>(loadRefreshToken());

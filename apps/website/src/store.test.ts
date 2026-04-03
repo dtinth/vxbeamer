@@ -44,3 +44,9 @@ test("stores desktop swipe behavior in localStorage", async () => {
   setDesktopSwipeBehavior("paste");
   expect($desktopSwipeBehavior.get()).toBe("paste");
 });
+
+test("backend URL defaults to blank", async () => {
+  const { $backendUrl } = await import("./store.ts");
+
+  expect($backendUrl.get()).toBe("");
+});

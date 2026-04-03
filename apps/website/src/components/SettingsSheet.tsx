@@ -38,13 +38,15 @@ export function SettingsSheet({ open: controlledOpen, onOpenChange }: SettingsSh
   const open = controlledOpen ?? uncontrolledOpen;
   const setOpen = onOpenChange ?? setUncontrolledOpen;
   const isDesktop = isDesktopApp();
+  const trimmedBackendUrl = urlInput.trim();
+  const canSignIn = trimmedBackendUrl.length > 0;
 
   const handleSignIn = async () => {
+    if (!canSignIn) return;
     setSigningIn(true);
-    const url = urlInput.trim();
-    setBackendUrl(url);
+    setBackendUrl(trimmedBackendUrl);
     try {
-      await startSignIn(url);
+      await startSignIn(trimmedBackendUrl);
     } catch {
       setSigningIn(false);
     }
@@ -88,10 +90,11 @@ export function SettingsSheet({ open: controlledOpen, onOpenChange }: SettingsSh
           <input
             value={urlInput}
             onChange={(e) => setUrlInput(e.target.value)}
-            onBlur={() => setBackendUrl(urlInput.trim())}
+            onBlur={() => setBackendUrl(trimmedBackendUrl)}
             className="w-full bg-(--m3-surface-container-highest) rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-(--m3-outline)"
             autoComplete="off"
             autoCapitalize="off"
+            placeholder="https://your-backend.example.com"
           />
         </label>
 
@@ -173,7 +176,8 @@ export function SettingsSheet({ open: controlledOpen, onOpenChange }: SettingsSh
               {isDesktop ? (
                 <button
                   onClick={() => setAuthModalOpen(true)}
-                  className="w-full py-3 rounded-xl bg-(--m3-primary) text-(--m3-on-primary) text-sm font-semibold hover:bg-(--m3-primary)/90 transition-colors"
+                  disabled={!canSignIn}
+                  className="w-full py-3 rounded-xl bg-(--m3-primary) text-(--m3-on-primary) text-sm font-semibold hover:bg-(--m3-primary)/90 transition-colors disabled:opacity-50"
                 >
                   Sign in with OIDC
                 </button>
@@ -181,14 +185,15 @@ export function SettingsSheet({ open: controlledOpen, onOpenChange }: SettingsSh
                 <>
                   <button
                     onClick={() => void handleSignIn()}
-                    disabled={signingIn}
+                    disabled={!canSignIn || signingIn}
                     className="w-full py-3 rounded-xl bg-(--m3-primary) text-(--m3-on-primary) text-sm font-semibold hover:bg-(--m3-primary)/90 transition-colors disabled:opacity-50"
                   >
                     {signingIn ? "Redirecting…" : "Sign in with OIDC"}
                   </button>
                   <button
                     onClick={() => setAuthModalOpen(true)}
-                    className="w-full text-sm text-(--m3-on-surface-variant) hover:text-(--m3-on-surface) transition-colors underline"
+                    disabled={!canSignIn}
+                    className="w-full text-sm text-(--m3-on-surface-variant) hover:text-(--m3-on-surface) transition-colors underline disabled:opacity-50"
                   >
                     Log in with another browser
                   </button>
@@ -200,7 +205,7 @@ export function SettingsSheet({ open: controlledOpen, onOpenChange }: SettingsSh
 
         {authModalOpen && (
           <AuthUrlModal
-            backendUrl={urlInput.trim() || backendUrl}
+            backendUrl={trimmedBackendUrl}
             onSuccess={(accessToken, refreshToken) => {
               saveSessionToken(accessToken, refreshToken);
               setAuthModalOpen(false);

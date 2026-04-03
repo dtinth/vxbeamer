@@ -2,12 +2,13 @@ use enigo::{
     Direction::{Click, Press, Release},
     Enigo, Key, Keyboard, Settings,
 };
-use std::{thread, time::Duration};
-use tauri::{image::Image, AppHandle};
+use std::{process::Command, thread, time::Duration};
+use tauri::{image::Image, AppHandle, Manager, Theme};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
 // Give the target app a brief moment to consume the temporary clipboard contents before restoring them.
 const PASTE_RESTORE_DELAY_MS: u64 = 150;
+const APP_BACKGROUND_COLOR: tauri::utils::config::Color = tauri::utils::config::Color(0x12, 0x14, 0x0d, 0xff);
 
 enum ClipboardSnapshot {
     Empty,
@@ -48,6 +49,18 @@ async fn paste_text_into_active_app(
     })
     .await
     .map_err(|err| err.to_string())?
+}
+
+#[tauri::command]
+async fn open_external_url(url: String) -> Result<(), String> {
+    let trimmed = url.trim().to_string();
+    if !(trimmed.starts_with("http://") || trimmed.starts_with("https://")) {
+        return Err("Only HTTP(S) URLs are supported".into());
+    }
+
+    tauri::async_runtime::spawn_blocking(move || open_external_url_blocking(&trimmed))
+        .await
+        .map_err(|err| err.to_string())?
 }
 
 fn snapshot_clipboard(app: &AppHandle) -> ClipboardSnapshot {
@@ -99,13 +112,48 @@ fn send_paste_shortcut() -> Result<(), String> {
     Ok(())
 }
 
+fn open_external_url_blocking(url: &str) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    let status = Command::new("open")
+        .arg(url)
+        .status()
+        .map_err(|err| err.to_string())?;
+
+    #[cfg(target_os = "linux")]
+    let status = Command::new("xdg-open")
+        .arg(url)
+        .status()
+        .map_err(|err| err.to_string())?;
+
+    #[cfg(target_os = "windows")]
+    let status = Command::new("rundll32")
+        .arg("url.dll,FileProtocolHandler")
+        .arg(url)
+        .status()
+        .map_err(|err| err.to_string())?;
+
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("Failed to open URL (exit status: {status})"))
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
+        .setup(|app| {
+            if let Some(main_window) = app.get_webview_window("main") {
+                main_window.set_theme(Some(Theme::Dark))?;
+                main_window.set_background_color(Some(APP_BACKGROUND_COLOR))?;
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             copy_text_to_clipboard,
-            paste_text_into_active_app
+            paste_text_into_active_app,
+            open_external_url
         ])
         .run(tauri::generate_context!())
         .expect("error while running vxbeamer desktop");

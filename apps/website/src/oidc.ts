@@ -40,9 +40,22 @@ interface OidcState {
 }
 
 const OIDC_STATE_KEY = "vxbeamer_oidc_state";
+const DESKTOP_REDIRECT_URI = "https://vxbeamer.vercel.app/";
+
+function getWebRedirectUri(): string {
+  return window.location.origin + window.location.pathname;
+}
+
+export function getDesktopRedirectUri(): string {
+  return DESKTOP_REDIRECT_URI;
+}
 
 async function fetchAuthConfig(backendUrl: string): Promise<AuthConfig> {
-  const res = await fetch(new URL("/auth/config", backendUrl).toString());
+  const trimmedBackendUrl = backendUrl.trim();
+  if (!trimmedBackendUrl) {
+    throw new Error("Please enter the backend URL first");
+  }
+  const res = await fetch(new URL("/auth/config", trimmedBackendUrl).toString());
   if (!res.ok) throw new Error("Failed to fetch auth config");
   return res.json() as Promise<AuthConfig>;
 }
@@ -53,7 +66,7 @@ export async function startSignIn(backendUrl: string): Promise<never> {
   const codeVerifier = createCodeVerifier();
   const codeChallenge = await createCodeChallenge(codeVerifier);
   const state = crypto.randomUUID();
-  const redirectUri = window.location.origin + window.location.pathname;
+  const redirectUri = getWebRedirectUri();
 
   const oidcState: OidcState = { state, codeVerifier, backendUrl, redirectUri };
   sessionStorage.setItem(OIDC_STATE_KEY, JSON.stringify(oidcState));
@@ -89,7 +102,7 @@ export async function createAuthUrl(backendUrl: string): Promise<{
   const authUrl = new URL(config.authorizationEndpoint);
   authUrl.searchParams.set("response_type", "code");
   authUrl.searchParams.set("client_id", config.clientId);
-  authUrl.searchParams.set("redirect_uri", window.location.origin + window.location.pathname);
+  authUrl.searchParams.set("redirect_uri", getDesktopRedirectUri());
   authUrl.searchParams.set("scope", "openid profile");
   authUrl.searchParams.set("code_challenge", codeChallenge);
   authUrl.searchParams.set("code_challenge_method", "S256");
@@ -118,7 +131,7 @@ export async function exchangeDesktopCode(
     throw new Error("State mismatch");
   }
 
-  const redirectUri = window.location.origin + window.location.pathname;
+  const redirectUri = getDesktopRedirectUri();
   const config = await fetchAuthConfig(backendUrl);
 
   const tokenRes = await fetch(config.tokenEndpoint, {

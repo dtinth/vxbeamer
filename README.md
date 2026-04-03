@@ -34,10 +34,11 @@ This project is primarily for personal use and is not designed to be particularl
 
 ## Architecture
 
-<img width="3502" height="1254" alt="image" src="https://github.com/user-attachments/assets/883644c0-ebaf-4996-ba8d-1d85df7bca63" />
+<img width="2048" height="790" alt="vxbeamer architecture diagram including desktop app" src="https://github.com/user-attachments/assets/ee534903-b031-419b-9219-bbb0abbe1c0f" />
 
 - **Frontend** — React PWA (`apps/website`), deployed statically
 - **Backend** — Node.js/Hono server (`apps/backend`), deployed via Docker
+- **Desktop app** — Tauri desktop client (`apps/desktop`) that receives backend events and integrates with the local machine
 - **ASR** — Qwen3-ASR-Flash via DashScope (Alibaba Cloud)
 - **Post-processing** — gpt-oss-120b via Groq
 

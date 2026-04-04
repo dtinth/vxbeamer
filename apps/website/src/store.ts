@@ -110,7 +110,13 @@ export const $sseStatus = atom<"disconnected" | "connecting" | "connected">("dis
 
 let swipeAnimationCounter = 0;
 const pendingLocalSwipes = new Set<string>();
-const recentSwipeEventIds = new Set<string>();
+const recentSwipeEventIds = new Map<string, number>();
+
+function pruneRecentSwipeEventIds(now: number): void {
+  for (const [eventId, expiresAt] of recentSwipeEventIds) {
+    if (expiresAt <= now) recentSwipeEventIds.delete(eventId);
+  }
+}
 
 export function setBackendUrl(url: string): void {
   $backendUrl.set(url);
@@ -263,9 +269,10 @@ export function applySSEEvent(raw: unknown, sseEventId?: string): void {
   } else if (event.type === "swiped") {
     const swipeEventId = event.eventId ?? sseEventId;
     if (swipeEventId) {
-      if (recentSwipeEventIds.has(swipeEventId)) return;
-      recentSwipeEventIds.add(swipeEventId);
-      setTimeout(() => recentSwipeEventIds.delete(swipeEventId), RECENT_SWIPE_EVENT_ID_TTL_MS);
+      const now = Date.now();
+      pruneRecentSwipeEventIds(now);
+      if ((recentSwipeEventIds.get(swipeEventId) ?? 0) > now) return;
+      recentSwipeEventIds.set(swipeEventId, now + RECENT_SWIPE_EVENT_ID_TTL_MS);
     }
     const isLocalSwipe = pendingLocalSwipes.delete(event.message.id);
     swipeAnimationCounter += 1;

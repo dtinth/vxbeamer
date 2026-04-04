@@ -57,11 +57,12 @@ export function App() {
 
     const closeSse = (target: EventSource | null = sse) => {
       if (!target) return;
+      const isCurrent = target === sse;
       target.onopen = null;
       target.onmessage = null;
       target.onerror = null;
       target.close();
-      if (sse === target) sse = null;
+      if (isCurrent) sse = null;
     };
 
     const clearReconnectTimer = () => {

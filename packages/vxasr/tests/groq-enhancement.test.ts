@@ -26,7 +26,7 @@ test("Groq enhancement prompt requests plain text output", async () => {
     {
       createSession(callbacks) {
         return {
-          sendAudio() {},
+          sendAudio(_chunk) {},
           finish() {
             callbacks.onFinal?.("Raw transcript");
             callbacks.onEnd?.();

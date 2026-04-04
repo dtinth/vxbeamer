@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useStore } from "@nanostores/react";
 import {
+  $audioProcessingMode,
   $sessionToken,
   $backendUrl,
   $wakeLockMode,
@@ -21,6 +22,7 @@ export function RecordingBar({
 }: RecordingBarProps) {
   const authToken = useStore($sessionToken);
   const backendUrl = useStore($backendUrl);
+  const audioProcessingMode = useStore($audioProcessingMode);
   const wakeLockMode = useStore($wakeLockMode);
   const [isRecording, setIsRecording] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -109,7 +111,9 @@ export function RecordingBar({
     setError(null);
 
     try {
-      const audioSource = createAudioSource();
+      const audioSource = createAudioSource
+        ? createAudioSource()
+        : createMicrophoneSource(audioProcessingMode);
       audioSourceRef.current = audioSource;
 
       // Buffer audio while WS is connecting
@@ -170,7 +174,14 @@ export function RecordingBar({
       audioSourceRef.current?.stop();
       audioSourceRef.current = null;
     }
-  }, [authToken, backendUrl, wakeLockMode, createAudioSource, startVisualizer]);
+  }, [
+    authToken,
+    backendUrl,
+    audioProcessingMode,
+    wakeLockMode,
+    createAudioSource,
+    startVisualizer,
+  ]);
 
   const handleToggle = () => {
     if (!canRecord) {

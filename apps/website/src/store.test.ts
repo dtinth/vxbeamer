@@ -52,6 +52,15 @@ test("stores desktop swipe behavior in localStorage", async () => {
   expect($desktopSwipeBehavior.get()).toBe("paste");
 });
 
+test("stores audio processing mode in localStorage", async () => {
+  const { $audioProcessingMode, setAudioProcessingMode } = await import("./store.ts");
+
+  expect($audioProcessingMode.get()).toBe("on");
+
+  setAudioProcessingMode("off");
+  expect($audioProcessingMode.get()).toBe("off");
+});
+
 test("backend URL defaults to blank", async () => {
   const { $backendUrl } = await import("./store.ts");
 

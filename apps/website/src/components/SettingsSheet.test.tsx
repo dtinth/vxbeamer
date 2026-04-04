@@ -24,6 +24,9 @@ test("web sign-in actions are disabled until the backend URL is filled", async (
   const markup = renderToStaticMarkup(<SettingsSheet open />);
 
   expect(markup).toContain('placeholder="https://your-backend-url.example.com"');
+  expect(markup).toContain("Audio Processing");
+  expect(markup).toContain(">On<");
+  expect(markup).toContain(">Off<");
   expect(markup).toContain("Sign in with OIDC");
   expect(markup).toContain("Log in with another browser");
   expect(markup).toContain("disabled");

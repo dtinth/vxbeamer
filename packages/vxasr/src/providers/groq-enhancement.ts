@@ -13,7 +13,8 @@ const PROMPT = (raw: string) =>
   `Format the following transcription given in <vx-raw-transcription></vx-raw-transcription> tags. ` +
   `Remove disfluencies like "um", "uh", "er", "ah", etc., unless they are important for meaning. ` +
   `Add new lines to separate paragraphs or speakers where appropriate. ` +
-  `Use numbered lists as appropriate (if the speech explicitly indicates them).\n\n` +
+  `Use numbered lists as appropriate (if the speech explicitly indicates them). ` +
+  `Output plain text only, not Markdown, and do not use double asterisks for emphasis.\n\n` +
   `<vx-raw-transcription>\n${raw}\n</vx-raw-transcription>\n\n` +
   `Present the result in <vx-transcription></vx-transcription> tags.`;
 

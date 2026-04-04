@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useStore } from "@nanostores/react";
 import {
+  $audioProcessingMode,
   $backendUrl,
   $desktopSwipeBehavior,
   $sessionToken,
@@ -9,9 +10,11 @@ import {
   $wakeLockActive,
   setBackendUrl,
   clearSessionToken,
+  setAudioProcessingMode,
   setDesktopSwipeBehavior,
   setWakeLockMode,
   saveSessionToken,
+  type AudioProcessingMode,
   type WakeLockMode,
 } from "../store.ts";
 import { startSignIn } from "../oidc.ts";
@@ -27,6 +30,7 @@ export interface SettingsSheetProps {
 export function SettingsSheet({ open: controlledOpen, onOpenChange }: SettingsSheetProps = {}) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const backendUrl = useStore($backendUrl);
+  const audioProcessingMode = useStore($audioProcessingMode);
   const desktopSwipeBehavior = useStore($desktopSwipeBehavior);
   const sessionToken = useStore($sessionToken);
   const userInfo = useStore($userInfo);
@@ -117,6 +121,20 @@ export function SettingsSheet({ open: controlledOpen, onOpenChange }: SettingsSh
             <option value="off">Off</option>
             <option value="recording">On while recording</option>
             <option value="always">Always on</option>
+          </select>
+        </div>
+
+        <div className="space-y-1.5">
+          <span className="text-xs font-medium text-(--m3-on-surface-variant) uppercase tracking-wider">
+            Audio Processing
+          </span>
+          <select
+            value={audioProcessingMode}
+            onChange={(e) => setAudioProcessingMode(e.target.value as AudioProcessingMode)}
+            className="w-full bg-(--m3-surface-container-highest) rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-(--m3-outline) appearance-none"
+          >
+            <option value="on">On</option>
+            <option value="off">Off</option>
           </select>
         </div>
 

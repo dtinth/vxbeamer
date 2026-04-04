@@ -16,6 +16,7 @@ const BACKEND_URL_KEY = "vxbeamer_backend_url";
 const SESSION_TOKEN_KEY = "vxbeamer_access_token";
 const REFRESH_TOKEN_KEY = "vxbeamer_refresh_token";
 const WAKE_LOCK_KEY = "vxbeamer_wake_lock";
+const AUDIO_PROCESSING_KEY = "vxbeamer_audio_processing";
 const DESKTOP_SWIPE_BEHAVIOR_KEY = "vxbeamer_desktop_swipe_behavior";
 const TOKEN_CHECK_INTERVAL_SECONDS = 60; // Check every minute if we need to refresh
 // Keep locally triggered swipes pending long enough for the matching SSE echo to arrive.
@@ -64,12 +65,19 @@ function loadRefreshToken(): string | null {
 }
 
 export type WakeLockMode = "off" | "recording" | "always";
+export type AudioProcessingMode = "on" | "off";
 
 export const $wakeLockMode = atom<WakeLockMode>(
   (localStorage.getItem(WAKE_LOCK_KEY) as WakeLockMode | null) ?? "off",
 );
 
 export const $wakeLockActive = atom<boolean>(false);
+
+function loadAudioProcessingMode(): AudioProcessingMode {
+  return localStorage.getItem(AUDIO_PROCESSING_KEY) === "off" ? "off" : "on";
+}
+
+export const $audioProcessingMode = atom<AudioProcessingMode>(loadAudioProcessingMode());
 
 function loadDesktopSwipeBehavior(): DesktopSwipeBehavior {
   const value = localStorage.getItem(DESKTOP_SWIPE_BEHAVIOR_KEY);
@@ -81,6 +89,11 @@ export const $desktopSwipeBehavior = atom<DesktopSwipeBehavior>(loadDesktopSwipe
 export function setWakeLockMode(mode: WakeLockMode): void {
   $wakeLockMode.set(mode);
   localStorage.setItem(WAKE_LOCK_KEY, mode);
+}
+
+export function setAudioProcessingMode(mode: AudioProcessingMode): void {
+  $audioProcessingMode.set(mode);
+  localStorage.setItem(AUDIO_PROCESSING_KEY, mode);
 }
 
 export function setDesktopSwipeBehavior(mode: DesktopSwipeBehavior): void {

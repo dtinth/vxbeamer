@@ -1,3 +1,5 @@
+import type { AudioProcessingMode } from "./store.ts";
+
 const SAMPLE_RATE = 16000;
 
 const PCM_WORKLET_CODE = `
@@ -39,7 +41,17 @@ export function isMicrophoneCaptureSupported(): boolean {
 /**
  * Creates an AudioSource backed by the browser's getUserMedia API.
  */
-export function createMicrophoneSource(): AudioSource {
+export function getMicrophoneAudioConstraints(
+  audioProcessing: AudioProcessingMode,
+): MediaTrackConstraints {
+  return {
+    noiseSuppression: audioProcessing === "on",
+    echoCancellation: audioProcessing === "on",
+    autoGainControl: audioProcessing === "on",
+  };
+}
+
+export function createMicrophoneSource(audioProcessing: AudioProcessingMode = "on"): AudioSource {
   let stream: MediaStream | null = null;
   let audioCtx: AudioContext | null = null;
   let worklet: AudioWorkletNode | null = null;
@@ -52,7 +64,9 @@ export function createMicrophoneSource(): AudioSource {
         throw new Error("Microphone access is not available in this desktop webview.");
       }
 
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: getMicrophoneAudioConstraints(audioProcessing),
+      });
 
       audioCtx = new AudioContext({ sampleRate: SAMPLE_RATE });
 

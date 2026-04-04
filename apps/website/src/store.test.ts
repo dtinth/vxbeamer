@@ -1,5 +1,11 @@
 import { beforeEach, expect, test, vi } from "vite-plus/test";
 
+const handleDesktopSwipeBehavior = vi.fn();
+
+vi.mock("./desktop.ts", () => ({
+  handleDesktopSwipeBehavior,
+}));
+
 function encodeToken(payload: Record<string, unknown>): string {
   const base64 = btoa(JSON.stringify(payload))
     .replace(/\+/g, "-")
@@ -20,6 +26,7 @@ function createStorage() {
 
 beforeEach(() => {
   vi.resetModules();
+  handleDesktopSwipeBehavior.mockReset();
   vi.unstubAllGlobals();
   vi.stubGlobal("localStorage", createStorage());
   vi.stubGlobal("window", { location: { origin: "https://example.com" } });
@@ -49,4 +56,24 @@ test("backend URL defaults to blank", async () => {
   const { $backendUrl } = await import("./store.ts");
 
   expect($backendUrl.get()).toBe("");
+});
+
+test("deduplicates swiped SSE events that reuse the same event id", async () => {
+  const { applySSEEvent, setDesktopSwipeBehavior } = await import("./store.ts");
+
+  setDesktopSwipeBehavior("paste");
+
+  const message = {
+    id: "message-1",
+    status: "done" as const,
+    final: "Hello from swipe",
+    createdAt: 1,
+    updatedAt: 1,
+  };
+
+  applySSEEvent({ type: "swiped", eventId: "event-1", message });
+  applySSEEvent({ type: "swiped", eventId: "event-1", message });
+
+  expect(handleDesktopSwipeBehavior).toHaveBeenCalledTimes(1);
+  expect(handleDesktopSwipeBehavior).toHaveBeenCalledWith("paste", "Hello from swipe");
 });

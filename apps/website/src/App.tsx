@@ -52,67 +52,100 @@ export function App() {
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let heartbeatCheckTimer: ReturnType<typeof setInterval> | null = null;
     let lastHeartbeatTime = Date.now();
+    let disposed = false;
+    let connectionAttempt = 0;
+
+    const closeSse = (target: EventSource | null = sse) => {
+      if (!target) return;
+      target.onopen = null;
+      target.onmessage = null;
+      target.onerror = null;
+      target.close();
+      if (sse === target) sse = null;
+    };
+
+    const clearReconnectTimer = () => {
+      if (!reconnectTimer) return;
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    };
+
+    const scheduleReconnect = () => {
+      if (disposed) return;
+      clearReconnectTimer();
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        void connect();
+      }, 2000);
+    };
 
     const connect = async () => {
+      if (disposed) return;
+      const attemptId = ++connectionAttempt;
       $sseStatus.set("connecting");
       let token: string;
       try {
         token = await obtainSessionToken();
       } catch {
+        if (disposed || attemptId !== connectionAttempt) return;
         $sseStatus.set("disconnected");
         return;
       }
+      if (disposed || attemptId !== connectionAttempt) return;
       const url = new URL("/sse", backendUrl);
       url.searchParams.set("access_token", token);
 
-      sse = new EventSource(url.toString());
+      closeSse();
+      const nextSse = new EventSource(url.toString());
+      sse = nextSse;
       lastHeartbeatTime = Date.now();
 
-      sse.onopen = () => {
+      nextSse.onopen = () => {
+        if (disposed || sse !== nextSse || attemptId !== connectionAttempt) {
+          closeSse(nextSse);
+          return;
+        }
         $sseStatus.set("connected");
         lastHeartbeatTime = Date.now();
       };
 
-      sse.onmessage = (evt) => {
+      nextSse.onmessage = (evt) => {
+        if (disposed || sse !== nextSse || attemptId !== connectionAttempt) return;
         lastHeartbeatTime = Date.now();
         try {
-          applySSEEvent(JSON.parse(evt.data as string));
+          applySSEEvent(JSON.parse(evt.data as string), evt.lastEventId || undefined);
         } catch {
           // ignore malformed events
         }
       };
 
-      sse.onerror = () => {
-        if (sse) {
-          sse.close();
-          sse = null;
-        }
+      nextSse.onerror = () => {
+        closeSse(nextSse);
+        if (disposed || attemptId !== connectionAttempt) return;
         $sseStatus.set("disconnected");
-        // Reconnect after 2 seconds
-        if (reconnectTimer) clearTimeout(reconnectTimer);
-        reconnectTimer = setTimeout(() => connect(), 2000);
+        scheduleReconnect();
       };
     };
 
     // Check heartbeat every 5 seconds
     heartbeatCheckTimer = setInterval(() => {
+      if (disposed) return;
       if (Date.now() - lastHeartbeatTime > 30_000) {
         // No heartbeat for 30+ seconds, close and reconnect
-        if (sse) {
-          sse.close();
-          sse = null;
-        }
+        connectionAttempt += 1;
+        closeSse();
         $sseStatus.set("disconnected");
-        if (reconnectTimer) clearTimeout(reconnectTimer);
-        reconnectTimer = setTimeout(() => connect(), 2000);
+        scheduleReconnect();
       }
     }, 5000);
 
     void connect();
 
     return () => {
-      if (sse) sse.close();
-      if (reconnectTimer) clearTimeout(reconnectTimer);
+      disposed = true;
+      connectionAttempt += 1;
+      closeSse();
+      clearReconnectTimer();
       if (heartbeatCheckTimer) clearInterval(heartbeatCheckTimer);
       $sseStatus.set("disconnected");
     };

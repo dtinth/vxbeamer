@@ -15,6 +15,7 @@ import {
   verifyRefreshToken,
   verifyIdToken,
 } from "./auth.ts";
+import { createSwipedEvent } from "./events.ts";
 import { createSubjectStore, type Message } from "./store.ts";
 import { normalizeTranscriptText } from "./transcript.ts";
 
@@ -283,7 +284,7 @@ app.post("/messages/:id/swipe", authMiddleware, (c) => {
   const subject = c.get("auth").sub;
   const msg = store.findMessage(subject, c.req.param("id"));
   if (!msg) return c.json({ error: "Not found" }, 404);
-  store.broadcast(subject, { type: "swiped", message: msg });
+  store.broadcast(subject, createSwipedEvent(msg));
   return c.json({ ok: true });
 });
 

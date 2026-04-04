@@ -20,6 +20,7 @@ const DESKTOP_SWIPE_BEHAVIOR_KEY = "vxbeamer_desktop_swipe_behavior";
 const TOKEN_CHECK_INTERVAL_SECONDS = 60; // Check every minute if we need to refresh
 // Keep locally triggered swipes pending long enough for the matching SSE echo to arrive.
 const PENDING_LOCAL_SWIPE_TIMEOUT_MS = 5000;
+const RECENT_SWIPE_EVENT_ID_TTL_MS = 30_000;
 
 interface AccessTokenPayload {
   sub?: string;
@@ -109,6 +110,7 @@ export const $sseStatus = atom<"disconnected" | "connecting" | "connected">("dis
 
 let swipeAnimationCounter = 0;
 const pendingLocalSwipes = new Set<string>();
+const recentSwipeEventIds = new Set<string>();
 
 export function setBackendUrl(url: string): void {
   $backendUrl.set(url);
@@ -239,9 +241,9 @@ type SseEvent =
   | { type: "created"; message: Message }
   | { type: "updated"; message: Message }
   | { type: "deleted"; messageId: string }
-  | { type: "swiped"; message: Message };
+  | { type: "swiped"; eventId?: string; message: Message };
 
-export function applySSEEvent(raw: unknown): void {
+export function applySSEEvent(raw: unknown, sseEventId?: string): void {
   const event = raw as SseEvent;
   if (event.type === "snapshot") {
     const map = new Map(event.messages.map((m) => [m.id, m]));
@@ -259,6 +261,12 @@ export function applySSEEvent(raw: unknown): void {
     map.delete(event.messageId);
     $messages.set(map);
   } else if (event.type === "swiped") {
+    const swipeEventId = event.eventId ?? sseEventId;
+    if (swipeEventId) {
+      if (recentSwipeEventIds.has(swipeEventId)) return;
+      recentSwipeEventIds.add(swipeEventId);
+      setTimeout(() => recentSwipeEventIds.delete(swipeEventId), RECENT_SWIPE_EVENT_ID_TTL_MS);
+    }
     const isLocalSwipe = pendingLocalSwipes.delete(event.message.id);
     swipeAnimationCounter += 1;
     $lastSwipedMessage.set({ messageId: event.message.id, key: swipeAnimationCounter });

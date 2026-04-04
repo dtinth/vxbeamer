@@ -36,9 +36,9 @@ This project is primarily for personal use and is not designed to be particularl
 
 <img width="2048" height="790" alt="vxbeamer architecture diagram including desktop app" src="https://github.com/user-attachments/assets/ee534903-b031-419b-9219-bbb0abbe1c0f" />
 
-- **Frontend** — React PWA (`apps/website`), deployed statically
-- **Backend** — Node.js/Hono server (`apps/backend`), deployed via Docker
-- **Desktop app** — Tauri desktop client (`apps/desktop`) that receives backend events and integrates with the local machine
+- **Frontend** — React PWA (`apps/website`), deployed statically (hosted on Vercel)
+- **Backend** — Node.js/Hono server (`apps/backend`), deployed via Docker (self-hosted)
+- **Desktop app** — Tauri desktop client (`apps/desktop`) that receives backend events and integrates with the local machine (basically, it’s the frontend web app with extra desktop integrations)
 - **ASR** — Qwen3-ASR-Flash via DashScope (Alibaba Cloud)
 - **Post-processing** — gpt-oss-120b via Groq
 
@@ -62,7 +62,7 @@ The OIDC provider must support:
 
 ### API keys (personal access tokens)
 
-Set the `API_KEYS` environment variable in the format `<sub>:key1,<sub>:key2`:
+Set the `API_KEYS` environment variable in the format `<sub>:<key>`. In case of multiple keys, separate by commas:
 
 ```
 API_KEYS=your-sub-claim:my-secret-key,your-sub-claim:another-secret

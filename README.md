@@ -146,13 +146,13 @@ The backend exposes a REST + SSE + WebSocket API on port 8787. All endpoints (ex
 
 Connect to `/sse` to receive real-time events. Pass `?events=<type>` to filter, e.g. `?events=swiped` to receive only swipe events (the initial snapshot is skipped when a filter is active).
 
-| Event type | Description                           |
-| ---------- | ------------------------------------- |
-| `snapshot` | Initial state — all current messages  |
-| `created`  | A new recording session started       |
-| `updated`  | Transcript updated (partial or final) |
-| `deleted`  | A message was deleted                 |
-| `swiped`   | A message was swiped right            |
+| Event type | Description                                                      |
+| ---------- | ---------------------------------------------------------------- |
+| `snapshot` | Initial state — all current messages                             |
+| `created`  | A new recording session started                                  |
+| `updated`  | Transcript updated (partial or final)                            |
+| `deleted`  | A message was deleted                                            |
+| `swiped`   | A message was swiped right (`eventId` is unique per swipe event) |
 
 ### WebSocket protocol
 

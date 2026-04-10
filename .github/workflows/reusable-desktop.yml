@@ -72,11 +72,19 @@ jobs:
       - name: Build desktop app
         run: vp run desktop#build
 
-      - name: Upload desktop bundles
-        if: inputs.upload-artifacts || inputs.release-tag != ''
+      - name: Upload workflow artifacts
+        if: inputs.upload-artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact-name }}
+          path: ${{ matrix.artifact-path }}
+          if-no-files-found: error
+
+      - name: Stage release assets
+        if: inputs.release-tag != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.artifact-name }}
           path: ${{ matrix.artifact-path }}
           if-no-files-found: error
 
@@ -92,12 +100,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: release-assets
-          pattern: desktop-*
+          pattern: release-desktop-*
           merge-multiple: true
 
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.release-tag }}
-          files: release-assets/**
+          files: release-assets/*
           fail_on_unmatched_files: true

@@ -11,6 +11,10 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
+    outputs:
+      published: ${{ steps.changesets.outputs.published }}
+      release-tag: ${{ steps.release-metadata.outputs.tag }}
+      release-version: ${{ steps.release-metadata.outputs.version }}
     permissions:
       id-token: write
       contents: write
@@ -37,3 +41,43 @@ jobs:
           publish: vp exec changeset publish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Capture published release metadata
+        if: steps.changesets.outputs.published == 'true'
+        id: release-metadata
+        uses: actions/github-script@v8
+        env:
+          PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.publishedPackages }}
+        with:
+          script: |
+            const packages = JSON.parse(process.env.PUBLISHED_PACKAGES || "[]")
+            if (packages.length !== 1) {
+              core.setFailed(`Expected exactly 1 published package, received ${packages.length}.`)
+              return
+            }
+
+            const [{ name, version }] = packages
+            core.setOutput("tag", `${name}@${version}`)
+            core.setOutput("version", version)
+
+  publish-docker:
+    name: Publish Docker image
+    needs: release
+    if: needs.release.outputs.published == 'true'
+    uses: ./.github/workflows/reusable-docker.yml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      version: ${{ needs.release.outputs.release-version }}
+      latest: true
+
+  publish-desktop:
+    name: Publish desktop bundles
+    needs: release
+    if: needs.release.outputs.published == 'true'
+    uses: ./.github/workflows/reusable-desktop.yml
+    permissions:
+      contents: write
+    with:
+      upload-artifacts: false
+      release-tag: ${{ needs.release.outputs.release-tag }}

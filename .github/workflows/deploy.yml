@@ -1,14 +1,16 @@
 name: Deploy
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       version:
-        description: Version tag for the published Docker image
+        description: Version tag for a manually published Docker image
         required: true
         type: string
       latest:
-        description: Also push the latest image tag
+        description: Also push the latest image tag during manual publishing
         required: false
         default: true
         type: boolean
@@ -20,5 +22,5 @@ jobs:
       contents: read
       packages: write
     with:
-      version: ${{ inputs.version }}
-      latest: ${{ inputs.latest }}
+      version: ${{ github.event_name == 'push' && github.ref_name || inputs.version }}
+      latest: ${{ github.event_name == 'workflow_dispatch' && inputs.latest || false }}

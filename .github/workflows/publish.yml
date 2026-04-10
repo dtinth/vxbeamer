@@ -50,14 +50,15 @@ jobs:
         with:
           script: |
             const packages = JSON.parse(process.env.PUBLISHED_PACKAGES || "[]")
-            if (packages.length !== 1) {
+            const releasePackage = packages.find((pkg) => pkg.name === "vxasr")
+            if (!releasePackage) {
               core.setFailed(
-                `Expected exactly 1 published package, received ${packages.length}: ${packages.map((pkg) => pkg.name).join(", ")}`,
+                `Expected vxasr to be published, received: ${packages.map((pkg) => pkg.name).join(", ") || "(none)"}`,
               )
               return
             }
 
-            const [{ name, version }] = packages
+            const { name, version } = releasePackage
             core.setOutput("tag", `${name}@${version}`)
             core.setOutput("version", version)
 

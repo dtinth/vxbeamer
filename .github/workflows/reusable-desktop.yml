@@ -33,6 +33,9 @@ jobs:
               apps/desktop/src-tauri/target/release/bundle/nsis/*.exe
 
     runs-on: ${{ matrix.platform }}
+    permissions:
+      contents: read
+
     steps:
       - uses: actions/checkout@v6
 
@@ -69,18 +72,32 @@ jobs:
       - name: Build desktop app
         run: vp run desktop#build
 
-      - name: Upload workflow artifacts
-        if: inputs.upload-artifacts
+      - name: Upload desktop bundles
+        if: inputs.upload-artifacts || inputs.release-tag != ''
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact-name }}
           path: ${{ matrix.artifact-path }}
           if-no-files-found: error
 
+  publish-release-assets:
+    if: inputs.release-tag != ''
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download desktop bundles
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          pattern: desktop-*
+          merge-multiple: true
+
       - name: Upload release assets
-        if: inputs.release-tag != ''
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.release-tag }}
-          files: ${{ matrix.artifact-path }}
+          files: release-assets/**
           fail_on_unmatched_files: true

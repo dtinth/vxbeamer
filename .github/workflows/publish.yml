@@ -1,0 +1,39 @@
+# This file is automatically managed by <https://github.com/dtinth/repolicy>.
+# Any manual changes to this file may be overwritten.
+
+name: Publish
+on:
+  push:
+    branches:
+      - main
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Set up Vite+
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version: "24"
+          cache: true
+      - name: Configure Git user
+        run: |
+          git config --global user.name dtinth-bot
+          git config --global user.email dtinth-bot@users.noreply.github.com
+      - name: Create Release Pull Request or Publish to npm
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          setupGitUser: false
+          publish: vp exec changeset publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -22,5 +22,5 @@ jobs:
       contents: read
       packages: write
     with:
-      version: ${{ github.event_name == 'push' && github.ref_name || inputs.version }}
+      version: ${{ github.event_name == 'push' && 'main' || inputs.version }}
       latest: ${{ github.event_name == 'workflow_dispatch' && inputs.latest || false }}

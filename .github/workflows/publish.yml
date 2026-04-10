@@ -52,7 +52,7 @@ jobs:
             const packages = JSON.parse(process.env.PUBLISHED_PACKAGES || "[]")
             if (packages.length !== 1) {
               core.setFailed(
-                `Expected exactly 1 published package, received ${packages.length}: ${packages.map((pkg) => pkg.name).join(", ")}.`,
+                `Expected exactly 1 published package, received ${packages.length}: ${packages.map((pkg) => pkg.name).join(", ")}`,
               )
               return
             }

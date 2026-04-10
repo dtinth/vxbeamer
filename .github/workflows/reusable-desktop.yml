@@ -82,7 +82,7 @@ jobs:
           if-no-files-found: error
 
       - name: Stage release assets
-        if: ${{ inputs.release-tag != '' }}
+        if: inputs.release-tag != ''
         uses: actions/upload-artifact@v4
         with:
           name: release-${{ matrix.artifact-name }}
@@ -90,7 +90,7 @@ jobs:
           if-no-files-found: error
 
   publish-release-assets:
-    if: ${{ inputs.release-tag != '' }}
+    if: inputs.release-tag != ''
     needs: build
     runs-on: ubuntu-latest
     permissions:

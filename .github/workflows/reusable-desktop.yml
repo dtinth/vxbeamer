@@ -33,6 +33,7 @@ jobs:
               apps/desktop/src-tauri/target/release/bundle/nsis/*.exe
 
     runs-on: ${{ matrix.platform }}
+    # Release uploads happen in a separate job after the bundles are staged as artifacts.
     permissions:
       contents: read
 

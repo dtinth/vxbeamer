@@ -94,3 +94,5 @@ copies the output into `apps/desktop/dist/`, which Tauri then bundles.
 The [Build Desktop](.github/workflows/desktop.yml) workflow builds the app on
 all three platforms (Linux, macOS, Windows) on every push to `main` and on
 pull requests. The resulting bundles are uploaded as GitHub Actions artifacts.
+When a release is published from the npm publish workflow, the same build is
+reused to attach those bundles to the GitHub release.

@@ -4,6 +4,7 @@ packages:
   - tools/*
 
 catalog:
+  "@changesets/cli": ^2.30.0
   "@fontsource-variable/tasa-orbiter": ^5.2.2
   "@playwright/test": ^1.59.1
   "@types/node": ^24

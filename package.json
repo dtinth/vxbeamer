@@ -1,5 +1,5 @@
 {
-  "name": "fresh-app",
+  "name": "vxbeamer-workspace",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,6 +10,7 @@
     "prepare": "vp config"
   },
   "devDependencies": {
+    "@changesets/cli": "catalog:",
     "@playwright/test": "catalog:",
     "visual-storyboard": "catalog:",
     "vite-plus": "catalog:"

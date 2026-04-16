@@ -1,6 +1,6 @@
 {
-  "name": "VXBeamer",
-  "short_name": "VXBeamer",
+  "name": "vxbeamer",
+  "short_name": "vxbeamer",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#030712",

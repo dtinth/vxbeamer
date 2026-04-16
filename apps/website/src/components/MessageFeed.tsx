@@ -174,7 +174,7 @@ function MessageCard({
   return (
     <div
       className={[
-        "relative mx-3 my-2 overflow-hidden rounded-2xl transition-shadow duration-200",
+        "relative mx-3 my-2 transition-shadow duration-200",
         swipeGlowing ? "message-card-swipe-glow" : "",
       ].join(" ")}
     >
@@ -182,7 +182,7 @@ function MessageCard({
         ref={scrollRef}
         onScroll={handleScroll}
         className={[
-          "message-card-snap-scroll flex overflow-y-hidden overscroll-x-contain",
+          "message-card-snap-scroll flex overflow-y-hidden overscroll-x-contain rounded-2xl",
           swipeable ? "overflow-x-auto snap-x snap-mandatory" : "overflow-x-hidden",
         ].join(" ")}
       >
@@ -213,7 +213,7 @@ function MessageCard({
           onDragEnd={handleDragEnd}
           onClick={handleClick}
           className={[
-            "snap-center flex-none rounded-2xl bg-(--m3-surface-container-high) px-4 py-3",
+            "snap-center flex-none bg-(--m3-surface-container-high) px-4 py-3",
             copyable ? "cursor-pointer active:bg-(--m3-surface-container-highest)" : "",
             isActiveRecording ? "message-card-active-recording" : "",
           ].join(" ")}

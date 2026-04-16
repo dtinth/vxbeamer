@@ -41,6 +41,11 @@ body {
   display: none;
 }
 
+/* Freeze non-dragged cards during drag operations (fixes iPadOS jitter) */
+[data-dragging-message="true"] .message-card:not([data-dragging-active]) {
+  pointer-events: none;
+}
+
 :root {
   /* Color Roles */
   --m3-background: #12140d;

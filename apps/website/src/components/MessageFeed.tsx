@@ -120,12 +120,16 @@ function MessageCard({
       return;
     }
     scheduleClickSuppression();
+    document.body.setAttribute("data-dragging-message", "true");
+    event.currentTarget.closest(".message-card")?.setAttribute("data-dragging-active", "true");
     event.dataTransfer.effectAllowed = "copy";
     event.dataTransfer.setData("text/plain", text);
   };
 
-  const handleDragEnd = () => {
+  const handleDragEnd = (event: React.DragEvent<HTMLDivElement>) => {
     scheduleClickSuppression();
+    document.body.removeAttribute("data-dragging-message");
+    event.currentTarget.closest(".message-card")?.removeAttribute("data-dragging-active");
   };
 
   useEffect(() => {
@@ -157,7 +161,7 @@ function MessageCard({
   return (
     <div
       className={[
-        "relative mx-3 my-2 overflow-hidden rounded-2xl transition-shadow duration-200",
+        "message-card relative mx-3 my-2 overflow-hidden rounded-2xl transition-shadow duration-200",
         swipeGlowing ? "message-card-swipe-glow" : "",
       ].join(" ")}
     >

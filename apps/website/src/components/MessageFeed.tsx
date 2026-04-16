@@ -17,6 +17,8 @@ import {
 } from "./messageFeedScroll.ts";
 
 const SCROLL_IDLE_DELAY_MS = 120;
+const SCROLL_IGNORE_RESET_MS = 100;
+const SCROLL_IGNORE_SMOOTH_RESET_MS = 300;
 const SWIPE_GLOW_DURATION_MS = 900;
 const DRAG_CLICK_SUPPRESSION_MS = 250;
 
@@ -37,8 +39,10 @@ function MessageCard({
   const [swipeGlowing, setSwipeGlowing] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollIdleTimeoutRef = useRef<number | null>(null);
-  const ignoreScrollUntilRef = useRef(0);
-  const dragSuppressUntilRef = useRef(0);
+  const ignoreScrollRef = useRef(false);
+  const ignoreScrollTimeoutRef = useRef<number | null>(null);
+  const suppressClickRef = useRef(false);
+  const suppressClickTimeoutRef = useRef<number | null>(null);
 
   const text =
     message.final ??
@@ -53,10 +57,31 @@ function MessageCard({
   const copyable = message.status !== "recording" && !!text;
   const swipeable = message.status !== "recording";
 
+  const scheduleClickSuppression = () => {
+    suppressClickRef.current = true;
+    if (suppressClickTimeoutRef.current !== null) {
+      window.clearTimeout(suppressClickTimeoutRef.current);
+    }
+    suppressClickTimeoutRef.current = window.setTimeout(() => {
+      suppressClickRef.current = false;
+      suppressClickTimeoutRef.current = null;
+    }, DRAG_CLICK_SUPPRESSION_MS);
+  };
+
   const resetScrollPosition = (behavior: ScrollBehavior = "auto") => {
     const node = scrollRef.current;
     if (!node) return;
-    ignoreScrollUntilRef.current = Date.now() + (behavior === "smooth" ? 300 : 100);
+    ignoreScrollRef.current = true;
+    if (ignoreScrollTimeoutRef.current !== null) {
+      window.clearTimeout(ignoreScrollTimeoutRef.current);
+    }
+    ignoreScrollTimeoutRef.current = window.setTimeout(
+      () => {
+        ignoreScrollRef.current = false;
+        ignoreScrollTimeoutRef.current = null;
+      },
+      behavior === "smooth" ? SCROLL_IGNORE_SMOOTH_RESET_MS : SCROLL_IGNORE_RESET_MS,
+    );
     node.scrollTo({
       left: getMessageCardInitialScrollLeft(),
       behavior,
@@ -83,7 +108,7 @@ function MessageCard({
   };
 
   const handleScroll = () => {
-    if (!swipeable || Date.now() < ignoreScrollUntilRef.current) return;
+    if (!swipeable || ignoreScrollRef.current) return;
     if (scrollIdleTimeoutRef.current !== null) {
       window.clearTimeout(scrollIdleTimeoutRef.current);
     }
@@ -98,7 +123,7 @@ function MessageCard({
   };
 
   const handleClick = () => {
-    if (Date.now() < dragSuppressUntilRef.current) return;
+    if (suppressClickRef.current) return;
     if (!copyable) return;
     void navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
@@ -111,13 +136,13 @@ function MessageCard({
       event.preventDefault();
       return;
     }
-    dragSuppressUntilRef.current = Date.now() + DRAG_CLICK_SUPPRESSION_MS;
+    scheduleClickSuppression();
     event.dataTransfer.effectAllowed = "copy";
     event.dataTransfer.setData("text/plain", text);
   };
 
   const handleDragEnd = () => {
-    dragSuppressUntilRef.current = Date.now() + DRAG_CLICK_SUPPRESSION_MS;
+    scheduleClickSuppression();
   };
 
   useEffect(() => {
@@ -136,6 +161,12 @@ function MessageCard({
     return () => {
       if (scrollIdleTimeoutRef.current !== null) {
         window.clearTimeout(scrollIdleTimeoutRef.current);
+      }
+      if (ignoreScrollTimeoutRef.current !== null) {
+        window.clearTimeout(ignoreScrollTimeoutRef.current);
+      }
+      if (suppressClickTimeoutRef.current !== null) {
+        window.clearTimeout(suppressClickTimeoutRef.current);
       }
     };
   }, []);

@@ -16,9 +16,6 @@ import {
   MESSAGE_CARD_ACTION_WIDTH,
 } from "./messageFeedScroll.ts";
 
-const SCROLL_IDLE_DELAY_MS = 120;
-const SCROLL_IGNORE_RESET_MS = 100;
-const SCROLL_IGNORE_SMOOTH_RESET_MS = 300;
 const SWIPE_GLOW_DURATION_MS = 900;
 const DRAG_CLICK_SUPPRESSION_MS = 250;
 
@@ -38,9 +35,7 @@ function MessageCard({
   const [copied, setCopied] = useState(false);
   const [swipeGlowing, setSwipeGlowing] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const scrollIdleTimeoutRef = useRef<number | null>(null);
-  const ignoreScrollRef = useRef(false);
-  const ignoreScrollTimeoutRef = useRef<number | null>(null);
+  const ignoreScrollEndRef = useRef(false);
   const suppressClickRef = useRef(false);
   const suppressClickTimeoutRef = useRef<number | null>(null);
 
@@ -71,17 +66,7 @@ function MessageCard({
   const resetScrollPosition = (behavior: ScrollBehavior = "auto") => {
     const node = scrollRef.current;
     if (!node) return;
-    ignoreScrollRef.current = true;
-    if (ignoreScrollTimeoutRef.current !== null) {
-      window.clearTimeout(ignoreScrollTimeoutRef.current);
-    }
-    ignoreScrollTimeoutRef.current = window.setTimeout(
-      () => {
-        ignoreScrollRef.current = false;
-        ignoreScrollTimeoutRef.current = null;
-      },
-      behavior === "smooth" ? SCROLL_IGNORE_SMOOTH_RESET_MS : SCROLL_IGNORE_RESET_MS,
-    );
+    ignoreScrollEndRef.current = true;
     node.scrollTo({
       left: getMessageCardInitialScrollLeft(),
       behavior,
@@ -107,19 +92,17 @@ function MessageCard({
     resetScrollPosition("smooth");
   };
 
-  const handleScroll = () => {
-    if (!swipeable || ignoreScrollRef.current) return;
-    if (scrollIdleTimeoutRef.current !== null) {
-      window.clearTimeout(scrollIdleTimeoutRef.current);
+  const handleScrollEnd = () => {
+    if (!swipeable || ignoreScrollEndRef.current) {
+      ignoreScrollEndRef.current = false;
+      return;
     }
-    scrollIdleTimeoutRef.current = window.setTimeout(() => {
-      const node = scrollRef.current;
-      if (!node) return;
-      const action = getMessageCardSnapAction(node.scrollLeft);
-      if (action) {
-        handleSwipeAction(action);
-      }
-    }, SCROLL_IDLE_DELAY_MS);
+    const node = scrollRef.current;
+    if (!node) return;
+    const action = getMessageCardSnapAction(node.scrollLeft);
+    if (action) {
+      handleSwipeAction(action);
+    }
   };
 
   const handleClick = () => {
@@ -157,14 +140,14 @@ function MessageCard({
   }, [swipeHighlightKey]);
 
   useEffect(() => {
+    const node = scrollRef.current;
+    if (!node) return;
+
     resetScrollPosition();
+    node.addEventListener("scrollend", handleScrollEnd);
+
     return () => {
-      if (scrollIdleTimeoutRef.current !== null) {
-        window.clearTimeout(scrollIdleTimeoutRef.current);
-      }
-      if (ignoreScrollTimeoutRef.current !== null) {
-        window.clearTimeout(ignoreScrollTimeoutRef.current);
-      }
+      node.removeEventListener("scrollend", handleScrollEnd);
       if (suppressClickTimeoutRef.current !== null) {
         window.clearTimeout(suppressClickTimeoutRef.current);
       }
@@ -180,7 +163,6 @@ function MessageCard({
     >
       <div
         ref={scrollRef}
-        onScroll={handleScroll}
         className={[
           "message-card-snap-scroll flex overflow-y-hidden overscroll-x-contain select-none",
           swipeable ? "overflow-x-auto snap-x snap-mandatory" : "overflow-x-hidden",

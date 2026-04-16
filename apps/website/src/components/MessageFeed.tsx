@@ -9,10 +9,16 @@ import {
   markPendingLocalSwipe,
   type Message,
 } from "../store.ts";
-import { getMessageFeedScrollBehavior } from "./messageFeedScroll.ts";
+import {
+  getMessageCardInitialScrollLeft,
+  getMessageCardSnapAction,
+  getMessageFeedScrollBehavior,
+  MESSAGE_CARD_ACTION_WIDTH,
+} from "./messageFeedScroll.ts";
 
-const SWIPE_THRESHOLD = 80;
+const SCROLL_IDLE_DELAY_MS = 120;
 const SWIPE_GLOW_DURATION_MS = 900;
+const DRAG_CLICK_SUPPRESSION_MS = 250;
 
 function MessageCard({
   message,
@@ -28,12 +34,11 @@ function MessageCard({
   swipeHighlightKey: number | null;
 }) {
   const [copied, setCopied] = useState(false);
-  const [offset, setOffset] = useState(0);
-  const [transitioning, setTransitioning] = useState(false);
   const [swipeGlowing, setSwipeGlowing] = useState(false);
-  const startXRef = useRef(0);
-  const draggingRef = useRef(false);
-  const movedRef = useRef(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollIdleTimeoutRef = useRef<number | null>(null);
+  const ignoreScrollUntilRef = useRef(0);
+  const dragSuppressUntilRef = useRef(0);
 
   const text =
     message.final ??
@@ -48,46 +53,52 @@ function MessageCard({
   const copyable = message.status !== "recording" && !!text;
   const swipeable = message.status !== "recording";
 
-  const handleTouchStart = (e: React.TouchEvent) => {
-    if (!swipeable) return;
-    startXRef.current = e.touches[0]!.clientX;
-    draggingRef.current = true;
-    movedRef.current = false;
-    setTransitioning(false);
+  const resetScrollPosition = (behavior: ScrollBehavior = "auto") => {
+    const node = scrollRef.current;
+    if (!node) return;
+    ignoreScrollUntilRef.current = Date.now() + (behavior === "smooth" ? 300 : 100);
+    node.scrollTo({
+      left: getMessageCardInitialScrollLeft(),
+      behavior,
+    });
   };
 
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!draggingRef.current) return;
-    const dx = e.touches[0]!.clientX - startXRef.current;
-    if (Math.abs(dx) > 5) movedRef.current = true;
-    setOffset(dx);
-  };
-
-  const handleTouchEnd = () => {
-    if (!draggingRef.current) return;
-    draggingRef.current = false;
-    setTransitioning(true);
-
-    if (offset < -SWIPE_THRESHOLD) {
-      setOffset(-window.innerWidth);
+  const handleSwipeAction = (
+    action: Exclude<ReturnType<typeof getMessageCardSnapAction>, null>,
+  ) => {
+    if (action === "swipe-left") {
       void fetch(new URL(`/messages/${message.id}`, backendUrl).toString(), {
         method: "DELETE",
         headers: { Authorization: `Bearer ${authToken}` },
       });
-    } else if (offset > SWIPE_THRESHOLD) {
+    } else {
       markPendingLocalSwipe(message.id);
       void fetch(new URL(`/messages/${message.id}/swipe`, backendUrl).toString(), {
         method: "POST",
         headers: { Authorization: `Bearer ${authToken}` },
       });
-      setOffset(0);
-    } else {
-      setOffset(0);
     }
+
+    resetScrollPosition("smooth");
+  };
+
+  const handleScroll = () => {
+    if (!swipeable || Date.now() < ignoreScrollUntilRef.current) return;
+    if (scrollIdleTimeoutRef.current !== null) {
+      window.clearTimeout(scrollIdleTimeoutRef.current);
+    }
+    scrollIdleTimeoutRef.current = window.setTimeout(() => {
+      const node = scrollRef.current;
+      if (!node) return;
+      const action = getMessageCardSnapAction(node.scrollLeft);
+      if (action) {
+        handleSwipeAction(action);
+      }
+    }, SCROLL_IDLE_DELAY_MS);
   };
 
   const handleClick = () => {
-    if (movedRef.current) return;
+    if (Date.now() < dragSuppressUntilRef.current) return;
     if (!copyable) return;
     void navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
@@ -95,7 +106,19 @@ function MessageCard({
     });
   };
 
-  const direction = offset < 0 ? "left" : offset > 0 ? "right" : null;
+  const handleDragStart = (event: React.DragEvent<HTMLDivElement>) => {
+    if (!copyable) {
+      event.preventDefault();
+      return;
+    }
+    dragSuppressUntilRef.current = Date.now() + DRAG_CLICK_SUPPRESSION_MS;
+    event.dataTransfer.effectAllowed = "copy";
+    event.dataTransfer.setData("text/plain", text);
+  };
+
+  const handleDragEnd = () => {
+    dragSuppressUntilRef.current = Date.now() + DRAG_CLICK_SUPPRESSION_MS;
+  };
 
   useEffect(() => {
     if (swipeHighlightKey === null) return;
@@ -108,6 +131,15 @@ function MessageCard({
     };
   }, [swipeHighlightKey]);
 
+  useEffect(() => {
+    resetScrollPosition();
+    return () => {
+      if (scrollIdleTimeoutRef.current !== null) {
+        window.clearTimeout(scrollIdleTimeoutRef.current);
+      }
+    };
+  }, []);
+
   return (
     <div
       className={[
@@ -115,85 +147,87 @@ function MessageCard({
         swipeGlowing ? "message-card-swipe-glow" : "",
       ].join(" ")}
     >
-      {/* Action background */}
       <div
+        ref={scrollRef}
+        onScroll={handleScroll}
         className={[
-          "absolute inset-0 flex items-center px-5 transition-opacity",
-          direction === "left"
-            ? "justify-end bg-(--m3-error-container)"
-            : direction === "right"
-              ? "justify-start bg-(--m3-tertiary-container)"
-              : "opacity-0",
+          "message-card-snap-scroll flex overflow-y-hidden overscroll-x-contain",
+          swipeable ? "overflow-x-auto snap-x snap-mandatory" : "overflow-x-hidden",
         ].join(" ")}
       >
-        {direction === "left" && (
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="22"
-            height="22"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="white"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <polyline points="3 6 5 6 21 6" />
-            <path d="M19 6l-1 14H6L5 6" />
-            <path d="M10 11v6M14 11v6" />
-            <path d="M9 6V4h6v2" />
-          </svg>
-        )}
-        {direction === "right" && (
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="22"
-            height="22"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="white"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <line x1="22" y1="2" x2="11" y2="13" />
-            <polygon points="22 2 15 22 11 13 2 9 22 2" />
-          </svg>
-        )}
-      </div>
-
-      {/* Card */}
-      <div
-        style={{
-          transform: `translateX(${offset}px)`,
-          transition: transitioning ? "transform 0.25s ease" : "none",
-        }}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onClick={handleClick}
-        className={[
-          "bg-(--m3-surface-container-high) rounded-2xl px-4 py-3",
-          copyable ? "cursor-pointer active:bg-(--m3-surface-container-highest)" : "",
-          isActiveRecording ? "message-card-active-recording" : "",
-        ].join(" ")}
-      >
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-xs text-(--m3-on-surface-variant)">{time}</span>
-          {message.status === "recording" && (
-            <span className="flex items-center gap-1 text-xs text-(--m3-error)">
-              <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse inline-block" />
-              Recording
-            </span>
-          )}
-          {message.status === "error" && <span className="text-xs text-(--m3-error)">Error</span>}
-          {copied && <span className="text-xs text-green-400 ml-auto">Copied</span>}
-        </div>
-        <p
-          className={`text-sm whitespace-pre-wrap leading-relaxed ${message.final ? "text-(--m3-on-surface)" : "text-(--m3-on-surface-variant)"}`}
+        <div
+          className="flex-none snap-start bg-(--m3-tertiary-container) text-(--m3-on-tertiary-container)"
+          style={{ width: `${MESSAGE_CARD_ACTION_WIDTH}px` }}
         >
-          {text}
-        </p>
+          <div className="flex h-full items-center justify-center px-5">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <line x1="22" y1="2" x2="11" y2="13" />
+              <polygon points="22 2 15 22 11 13 2 9 22 2" />
+            </svg>
+          </div>
+        </div>
+        <div
+          draggable={copyable}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          onClick={handleClick}
+          className={[
+            "snap-center flex-none rounded-2xl bg-(--m3-surface-container-high) px-4 py-3",
+            copyable ? "cursor-pointer active:bg-(--m3-surface-container-highest)" : "",
+            isActiveRecording ? "message-card-active-recording" : "",
+          ].join(" ")}
+          style={{ width: "100%" }}
+        >
+          <div className="mb-1 flex items-center gap-2">
+            <span className="text-xs text-(--m3-on-surface-variant)">{time}</span>
+            {message.status === "recording" && (
+              <span className="flex items-center gap-1 text-xs text-(--m3-error)">
+                <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-red-400" />
+                Recording
+              </span>
+            )}
+            {message.status === "error" && <span className="text-xs text-(--m3-error)">Error</span>}
+            {copied && <span className="ml-auto text-xs text-green-400">Copied</span>}
+          </div>
+          <p
+            className={`text-sm whitespace-pre-wrap leading-relaxed ${message.final ? "text-(--m3-on-surface)" : "text-(--m3-on-surface-variant)"}`}
+          >
+            {text}
+          </p>
+        </div>
+        <div
+          className="flex-none snap-end bg-(--m3-error-container) text-(--m3-on-error-container)"
+          style={{ width: `${MESSAGE_CARD_ACTION_WIDTH}px` }}
+        >
+          <div className="flex h-full items-center justify-center px-5">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6l-1 14H6L5 6" />
+              <path d="M10 11v6M14 11v6" />
+              <path d="M9 6V4h6v2" />
+            </svg>
+          </div>
+        </div>
       </div>
     </div>
   );

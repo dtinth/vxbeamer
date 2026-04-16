@@ -33,6 +33,14 @@ body {
   animation: message-card-swipe-glow 900ms ease-out;
 }
 
+.message-card-snap-scroll {
+  scrollbar-width: none;
+}
+
+.message-card-snap-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 :root {
   /* Color Roles */
   --m3-background: #12140d;

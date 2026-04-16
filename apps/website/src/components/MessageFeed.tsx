@@ -18,6 +18,7 @@ import {
 
 const SWIPE_GLOW_DURATION_MS = 900;
 const DRAG_CLICK_SUPPRESSION_MS = 250;
+const DRAG_FREEZE_DELAY_MS = 50;
 
 function MessageCard({
   message,
@@ -38,6 +39,7 @@ function MessageCard({
   const ignoreScrollEndRef = useRef(false);
   const suppressClickRef = useRef(false);
   const suppressClickTimeoutRef = useRef<number | null>(null);
+  const dragFreezeTimeoutRef = useRef<number | null>(null);
 
   const text =
     message.final ??
@@ -120,13 +122,23 @@ function MessageCard({
       return;
     }
     scheduleClickSuppression();
-    document.body.setAttribute("data-dragging-message", "true");
+    if (dragFreezeTimeoutRef.current !== null) {
+      window.clearTimeout(dragFreezeTimeoutRef.current);
+    }
+    dragFreezeTimeoutRef.current = window.setTimeout(() => {
+      document.body.setAttribute("data-dragging-message", "true");
+      dragFreezeTimeoutRef.current = null;
+    }, DRAG_FREEZE_DELAY_MS);
     event.dataTransfer.effectAllowed = "copy";
     event.dataTransfer.setData("text/plain", text);
   };
 
   const handleDragEnd = () => {
     scheduleClickSuppression();
+    if (dragFreezeTimeoutRef.current !== null) {
+      window.clearTimeout(dragFreezeTimeoutRef.current);
+      dragFreezeTimeoutRef.current = null;
+    }
     document.body.removeAttribute("data-dragging-message");
   };
 
@@ -152,6 +164,9 @@ function MessageCard({
       node.removeEventListener("scrollend", handleScrollEnd);
       if (suppressClickTimeoutRef.current !== null) {
         window.clearTimeout(suppressClickTimeoutRef.current);
+      }
+      if (dragFreezeTimeoutRef.current !== null) {
+        window.clearTimeout(dragFreezeTimeoutRef.current);
       }
     };
   }, []);

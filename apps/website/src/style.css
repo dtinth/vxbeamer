@@ -41,8 +41,8 @@ body {
   display: none;
 }
 
-/* Freeze non-dragged cards during drag operations (fixes iPadOS jitter) */
-[data-dragging-message="true"] .message-card:not([data-dragging-active]) {
+/* Freeze scroll containers during drag operations (fixes iPadOS jitter) */
+[data-dragging-message="true"] .message-card-snap-scroll {
   pointer-events: none;
 }
 

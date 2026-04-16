@@ -121,15 +121,13 @@ function MessageCard({
     }
     scheduleClickSuppression();
     document.body.setAttribute("data-dragging-message", "true");
-    event.currentTarget.closest(".message-card")?.setAttribute("data-dragging-active", "true");
     event.dataTransfer.effectAllowed = "copy";
     event.dataTransfer.setData("text/plain", text);
   };
 
-  const handleDragEnd = (event: React.DragEvent<HTMLDivElement>) => {
+  const handleDragEnd = () => {
     scheduleClickSuppression();
     document.body.removeAttribute("data-dragging-message");
-    event.currentTarget.closest(".message-card")?.removeAttribute("data-dragging-active");
   };
 
   useEffect(() => {

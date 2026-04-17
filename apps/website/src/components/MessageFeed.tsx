@@ -14,6 +14,7 @@ import {
   getMessageCardSnapAction,
   getMessageFeedScrollBehavior,
   MESSAGE_CARD_ACTION_WIDTH,
+  MESSAGE_CARD_SNAP_TOLERANCE,
 } from "./messageFeedScroll.ts";
 
 const SWIPE_GLOW_DURATION_MS = 900;
@@ -35,11 +36,13 @@ function MessageCard({
 }) {
   const [copied, setCopied] = useState(false);
   const [swipeGlowing, setSwipeGlowing] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const ignoreScrollEndRef = useRef(false);
   const suppressClickRef = useRef(false);
   const suppressClickTimeoutRef = useRef<number | null>(null);
   const dragFreezeTimeoutRef = useRef<number | null>(null);
+  const swipeableRef = useRef(message.status !== "recording");
 
   const text =
     message.final ??
@@ -75,27 +78,57 @@ function MessageCard({
     });
   };
 
+  const triggerBeam = () => {
+    markPendingLocalSwipe(message.id);
+    void fetch(new URL(`/messages/${message.id}/swipe`, backendUrl).toString(), {
+      method: "POST",
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    resetScrollPosition("smooth");
+  };
+
+  const triggerDelete = () => {
+    void fetch(new URL(`/messages/${message.id}`, backendUrl).toString(), {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    resetScrollPosition("smooth");
+  };
+
   const handleSwipeAction = (
     action: Exclude<ReturnType<typeof getMessageCardSnapAction>, null>,
   ) => {
     if (action === "swipe-left") {
-      void fetch(new URL(`/messages/${message.id}`, backendUrl).toString(), {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${authToken}` },
-      });
+      setShowDeleteConfirm(true);
     } else {
-      markPendingLocalSwipe(message.id);
-      void fetch(new URL(`/messages/${message.id}/swipe`, backendUrl).toString(), {
-        method: "POST",
-        headers: { Authorization: `Bearer ${authToken}` },
-      });
+      triggerBeam();
+    }
+  };
+
+  const handleSwipeRelease = () => {
+    if (!swipeableRef.current) return;
+    const node = scrollRef.current;
+    if (!node) return;
+
+    const scrollLeft = node.scrollLeft;
+
+    if (scrollLeft <= MESSAGE_CARD_SNAP_TOLERANCE) {
+      triggerBeam();
+      ignoreScrollEndRef.current = true;
+      return;
     }
 
-    resetScrollPosition("smooth");
+    if (scrollLeft >= MESSAGE_CARD_ACTION_WIDTH * 2 - MESSAGE_CARD_SNAP_TOLERANCE) {
+      setShowDeleteConfirm(true);
+      ignoreScrollEndRef.current = true;
+      return;
+    }
+
+    setShowDeleteConfirm(false);
   };
 
   const handleScrollEnd = () => {
-    if (!swipeable || ignoreScrollEndRef.current) {
+    if (!swipeableRef.current || ignoreScrollEndRef.current) {
       ignoreScrollEndRef.current = false;
       return;
     }
@@ -110,6 +143,11 @@ function MessageCard({
   const handleClick = () => {
     if (suppressClickRef.current) return;
     if (!copyable) return;
+    if (showDeleteConfirm) {
+      triggerDelete();
+      setShowDeleteConfirm(false);
+      return;
+    }
     void navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
@@ -154,14 +192,20 @@ function MessageCard({
   }, [swipeHighlightKey]);
 
   useEffect(() => {
+    swipeableRef.current = swipeable;
+  }, [swipeable]);
+
+  useEffect(() => {
     const node = scrollRef.current;
     if (!node) return;
 
     resetScrollPosition();
     node.addEventListener("scrollend", handleScrollEnd);
+    node.addEventListener("pointerup", handleSwipeRelease);
 
     return () => {
       node.removeEventListener("scrollend", handleScrollEnd);
+      node.removeEventListener("pointerup", handleSwipeRelease);
       if (suppressClickTimeoutRef.current !== null) {
         window.clearTimeout(suppressClickTimeoutRef.current);
       }
@@ -178,6 +222,12 @@ function MessageCard({
         swipeGlowing ? "message-card-swipe-glow" : "",
       ].join(" ")}
     >
+      {isActiveRecording && (
+        <div
+          className="pointer-events-none absolute inset-0 rounded-2xl"
+          style={{ boxShadow: "inset 0 0 0 2px rgb(239 68 68 / 1)" }}
+        />
+      )}
       <div
         ref={scrollRef}
         className={[
@@ -214,7 +264,6 @@ function MessageCard({
           className={[
             "snap-center flex-none bg-(--m3-surface-container-high) px-4 py-3",
             copyable ? "cursor-pointer active:bg-(--m3-surface-container-highest)" : "",
-            isActiveRecording ? "message-card-active-recording" : "",
           ].join(" ")}
           style={{ width: "100%" }}
         >
@@ -236,8 +285,17 @@ function MessageCard({
           </p>
         </div>
         <div
-          className="flex-none snap-end bg-(--m3-error-container) text-(--m3-on-error-container)"
+          className={[
+            "flex-none snap-end text-(--m3-on-error-container)",
+            showDeleteConfirm ? "cursor-pointer bg-(--m3-error)" : "bg-(--m3-error-container)",
+          ].join(" ")}
           style={{ width: `${MESSAGE_CARD_ACTION_WIDTH}px` }}
+          onClick={() => {
+            if (showDeleteConfirm) {
+              triggerDelete();
+              setShowDeleteConfirm(false);
+            }
+          }}
         >
           <div className="flex h-full items-center justify-center px-5">
             <svg

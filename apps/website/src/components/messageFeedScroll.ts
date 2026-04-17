@@ -2,9 +2,9 @@ export function getMessageFeedScrollBehavior(hasScrolledInitially: boolean): Scr
   return hasScrolledInitially ? "smooth" : "auto";
 }
 
-export const MESSAGE_CARD_ACTION_WIDTH = 96;
+export const MESSAGE_CARD_ACTION_WIDTH = 120;
 
-const MESSAGE_CARD_SNAP_TOLERANCE = 24;
+export const MESSAGE_CARD_SNAP_TOLERANCE = 24;
 
 export type MessageCardSnapAction = "swipe-left" | "swipe-right" | null;
 

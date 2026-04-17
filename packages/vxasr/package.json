@@ -1,6 +1,6 @@
 {
   "name": "vxasr",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "ASR client for vxbeamer, a self-hosted personal speech transcriber with real-time web interface.",
   "homepage": "https://github.com/dtinth/vxbeamer#readme",
   "bugs": {

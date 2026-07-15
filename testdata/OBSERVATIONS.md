@@ -149,6 +149,40 @@ waits for ASR events, so it does not drive these models:
 | `qwen3.5-omni-plus-realtime`  | no result, 60 s timeout |
 | `qwen3.5-omni-flash-realtime` | no result, 60 s timeout |
 
+### Pacing: fast dump vs realtime
+
+`qwen-omni/qwen3.5-omni-flash-realtime-2026-03-15`, same fixture, 20 runs per
+condition through the `vxasr` CLI (`--fast` sends frames with no delay;
+realtime sends 3200 bytes each 100 ms).
+
+**Every run in both conditions returned a transcript. No hangs, no errors.**
+
+| condition | wall clock | runs |
+| --------- | ---------- | ---- |
+| `--fast`  | 0–1 s      | 20   |
+| realtime  | 9–10 s     | 20   |
+
+The transcripts differ only in how the framework name is rendered:
+
+| rendering  | `--fast` | realtime |
+| ---------- | -------- | -------- |
+| `Elysia`   | 13       | 17       |
+| `Alecia`   | 4        | 3        |
+| `Alembia`  | 2        | 0        |
+| `Aleph.js` | 1        | 0        |
+
+65% vs 85% `Elysia`. **Fisher's exact (two-tailed): p = 0.273 — this sample does
+not establish a pacing effect.** The direction was consistent across two
+independent samples (2/5 vs 4/5, then 11/15 vs 13/15), and `--fast` produced two
+renderings realtime never did, but neither observation is significant at this n.
+Distinguishing 65% from 85% needs roughly 70 runs per condition.
+
+Contrast BytePlus, which **hangs outright** under a fast dump (see its section).
+This model has no VAD in this configuration (`turn_detection: null`), so there is
+no wall-clock endpointing to disturb.
+
+Cost is unaffected by pacing: this model bills per token, not per second.
+
 ### `gummy-realtime-v1`
 
 Surfaced only as a value for `input_audio_transcription.model`; it is not in the

@@ -27,6 +27,26 @@ export default defineConfig({
       env: {
         PORT: String(backendPort),
         ASR_PROVIDER: "mock",
+        // An eval set worth looking at, without a credential in sight: mock is
+        // the only configured one, so the eval dialog shows one row that really
+        // streams alongside the "not set up" rows an under-credentialled server
+        // is meant to surface rather than hide. No vendor is ever called.
+        ASR_CONFIGURATIONS: [
+          "qwen/qwen3-asr-flash-realtime",
+          "qwen/qwen3-asr-flash-realtime+groq",
+          "byteplus/bigmodel",
+          "mock/mock",
+        ].join(","),
+        // Eval storage, with credentials that are deliberately fake and an
+        // endpoint nothing ever contacts. Presigning is an HMAC over a URL — it
+        // makes no network call — so this exercises the real signing path and
+        // the real `{ ok, upload }` response while the browser intercepts the
+        // PUTs. No bucket, no vendor, no bytes off this machine.
+        EVAL_STORAGE_BUCKET: "e2e-eval",
+        EVAL_STORAGE_ACCESS_KEY_ID: "e2e-fake-access-key",
+        EVAL_STORAGE_SECRET_ACCESS_KEY: "e2e-fake-secret-key",
+        EVAL_STORAGE_ENDPOINT: "http://127.0.0.1:9999",
+        EVAL_STORAGE_FORCE_PATH_STYLE: "true",
         API_KEYS: apiKeyPair,
         OIDC_DISCOVERY_URL: "https://mockapis.onrender.com/oauth/.well-known/openid-configuration",
         OIDC_SECRET: "e2e-test-secret",

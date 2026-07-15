@@ -9,6 +9,8 @@ import {
   markPendingLocalSwipe,
   type Message,
 } from "../store.ts";
+import { $retainedRecordings } from "../recordedAudio.ts";
+import { EvalDialog } from "./EvalDialog.tsx";
 import {
   getMessageCardInitialScrollLeft,
   getMessageCardSnapAction,
@@ -27,12 +29,17 @@ function MessageCard({
   backendUrl,
   isActiveRecording,
   swipeHighlightKey,
+  canEval,
+  onEval,
 }: {
   message: Message;
   authToken: string;
   backendUrl: string;
   isActiveRecording: boolean;
   swipeHighlightKey: number | null;
+  /** This message's PCM is still in memory, so there is something to replay. */
+  canEval: boolean;
+  onEval: () => void;
 }) {
   const [copied, setCopied] = useState(false);
   const [swipeGlowing, setSwipeGlowing] = useState(false);
@@ -276,7 +283,45 @@ function MessageCard({
               </span>
             )}
             {message.status === "error" && <span className="text-xs text-(--m3-error)">Error</span>}
-            {copied && <span className="ml-auto text-xs text-green-400">Copied</span>}
+            <span className="ml-auto flex items-center gap-3">
+              {copied && <span className="text-xs text-green-400">Copied</span>}
+              {/* Eval is opt-in per message (privacy), and only offered where it
+                  is possible at all: the audio outlives its message only in this
+                  tab's memory, and the size cap may already have let it go. */}
+              {canEval && (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onEval();
+                  }}
+                  className="-my-1 rounded-full p-1 text-(--m3-on-surface-variant) transition-colors hover:bg-(--m3-surface-container-highest) hover:text-(--m3-on-surface)"
+                  aria-label="Eval this recording against other configurations"
+                  title="Eval"
+                >
+                  {/* Scales: this weighs configurations against each other and
+                      picks a winner. Judging, not experimenting. */}
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z" />
+                    <path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z" />
+                    <path d="M7 21h10" />
+                    <path d="M12 3v18" />
+                    <path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2" />
+                  </svg>
+                </button>
+              )}
+            </span>
           </div>
           <p
             className={`text-sm whitespace-pre-wrap leading-relaxed ${message.final ? "text-(--m3-on-surface)" : "text-(--m3-on-surface-variant)"}`}
@@ -329,12 +374,20 @@ export function MessageFeed({ onOpenSettings }: MessageFeedProps = {}) {
   const activeRecordingReferenceId = useStore($activeRecordingReferenceId);
   const lastSwipedMessage = useStore($lastSwipedMessage);
   const messagesMap = useStore($messages);
+  const retainedRecordings = useStore($retainedRecordings);
   const authToken = useStore($sessionToken);
   const backendUrl = useStore($backendUrl);
+  const [evalMessageId, setEvalMessageId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const hasScrolledInitiallyRef = useRef(false);
 
   const messages = Array.from(messagesMap.values()).sort((a, b) => a.createdAt - b.createdAt);
+  const evalMessage = evalMessageId ? messagesMap.get(evalMessageId) : undefined;
+
+  const canEval = (message: Message): boolean =>
+    message.status !== "recording" &&
+    !!message.referenceId &&
+    !!retainedRecordings.get(message.referenceId)?.chunks.length;
 
   useEffect(() => {
     if (messages.length === 0) return;
@@ -380,9 +433,12 @@ export function MessageFeed({ onOpenSettings }: MessageFeedProps = {}) {
             !!activeRecordingReferenceId && msg.referenceId === activeRecordingReferenceId
           }
           swipeHighlightKey={lastSwipedMessage?.messageId === msg.id ? lastSwipedMessage.key : null}
+          canEval={canEval(msg)}
+          onEval={() => setEvalMessageId(msg.id)}
         />
       ))}
       <div ref={bottomRef} />
+      {evalMessage && <EvalDialog message={evalMessage} onClose={() => setEvalMessageId(null)} />}
     </div>
   );
 }

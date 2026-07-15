@@ -130,10 +130,15 @@ test("evaluates a finished recording against the configured model set", async ({
   // 40-millisecond clip would never show the progress bar moving.
   await page.waitForTimeout(3000);
   await page.getByLabel("Stop recording").click();
-  await expect(page.getByText("quarterly results and our plans")).toBeVisible({ timeout: 10_000 });
+
+  // The backend keeps one in-memory log per subject and both tests sign in as
+  // the same one, so an earlier test's message may still be on screen. Work
+  // against the newest card rather than the whole feed.
+  const card = page.locator(".message-card").last();
+  await expect(card.getByText("quarterly results and our plans")).toBeVisible({ timeout: 10_000 });
 
   // --- Eval is offered only where the audio is still in memory ---
-  const evalButton = page.getByRole("button", {
+  const evalButton = card.getByRole("button", {
     name: "Eval this recording against other configurations",
   });
   await expect(evalButton).toBeVisible();
@@ -167,6 +172,6 @@ test("evaluates a finished recording against the configured model set", async ({
 
   // The winner replaces the message's answer, and the dialog gets out of the way.
   await expect(dialog).not.toBeVisible({ timeout: 10_000 });
-  await expect(page.getByText("quarterly results and our plans")).toBeVisible();
+  await expect(card.getByText("quarterly results and our plans")).toBeVisible();
   await storyboard.capture("Winner applied to the message", page);
 });

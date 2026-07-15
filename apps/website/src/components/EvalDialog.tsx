@@ -12,6 +12,10 @@ import {
   type EvalRow,
   type EvalRun,
 } from "../evalRun.ts";
+// One call, one call site: this applies the winner, records the vote, and
+// uploads the eval-set when it is ticked. Swap this import for `../evalUpload.ts`
+// when dtinth/vxbeamer#42/#43 lands — see that file's header.
+import { submitWinnerPick, type EvalCandidateResult } from "../evalWinnerPickPlaceholder.ts";
 
 /**
  * The Eval dialog: the same nine seconds, heard by every configuration at once.
@@ -201,11 +205,14 @@ function EvalRunView({
   run,
   message,
   clipSeconds,
+  primaryConfigurationId,
   onClose,
 }: {
   run: EvalRun;
   message: Message;
   clipSeconds: number;
+  /** Recorded with the vote: it is what makes a pick a defection or a confirmation. */
+  primaryConfigurationId: string | undefined;
   onClose: () => void;
 }) {
   const rows = useStore(run.$rows);
@@ -221,45 +228,43 @@ function EvalRunView({
     if (!row.final || pendingWinner) return;
     setPendingWinner(row.configurationId);
     setError(null);
-    try {
-      const response = await fetch(
-        new URL(`/messages/${message.id}/winner`, backendUrl).toString(),
-        {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            Authorization: `Bearer ${authToken ?? ""}`,
-          },
-          body: JSON.stringify({ configurationId: row.configurationId, transcript: row.final }),
-        },
-      );
-      if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(body?.error ?? `The server refused the winner (${response.status})`);
-      }
 
-      // TODO(dtinth/vxbeamer#43): record the vote here — always, whether or not
-      // save-for-eval is ticked. The vote stream *is* the dataset the whole
-      // feature is built on; this pick is one sample in it.
-      //   await recordVote({ messageId: message.id, configurationId: row.configurationId });
-      //
-      // TODO(dtinth/vxbeamer#42): and only when `saveForEval` is ticked, upload
-      // the clip and every transcript below alongside it.
-      //   if (saveForEval) {
-      //     await uploadEvalSet({
-      //       audio: getRetainedRecording(message.referenceId!)?.chunks,
-      //       rows,
-      //       winnerConfigurationId: row.configurationId,
-      //     });
-      //   }
-      // Both live in the storage module (#42/#43); nothing about the audio may
-      // leave this tab until one of these runs.
+    // The whole ballot, not just the winner: a win is a count without it, and a
+    // count is dominated by whichever configurations happened to be enabled.
+    // Failures travel too — a configuration that crashed lost on availability,
+    // not on quality, and collapsing the two would libel a flaky provider.
+    const candidates: EvalCandidateResult[] = rows.map((candidate) => ({
+      configurationId: candidate.configurationId,
+      ...(candidate.final ? { transcript: candidate.final } : {}),
+      ...(candidate.usage.length > 0 ? { usage: candidate.usage } : {}),
+      ...(candidate.error ? { error: candidate.error } : {}),
+    }));
 
-      onClose();
-    } catch (err) {
+    const outcome = await submitWinnerPick(
+      {
+        messageId: message.id,
+        referenceId: message.referenceId,
+        configurationId: row.configurationId,
+        primaryConfigurationId,
+        candidates,
+        saveForEval,
+      },
+      { backendUrl, accessToken: authToken ?? "", fetch: (...args) => fetch(...args) },
+    );
+
+    if (!outcome.winnerApplied) {
       setPendingWinner(null);
-      setError(err instanceof Error ? err.message : "Could not save the winner");
+      setError(outcome.winnerError ?? "Could not save the winner");
+      return;
     }
+
+    // Storage trouble is not shown. The winner has already replaced the answer
+    // and been broadcast — a vote that failed to upload is bookkeeping the user
+    // can do nothing about, and an alarm about it would be an alarm about
+    // something that did not go wrong.
+    if (outcome.storageError) console.warn("eval: storage failed", outcome.storageError);
+
+    onClose();
   };
 
   const anyWinnable = rows.some(canWinEval);
@@ -347,6 +352,7 @@ export function EvalDialog({ message, onClose }: EvalDialogProps) {
   const authToken = useStore($sessionToken);
   const [run, setRun] = useState<EvalRun | null>(null);
   const [clipSeconds, setClipSeconds] = useState(0);
+  const [primaryConfigurationId, setPrimaryConfigurationId] = useState<string | undefined>();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -382,6 +388,7 @@ export function EvalDialog({ message, onClose }: EvalDialogProps) {
       if (disposed) return;
 
       setClipSeconds(evalDurationSeconds(recording.chunks));
+      setPrimaryConfigurationId(configurations.primaryConfigurationId);
       started = startEvalRun({
         configurations: configurations.configurations,
         primaryConfigurationId: configurations.primaryConfigurationId,
@@ -421,7 +428,13 @@ export function EvalDialog({ message, onClose }: EvalDialogProps) {
             </button>
           </div>
         ) : run ? (
-          <EvalRunView run={run} message={message} clipSeconds={clipSeconds} onClose={onClose} />
+          <EvalRunView
+            run={run}
+            message={message}
+            clipSeconds={clipSeconds}
+            primaryConfigurationId={primaryConfigurationId}
+            onClose={onClose}
+          />
         ) : (
           <div className="flex flex-1 items-center justify-center">
             <p className="text-sm text-(--m3-on-surface-variant)">Loading configurations…</p>

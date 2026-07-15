@@ -7,5 +7,12 @@
     "website": "0.0.4",
     "vxasr": "0.0.4"
   },
-  "changesets": ["soft-pans-shake"]
+  "changesets": [
+    "asr-cli",
+    "eval-configuration-discovery",
+    "eval-dialog-prototype",
+    "eval-vote-and-eval-set-upload",
+    "lazy-eels-repeat",
+    "soft-pans-shake"
+  ]
 }

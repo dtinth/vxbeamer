@@ -271,6 +271,30 @@ app.get("/sse", authMiddleware, (c) => {
   });
 });
 
+/**
+ * What a client may transcribe with — and therefore what an eval fans out to.
+ *
+ * There is no separate eval set. An eval opens one `/ws` per configuration, so
+ * any eval-only list could only ever be a subset of what `/ws` accepts; a
+ * second env var could only disagree with the first, and disagreeing would mean
+ * either advertising configurations that `/ws` rejects or hiding ones it
+ * serves. The selectable set already *is* the answer.
+ *
+ * Unlike the routes below, this is not subject-scoped: the catalogue is a
+ * property of the server, identical for every subject. It is still behind auth,
+ * because it describes how the server is set up.
+ */
+app.get("/asr/configurations", authMiddleware, (c) => {
+  return c.json({
+    // The primary is itself an eval candidate, and appears in the list like any
+    // other. It is named separately so the dialog can mark it and know which
+    // result the winner would replace — as an id rather than a per-entry flag,
+    // so there is one source of truth for "which one is primary".
+    primaryConfigurationId: configurationSelector.defaultConfigurationId,
+    configurations: configurationSelector.listConfigurations(),
+  });
+});
+
 app.get("/messages", authMiddleware, (c) => {
   return c.json({ messages: store.listMessages(c.get("auth").sub) });
 });

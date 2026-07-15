@@ -190,6 +190,121 @@ test("the default is always selectable, even if ASR_CONFIGURATIONS omits it", ()
   expect(expectOk(selector.select({ configuration: QWEN })).configurationId).toBe(QWEN);
 });
 
+// --- Describing the selectable set (what an eval fans out to) ---
+
+test("every described configuration is one a client may actually select", () => {
+  // The contract behind having no separate eval set: the listing and the /ws
+  // accept set are the same set, so a fan-out can never name a rejected id.
+  const selector = createConfigurationSelector({
+    DASHSCOPE_API_KEY: "dk",
+    BYTEPLUS_API_KEY: "bk",
+    GROQ_API_KEY: "gk",
+  });
+
+  for (const descriptor of selector.listConfigurations()) {
+    expect(expectOk(selector.select({ configuration: descriptor.id })).configurationId).toBe(
+      descriptor.id,
+    );
+  }
+  expect(selector.listConfigurations().map((c) => c.id)).toEqual(selector.enabledConfigurationIds);
+});
+
+test("a described configuration carries its identity components and a label", () => {
+  const selector = createConfigurationSelector({ DASHSCOPE_API_KEY: "dk", GROQ_API_KEY: "gk" });
+
+  const descriptor = selector.listConfigurations().find((c) => c.id === QWEN_GROQ);
+
+  expect(descriptor).toEqual({
+    id: QWEN_GROQ,
+    label: "Qwen3-ASR-Flash + Groq formatting",
+    providerId: "qwen",
+    model: "qwen3-asr-flash-realtime",
+    postProcessing: ["groq"],
+    configured: true,
+  });
+});
+
+test("raw and enhanced are described as two distinct entries", () => {
+  // They share a provider and a model, so only the id tells them apart.
+  const selector = createConfigurationSelector({ DASHSCOPE_API_KEY: "dk", GROQ_API_KEY: "gk" });
+
+  const qwens = selector.listConfigurations().filter((c) => c.providerId === "qwen");
+
+  expect(qwens.map((c) => c.id)).toEqual([QWEN, QWEN_GROQ]);
+  expect(qwens.map((c) => c.model)).toEqual([
+    "qwen3-asr-flash-realtime",
+    "qwen3-asr-flash-realtime",
+  ]);
+});
+
+test("the primary is described as one candidate among the rest", () => {
+  const selector = createConfigurationSelector({ DASHSCOPE_API_KEY: "dk", GROQ_API_KEY: "gk" });
+
+  expect(selector.listConfigurations().map((c) => c.id)).toContain(selector.defaultConfigurationId);
+});
+
+test("ASR_CONFIGURATIONS narrows what is described", () => {
+  const selector = createConfigurationSelector({
+    DASHSCOPE_API_KEY: "dk",
+    BYTEPLUS_API_KEY: "bk",
+    ASR_CONFIGURATIONS: QWEN,
+  });
+
+  expect(selector.listConfigurations().map((c) => c.id)).toEqual([QWEN]);
+});
+
+test("configurations are described in declared order, not allowlist order", () => {
+  const selector = createConfigurationSelector({
+    DASHSCOPE_API_KEY: "dk",
+    ASR_CONFIGURATIONS: `mock/mock,${QWEN}`,
+  });
+
+  expect(selector.listConfigurations().map((c) => c.id)).toEqual([QWEN, "mock/mock"]);
+});
+
+test("an allowlisted configuration without credentials is described as unconfigured", () => {
+  const selector = createConfigurationSelector({
+    DASHSCOPE_API_KEY: "dk",
+    ASR_CONFIGURATIONS: `${QWEN},byteplus/bigmodel`,
+  });
+
+  const byId = new Map(selector.listConfigurations().map((c) => [c.id, c]));
+
+  // Listed, so the operator can see the gap — but flagged, so a fan-out can
+  // skip it rather than open a socket that immediately closes.
+  expect(byId.get("byteplus/bigmodel")?.configured).toBe(false);
+  expect(byId.get(QWEN)?.configured).toBe(true);
+  expect(expectErr(selector.select({ configuration: "byteplus/bigmodel" })).code).toBe(
+    "not_configured",
+  );
+});
+
+test("the default is described as unconfigured rather than omitted", () => {
+  // The fresh-clone case: no credentials at all. The default is always listed,
+  // so the listing cannot contradict what an unqualified /ws would use.
+  const selector = createConfigurationSelector({});
+
+  const byId = new Map(selector.listConfigurations().map((c) => [c.id, c]));
+
+  expect(byId.get(QWEN)?.configured).toBe(false);
+});
+
+test("nothing about credentials leaks into a described configuration", () => {
+  // Not the values, and not the env var names either — `configured` answers
+  // "will this work?" without describing the server's environment.
+  const selector = createConfigurationSelector({
+    DASHSCOPE_API_KEY: "sk-secret-value",
+    ASR_CONFIGURATIONS: `${QWEN},byteplus/bigmodel`,
+  });
+
+  const serialized = JSON.stringify(selector.listConfigurations());
+
+  expect(serialized).not.toContain("sk-secret-value");
+  expect(serialized).not.toContain("BYTEPLUS_API_KEY");
+  expect(serialized).not.toContain("DASHSCOPE_API_KEY");
+  expect(serialized).not.toContain("API_KEY");
+});
+
 // --- Startup validation ---
 
 test("a typo'd ASR_PROVIDER fails the boot instead of falling back to qwen", () => {

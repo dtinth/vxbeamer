@@ -67,6 +67,18 @@ export const builtinConfigurations: readonly ConfigurationSpec[] = [
     postProcessing: ["groq"],
     label: "Qwen3-ASR-Flash (2026-02-10) + Groq formatting",
   },
+  // `byteplus/bigmodel_nostream`, the mode that accepts a language. The
+  // bi-directional `bigmodel` mode is deliberately NOT declared: it cannot be
+  // given a language, so outside its Chinese/English default set it returns
+  // confident nonsense rather than a bad-but-honest transcript. An eval
+  // candidate that cannot hear the speaker's language is not a candidate, it is
+  // a wasted vendor call — and `bigmodel+groq` was worse still, because the
+  // enhancement rewrites the nonsense into fluent prose that reads like a real
+  // answer. The provider still serves the model, so a Chinese/English deployment
+  // can declare a configuration for it without touching the adapter.
+  //
+  // Unlike Qwen, these ids name *modes*, not versions: BytePlus publishes no
+  // dated snapshots to pin to, so there is no floating id to avoid here.
   { provider: "byteplus", label: "BytePlus Seed-ASR (raw)" },
   { provider: "byteplus", postProcessing: ["groq"], label: "BytePlus Seed-ASR + Groq formatting" },
   { provider: "mock", label: "Mock (canned transcript, no network)" },

@@ -37,13 +37,30 @@ export const bytePlusProviderDefinition: ProviderDefinition =
   defineProvider<BytePlusProviderConfig>({
     id: "byteplus",
     label: "BytePlus (Seed-ASR)",
-    models: ["bigmodel"],
+    // BytePlus's two modes are different endpoints that hear different
+    // languages, so they are modelled as two models: a configuration id has to
+    // be able to name which one a vote was cast for. `bigmodel_nostream` leads
+    // because it is the only one that accepts a language, and so the only one
+    // that can transcribe anything outside its Chinese/English default set.
+    // `bigmodel` stays served but is not declared as a configuration — see
+    // `../builtin.ts`.
+    models: ["bigmodel_nostream", "bigmodel"],
     resolveConfig(env) {
       const apiKey = env.BYTEPLUS_API_KEY;
       if (!apiKey) return { ok: false, missing: ["BYTEPLUS_API_KEY"] };
       return {
         ok: true,
-        config: { apiKey, resourceId: env.BYTEPLUS_RESOURCE_ID, url: env.BYTEPLUS_URL },
+        config: {
+          apiKey,
+          // Provider-specific rather than a shared ASR_LANGUAGE: the map lists
+          // per-provider language configuration as unspecified, and the value
+          // space is the vendor's own (BytePlus wants `th-TH`; Qwen takes no
+          // language at all and auto-detects). A cross-provider variable would
+          // settle that question for every vendor as a side effect of this fix.
+          language: env.BYTEPLUS_LANGUAGE,
+          resourceId: env.BYTEPLUS_RESOURCE_ID,
+          baseUrl: env.BYTEPLUS_BASE_URL,
+        },
       };
     },
     create(config, model) {

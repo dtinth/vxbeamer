@@ -34,7 +34,7 @@ export default defineConfig({
         ASR_CONFIGURATIONS: [
           "qwen/qwen3-asr-flash-realtime-2025-10-27",
           "qwen/qwen3-asr-flash-realtime-2025-10-27+groq",
-          "byteplus/bigmodel",
+          "byteplus/bigmodel_nostream",
           "mock/mock",
         ].join(","),
         // Eval storage, with credentials that are deliberately fake and an

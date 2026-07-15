@@ -189,8 +189,8 @@ test("the default catalogue offers raw and enhanced variants of each real model"
     "qwen/qwen3-asr-flash-realtime-2025-10-27+groq",
     "qwen/qwen3-asr-flash-realtime-2026-02-10",
     "qwen/qwen3-asr-flash-realtime-2026-02-10+groq",
-    "byteplus/bigmodel",
-    "byteplus/bigmodel+groq",
+    "byteplus/bigmodel_nostream",
+    "byteplus/bigmodel_nostream+groq",
     "mock/mock",
   ]);
 });
@@ -202,9 +202,24 @@ test("no configuration names a floating model id", () => {
   // silently. Every real model here is pinned to a dated snapshot.
   for (const configuration of createDefaultConfigurationCatalogue().list()) {
     if (configuration.providerId === "mock") continue;
+    // BytePlus is exempt because its ids name *modes* (`bigmodel_nostream` is
+    // an endpoint, not a version) and the vendor publishes no dated snapshots
+    // to pin to. The drift the rule guards against is real here too — there is
+    // simply nothing to pin. Revisit if BytePlus ever versions its models.
     if (configuration.providerId === "byteplus") continue;
     expect(configuration.model).toMatch(/-\d{4}-\d{2}-\d{2}$/);
   }
+});
+
+test("the bi-directional bigmodel mode is served but not offered as a configuration", () => {
+  const catalogue = createDefaultConfigurationCatalogue();
+
+  // It cannot be given a language, so it cannot hear anything outside its
+  // Chinese/English default set — nothing to evaluate. The provider still serves
+  // it, so a deployment in those languages can declare it.
+  expect(catalogue.ids).not.toContain("byteplus/bigmodel");
+  expect(catalogue.ids).not.toContain("byteplus/bigmodel+groq");
+  expect(catalogue.providers.get("byteplus")?.models).toContain("bigmodel");
 });
 
 test("no configuration pairs the mock fake with a real LLM call", () => {

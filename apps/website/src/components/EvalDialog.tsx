@@ -13,9 +13,8 @@ import {
   type EvalRun,
 } from "../evalRun.ts";
 // One call, one call site: this applies the winner, records the vote, and
-// uploads the eval-set when it is ticked. Swap this import for `../evalUpload.ts`
-// when dtinth/vxbeamer#42/#43 lands — see that file's header.
-import { submitWinnerPick, type EvalCandidateResult } from "../evalWinnerPickPlaceholder.ts";
+// uploads the eval-set when it is ticked (dtinth/vxbeamer#42/#43).
+import { submitWinnerPick, type EvalCandidateResult } from "../evalUpload.ts";
 
 /**
  * The Eval dialog: the same nine seconds, heard by every configuration at once.
@@ -218,8 +217,6 @@ function EvalRunView({
   const rows = useStore(run.$rows);
   const progress = useStore(run.$progress);
   const settled = useStore(run.$settled);
-  const backendUrl = useStore($backendUrl);
-  const authToken = useStore($sessionToken);
   const [saveForEval, setSaveForEval] = useState(false);
   const [pendingWinner, setPendingWinner] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -240,17 +237,17 @@ function EvalRunView({
       ...(candidate.error ? { error: candidate.error } : {}),
     }));
 
-    const outcome = await submitWinnerPick(
-      {
-        messageId: message.id,
-        referenceId: message.referenceId,
-        configurationId: row.configurationId,
-        primaryConfigurationId,
-        candidates,
-        saveForEval,
-      },
-      { backendUrl, accessToken: authToken ?? "", fetch: (...args) => fetch(...args) },
-    );
+    // No deps: the module wires its own production path, which is better than
+    // anything this component could hand it — a refreshed token rather than a
+    // possibly-stale one, the subject the vote needs, and the audio lookup.
+    const outcome = await submitWinnerPick({
+      messageId: message.id,
+      referenceId: message.referenceId,
+      configurationId: row.configurationId,
+      primaryConfigurationId,
+      candidates,
+      saveForEval,
+    });
 
     if (!outcome.winnerApplied) {
       setPendingWinner(null);

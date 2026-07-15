@@ -105,6 +105,18 @@ test("records audio and displays transcript from mock ASR", async ({ page }) => 
 });
 
 test("evaluates a finished recording against the configured model set", async ({ page }) => {
+  // Catch the presigned PUTs in the browser: the signing is real, the bucket is
+  // not, and nothing leaves this machine.
+  const uploads: { key: string; body: unknown }[] = [];
+  await page.route("**/e2e-eval/**", async (route) => {
+    const request = route.request();
+    uploads.push({
+      key: new URL(request.url()).pathname,
+      body: JSON.parse(request.postData() ?? "null") as unknown,
+    });
+    await route.fulfill({ status: 200, body: "" });
+  });
+
   // --- Sign in and record, so there is a retained clip to replay ---
   const tokenRes = await page.request.post(`${BACKEND_URL}/auth/token`, {
     data: { api_key: E2E_API_KEY },
@@ -174,4 +186,34 @@ test("evaluates a finished recording against the configured model set", async ({
   await expect(dialog).not.toBeVisible({ timeout: 10_000 });
   await expect(card.getByText("quarterly results and our plans")).toBeVisible();
   await storyboard.capture("Winner applied to the message", page);
+
+  // --- The pick reaches storage ---
+  await expect.poll(() => uploads.length, { timeout: 10_000 }).toBe(2);
+
+  // The vote goes out on every pick and carries the whole ballot, so a win can
+  // be read as a rate rather than a bare count. It must carry no transcript.
+  const vote = uploads.find((u) => u.key.includes("vote"))!.body as {
+    type: string;
+    winner: { configurationId: string };
+    candidates: { configurationId: string; transcript?: string }[];
+    savedForEval: boolean;
+  };
+  expect(vote.type).toBe("vote");
+  expect(vote.winner.configurationId).toBe("mock/mock");
+  expect(vote.savedForEval).toBe(true);
+  // Every configuration on the ballot, not just the winner.
+  expect(vote.candidates.map((c) => c.configurationId)).toContain("byteplus/bigmodel");
+  expect(vote.candidates.some((c) => c.transcript !== undefined)).toBe(false);
+
+  // The eval-set went only because save-for-eval was ticked, and it is the one
+  // that carries the audio and the transcripts.
+  const evalSet = uploads.find((u) => u.key.includes("eval-set"))!.body as {
+    type: string;
+    audio: { data: string; encoding: string };
+    candidates: { transcript?: string }[];
+  };
+  expect(evalSet.type).toBe("eval-set");
+  expect(evalSet.audio.encoding).toBe("wav");
+  expect(evalSet.audio.data.length).toBeGreaterThan(0);
+  expect(evalSet.candidates.some((c) => c.transcript?.includes("quarterly results"))).toBe(true);
 });

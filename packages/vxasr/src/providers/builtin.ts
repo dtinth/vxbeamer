@@ -44,9 +44,6 @@ export const mockProviderDefinition: ProviderDefinition = defineProvider<Record<
   id: "mock",
   label: "Mock (canned transcript, no network)",
   models: ["mock"],
-  // A fake exists to keep runs hermetic; decorating it with a real LLM call
-  // would defeat the point, so it opts out of enhancement.
-  enhanceable: false,
   resolveConfig() {
     return { ok: true, config: {} };
   },

@@ -1,27 +1,26 @@
 /**
  * Realtime microphone transcription
- * Usage: vp exec tsx src/transcribe.ts <provider> [--model <id>] [--enhance]
+ * Usage: vp exec tsx src/transcribe.ts <configuration>
  *
  * Requires: rec (sox)
- * Env vars: DASHSCOPE_API_KEY (qwen), BYTEPLUS_API_KEY (byteplus)
+ * Env vars: DASHSCOPE_API_KEY (qwen), BYTEPLUS_API_KEY (byteplus), GROQ_API_KEY (+groq)
  */
 
 import { spawn } from "child_process";
-import { createDefaultProviderRegistry } from "./providers/builtin.ts";
-import { withGroqEnhancement } from "./providers/groq-enhancement.ts";
-import type { ASRProvider } from "./asr.ts";
+import { createDefaultConfigurationCatalogue } from "./builtin.ts";
 
-const registry = createDefaultProviderRegistry();
-const providerName = process.argv[2];
-const modelFlagIndex = process.argv.indexOf("--model");
-const model = modelFlagIndex === -1 ? undefined : process.argv[modelFlagIndex + 1];
+const catalogue = createDefaultConfigurationCatalogue();
+const configurationId = process.argv[2];
 
-if (!providerName || !registry.get(providerName)) {
-  console.error(`Usage: transcribe.ts <${registry.ids.join("|")}> [--model <id>] [--enhance]`);
+if (!configurationId || !catalogue.get(configurationId)) {
+  console.error("Usage: transcribe.ts <configuration>\n\nConfigurations:");
+  for (const configuration of catalogue.list()) {
+    console.error(`  ${configuration.id}\n    ${configuration.label}`);
+  }
   process.exit(1);
 }
 
-const resolution = registry.resolve(process.env, { provider: providerName, model });
+const resolution = catalogue.resolve(process.env, configurationId);
 if (!resolution.ok) {
   const missing = resolution.error.missing ?? [];
   console.error(
@@ -32,15 +31,7 @@ if (!resolution.ok) {
   process.exit(1);
 }
 
-let provider: ASRProvider = resolution.provider;
-
-if (process.argv.includes("--enhance")) {
-  if (!process.env.GROQ_API_KEY) {
-    console.error("Error: GROQ_API_KEY is not set.");
-    process.exit(1);
-  }
-  provider = withGroqEnhancement(provider, { apiKey: process.env.GROQ_API_KEY });
-}
+const provider = resolution.provider;
 
 // ===== Display =====
 // Keep finalized lines and re-render from top on every update,
@@ -57,9 +48,7 @@ function render() {
 
 // Clear screen on start
 process.stdout.write("\x1b[2J\x1b[H");
-process.stdout.write(
-  `[Session] Using ${providerName} (${resolution.model})${process.argv.includes("--enhance") ? " + groq" : ""}. Speak — Ctrl+C to stop.\n\n`,
-);
+process.stdout.write(`[Session] Using ${configurationId}. Speak — Ctrl+C to stop.\n\n`);
 
 const session = provider.createSession({
   onPartial(text) {

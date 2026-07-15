@@ -1,39 +1,30 @@
-import { createDefaultProviderRegistry, withGroqEnhancement } from "vxasr";
-import type { ASRProvider, ASRProviderRegistry, ProviderEnv } from "vxasr";
+import { buildConfigurationId, createDefaultConfigurationCatalogue } from "vxasr";
+import type { ASRConfigurationCatalogue, ASRProvider, ProviderEnv } from "vxasr";
 
 /** Provider used when `ASR_PROVIDER` is unset — the historical default. */
 export const DEFAULT_PRIMARY_PROVIDER_ID = "qwen";
 
-export type SelectionErrorCode =
-  | "unknown_provider"
-  | "unknown_model"
-  | "not_enabled"
-  | "not_configured";
+export type SelectionErrorCode = "unknown_configuration" | "not_enabled" | "not_configured";
 
-export interface ProviderSelection {
+export interface ConfigurationSelection {
+  /** Fully decorated — the configuration owns its post-processing chain. */
   provider: ASRProvider;
-  providerId: string;
-  model: string;
-  /** Whether `withGroqEnhancement` wraps the provider. */
-  enhanced: boolean;
+  configurationId: string;
 }
 
 export type SelectionResult =
-  | { ok: true; selection: ProviderSelection }
+  | { ok: true; selection: ConfigurationSelection }
   | { ok: false; code: SelectionErrorCode; message: string };
 
 export interface SelectionRequest {
-  /** The `?provider=` query param, if the client sent a non-empty one. */
-  provider?: string | undefined;
-  /** The `?model=` query param, if the client sent a non-empty one. */
-  model?: string | undefined;
+  /** The `?configuration=` query param, if the client sent a non-empty one. */
+  configuration?: string | undefined;
 }
 
-export interface ProviderSelector {
-  readonly primaryProviderId: string;
-  readonly primaryModel: string | undefined;
-  /** Providers a client may name in `?provider=`. */
-  readonly enabledProviderIds: readonly string[];
+export interface ConfigurationSelector {
+  readonly defaultConfigurationId: string;
+  /** Configurations a client may name in `?configuration=`. */
+  readonly enabledConfigurationIds: readonly string[];
   select(request: SelectionRequest): SelectionResult;
 }
 
@@ -64,79 +55,115 @@ function parseList(value: string | undefined): string[] {
 }
 
 /**
- * Resolves a WS request into an {@link ASRProvider}.
+ * Works out which configuration a session uses when the client names none.
  *
- * Two paths:
+ * `ASR_CONFIGURATION` names one outright. Otherwise the id is derived from the
+ * older `ASR_PROVIDER`/`ASR_MODEL` pair, which predates configurations and must
+ * keep behaving exactly as it did: back then `GROQ_API_KEY` being set was what
+ * enhanced the primary, so its presence selects the `+groq` configuration when
+ * one exists for that provider and model.
  *
- * - **Primary** (neither `?provider=` nor `?model=` given): use the
- *   env-configured `ASR_PROVIDER`/`ASR_MODEL`, wrapped with
- *   `withGroqEnhancement` when `GROQ_API_KEY` is set. This is what every
- *   existing client hits, and it behaves exactly as it did before the registry.
- * - **Explicit** (either param given): resolve through the registry and return
- *   the model's raw output — no enhancement, because the point of naming a
- *   model is to see what that model produces (head-to-head eval).
- *
- * Throws only on server misconfiguration, at startup, never per-request.
+ * `ASR_PROVIDER=mock` needs no special case. Enhancement now lives in the
+ * catalogue, and no `mock/mock+groq` configuration is declared, so the lookup
+ * below simply misses and falls through to the raw mock — the same "a fake is
+ * never wrapped in a real LLM call" behaviour, now structural.
  */
-export function createProviderSelector(
+function deriveDefaultConfigurationId(
   env: ProviderEnv,
-  registry: ASRProviderRegistry = createDefaultProviderRegistry(),
-): ProviderSelector {
-  const primaryProviderId = env.ASR_PROVIDER || DEFAULT_PRIMARY_PROVIDER_ID;
-  const primaryModel = env.ASR_MODEL || undefined;
+  catalogue: ASRConfigurationCatalogue,
+): string {
+  if (env.ASR_CONFIGURATION) {
+    if (!catalogue.get(env.ASR_CONFIGURATION)) {
+      throw new Error(
+        `ASR_CONFIGURATION="${env.ASR_CONFIGURATION}" is not a known ASR configuration ` +
+          `(known: ${catalogue.ids.join(", ")})`,
+      );
+    }
+    return env.ASR_CONFIGURATION;
+  }
 
-  if (!registry.get(primaryProviderId)) {
+  const providerId = env.ASR_PROVIDER || DEFAULT_PRIMARY_PROVIDER_ID;
+  const provider = catalogue.providers.get(providerId);
+  if (!provider) {
     throw new Error(
-      `ASR_PROVIDER="${primaryProviderId}" is not a known ASR provider ` +
-        `(known: ${registry.ids.join(", ")})`,
+      `ASR_PROVIDER="${providerId}" is not a known ASR provider ` +
+        `(known: ${catalogue.providers.ids.join(", ")})`,
     );
   }
 
-  // `ASR_PROVIDERS` is an explicit allowlist; without it, anything the
-  // environment carries credentials for is selectable. The primary is always
-  // selectable so that `?provider=<primary>` can never contradict the default.
-  const configured = parseList(env.ASR_PROVIDERS);
+  const model = env.ASR_MODEL || provider.defaultModel;
+  if (env.GROQ_API_KEY) {
+    const enhanced = buildConfigurationId(providerId, model, ["groq"]);
+    if (catalogue.get(enhanced)) return enhanced;
+  }
+
+  const raw = buildConfigurationId(providerId, model);
+  if (!catalogue.get(raw)) {
+    throw new Error(
+      `No ASR configuration for ASR_PROVIDER="${providerId}" ASR_MODEL="${model}" ` +
+        `(known: ${catalogue.ids.join(", ")})`,
+    );
+  }
+  return raw;
+}
+
+/**
+ * Resolves a WS request into an {@link ASRProvider}.
+ *
+ * A client either names a configuration via `?configuration=` or gets the
+ * env-configured default. There is no enhancement branch here: a configuration
+ * carries its own post-processing chain, so the default configuration is just
+ * one of the candidates an eval compares, on the same terms as the rest.
+ *
+ * Throws only on server misconfiguration, at startup, never per-request.
+ */
+export function createConfigurationSelector(
+  env: ProviderEnv,
+  catalogue: ASRConfigurationCatalogue = createDefaultConfigurationCatalogue(),
+): ConfigurationSelector {
+  const defaultConfigurationId = deriveDefaultConfigurationId(env, catalogue);
+
+  // `ASR_CONFIGURATIONS` is an explicit allowlist; without it, anything the
+  // environment carries credentials for is selectable. The default is always
+  // selectable so that naming it can never contradict the default path.
+  const configured = parseList(env.ASR_CONFIGURATIONS);
   for (const id of configured) {
-    if (!registry.get(id)) {
+    if (!catalogue.get(id)) {
       throw new Error(
-        `ASR_PROVIDERS lists unknown ASR provider "${id}" (known: ${registry.ids.join(", ")})`,
+        `ASR_CONFIGURATIONS lists unknown ASR configuration "${id}" ` +
+          `(known: ${catalogue.ids.join(", ")})`,
       );
     }
   }
   const enabled = new Set(
     configured.length > 0
       ? configured
-      : registry
+      : catalogue
           .list()
           .flatMap((definition) => (definition.isConfigured(env) ? [definition.id] : [])),
   );
-  enabled.add(primaryProviderId);
+  enabled.add(defaultConfigurationId);
 
   return {
-    primaryProviderId,
-    primaryModel,
-    enabledProviderIds: [...enabled],
+    defaultConfigurationId,
+    enabledConfigurationIds: [...enabled],
 
     select(request) {
-      const explicit = request.provider !== undefined || request.model !== undefined;
-      const providerId = request.provider ?? primaryProviderId;
-      // An explicit provider with no model gets that provider's own default,
-      // not the primary's model — the two providers' model ids are unrelated.
-      const model = request.model ?? (request.provider === undefined ? primaryModel : undefined);
+      const explicit = request.configuration !== undefined;
+      const id = request.configuration ?? defaultConfigurationId;
 
-      const definition = registry.get(providerId);
-      if (!definition) {
-        return reject("unknown_provider", `Unknown ASR provider "${providerId}"`);
+      if (!catalogue.get(id)) {
+        return reject("unknown_configuration", `Unknown ASR configuration "${id}"`);
       }
-      if (explicit && !enabled.has(providerId)) {
-        return reject("not_enabled", `ASR provider "${providerId}" is not enabled`);
+      if (explicit && !enabled.has(id)) {
+        return reject("not_enabled", `ASR configuration "${id}" is not enabled`);
       }
 
-      const resolution = registry.resolve(env, { provider: providerId, model });
+      const resolution = catalogue.resolve(env, id);
       if (!resolution.ok) {
         const { error } = resolution;
         if (error.code === "not_configured") {
-          // Phrased as it was before the registry existed, so an operator
+          // Phrased as it was before configurations existed, so an operator
           // hitting a missing key still reads "DASHSCOPE_API_KEY not configured".
           const missing = error.missing ?? [];
           return reject(
@@ -147,17 +174,11 @@ export function createProviderSelector(
         return reject(error.code, error.message);
       }
 
-      const groqApiKey = env.GROQ_API_KEY;
-      const enhance = !explicit && !!groqApiKey && definition.enhanceable;
       return {
         ok: true,
         selection: {
-          provider: enhance
-            ? withGroqEnhancement(resolution.provider, { apiKey: groqApiKey })
-            : resolution.provider,
-          providerId: resolution.providerId,
-          model: resolution.model,
-          enhanced: enhance,
+          provider: resolution.provider,
+          configurationId: resolution.configurationId,
         },
       };
     },

@@ -22,20 +22,18 @@ export type ConfigResolution<TConfig> =
  * What a provider must declare to join the registry. `TConfig` never escapes:
  * `defineProvider` pairs `resolveConfig` with `create` and erases the type,
  * so the registry can hold providers with wildly different config shapes.
+ *
+ * A provider is the *vendor* layer: how to build a raw `ASRProvider` for one
+ * model. What users select is a **model configuration**, which pairs a provider
+ * and model with a post-processing chain — see `./configuration.ts`.
  */
 export interface ProviderSpec<TConfig> {
-  /** Stable id used by `?provider=` and by `ASR_PROVIDER`. */
+  /** Stable id, referenced by a configuration and by `ASR_PROVIDER`. */
   readonly id: string;
   /** Human-readable name, for listings and error messages. */
   readonly label: string;
-  /** Allowlist of model ids selectable via `?model=`. The first is the default. */
+  /** Allowlist of model ids this provider serves. The first is the default. */
   readonly models: readonly [string, ...string[]];
-  /**
-   * Whether the primary path may wrap this provider with `withGroqEnhancement`.
-   * Fakes opt out so that mock-backed runs stay free of real network calls.
-   * Defaults to `true`.
-   */
-  readonly enhanceable?: boolean;
   /** Read this provider's credentials/config out of the environment. */
   resolveConfig(env: ProviderEnv): ConfigResolution<TConfig>;
   /** Build a provider. `model` is always one of `models`. */
@@ -70,7 +68,6 @@ export interface ProviderDefinition {
   readonly label: string;
   readonly models: readonly string[];
   readonly defaultModel: string;
-  readonly enhanceable: boolean;
   /** True when the environment carries everything this provider needs. */
   isConfigured(env: ProviderEnv): boolean;
   /** Env var names this provider needs but the environment does not carry. */
@@ -86,7 +83,6 @@ export function defineProvider<TConfig>(spec: ProviderSpec<TConfig>): ProviderDe
     label: spec.label,
     models: spec.models,
     defaultModel,
-    enhanceable: spec.enhanceable ?? true,
 
     isConfigured(env) {
       return spec.resolveConfig(env).ok;

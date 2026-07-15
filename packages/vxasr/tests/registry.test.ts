@@ -4,7 +4,7 @@ import {
   createProviderRegistry,
   defineProvider,
   type ASRProvider,
-} from "../src";
+} from "../src/index.ts";
 
 const fakeProvider: ASRProvider = { createSession: () => ({ sendAudio() {}, finish() {} }) };
 
@@ -129,10 +129,6 @@ test("qwen reports its own env var when unconfigured", () => {
   expect(result.error.missing).toEqual(["DASHSCOPE_API_KEY"]);
 });
 
-test("mock needs no credentials and opts out of enhancement", () => {
-  const registry = createDefaultProviderRegistry();
-
-  expect(registry.get("mock")?.isConfigured({})).toBe(true);
-  expect(registry.get("mock")?.enhanceable).toBe(false);
-  expect(registry.get("qwen")?.enhanceable).toBe(true);
+test("mock needs no credentials", () => {
+  expect(createDefaultProviderRegistry().get("mock")?.isConfigured({})).toBe(true);
 });

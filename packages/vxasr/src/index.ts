@@ -24,3 +24,24 @@ export {
   mockProviderDefinition,
   qwenProviderDefinition,
 } from "./providers/builtin.ts";
+export {
+  buildConfigurationId,
+  createConfigurationCatalogue,
+  defineDecorator,
+} from "./configuration.ts";
+export type {
+  ASRConfigurationCatalogue,
+  ConfigurationDefinition,
+  ConfigurationError,
+  ConfigurationErrorCode,
+  ConfigurationResolution,
+  ConfigurationSpec,
+  DecoratorDefinition,
+  DecoratorSpec,
+} from "./configuration.ts";
+export {
+  builtinConfigurations,
+  builtinDecorators,
+  createDefaultConfigurationCatalogue,
+  groqDecorator,
+} from "./builtin.ts";

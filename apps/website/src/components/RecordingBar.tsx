@@ -9,6 +9,7 @@ import {
   setActiveRecordingReferenceId,
 } from "../store.ts";
 import { type AudioSource, createMicrophoneSource } from "../audio.ts";
+import { type RecordingRetainer, retainRecording } from "../recordedAudio.ts";
 import { SettingsIcon } from "./SettingsIcon.tsx";
 
 export interface RecordingBarProps {
@@ -29,6 +30,7 @@ export function RecordingBar({
 
   const wsRef = useRef<WebSocket | null>(null);
   const audioSourceRef = useRef<AudioSource | null>(null);
+  const retainerRef = useRef<RecordingRetainer | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animFrameRef = useRef<number | null>(null);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
@@ -95,6 +97,10 @@ export function RecordingBar({
     audioSourceRef.current = null;
     wsRef.current = null;
 
+    // The recording is complete — keep its PCM around for replay.
+    retainerRef.current?.commit();
+    retainerRef.current = null;
+
     void wakeLockRef.current?.release().catch(() => undefined);
     wakeLockRef.current = null;
     if ($wakeLockMode.get() === "recording") $wakeLockActive.set(false);
@@ -116,9 +122,17 @@ export function RecordingBar({
         : createMicrophoneSource(audioProcessingMode);
       audioSourceRef.current = audioSource;
 
+      const referenceId = crypto.randomUUID();
+
+      // Retain the whole recording in memory (this tab only) so it can be
+      // replayed against other models after the fact.
+      const retainer = retainRecording(referenceId);
+      retainerRef.current = retainer;
+
       // Buffer audio while WS is connecting
       const buffer: ArrayBuffer[] = [];
       await audioSource.start((chunk) => {
+        retainer.append(chunk);
         const ws = wsRef.current;
         if (ws?.readyState === WebSocket.OPEN) {
           ws.send(chunk);
@@ -127,7 +141,6 @@ export function RecordingBar({
         }
       });
 
-      const referenceId = crypto.randomUUID();
       const wsUrl = new URL(backendUrl);
       wsUrl.protocol = wsUrl.protocol === "https:" ? "wss:" : "ws:";
       wsUrl.pathname = "/ws";
@@ -173,6 +186,9 @@ export function RecordingBar({
       wsRef.current = null;
       audioSourceRef.current?.stop();
       audioSourceRef.current = null;
+      // The recording never happened — nothing worth retaining.
+      retainerRef.current?.discard();
+      retainerRef.current = null;
     }
   }, [
     authToken,

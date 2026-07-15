@@ -1,0 +1,11 @@
+{
+  "mode": "pre",
+  "tag": "next",
+  "initialVersions": {
+    "backend": "0.0.4",
+    "desktop": "0.0.4",
+    "website": "0.0.4",
+    "vxasr": "0.0.4"
+  },
+  "changesets": []
+}

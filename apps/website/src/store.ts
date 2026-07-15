@@ -15,6 +15,8 @@ export interface Message {
   error?: string;
   createdAt: number;
   updatedAt: number;
+  /** The model configuration that authored `final` — the recording's own, or an eval winner's. */
+  configurationId?: string;
 }
 
 const BACKEND_URL_KEY = "vxbeamer_backend_url";

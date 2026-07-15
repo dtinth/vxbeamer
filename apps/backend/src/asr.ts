@@ -75,6 +75,11 @@ export interface ConfigurationSelector {
    * that answer already lives.
    */
   listConfigurations(): readonly ConfigurationDescriptor[];
+  /**
+   * Whether a client may name this configuration. Same question `select` asks,
+   * for callers that only need the answer and not a built provider.
+   */
+  isEnabled(id: string): boolean;
   select(request: SelectionRequest): SelectionResult;
 }
 
@@ -217,6 +222,10 @@ export function createConfigurationSelector(
 
     listConfigurations() {
       return descriptors;
+    },
+
+    isEnabled(id) {
+      return enabled.has(id);
     },
 
     select(request) {

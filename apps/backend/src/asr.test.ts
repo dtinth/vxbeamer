@@ -181,6 +181,17 @@ test("credentials alone make a configuration selectable", () => {
   ]);
 });
 
+test("isEnabled answers the same question as select, without building a provider", () => {
+  const selector = createConfigurationSelector({
+    DASHSCOPE_API_KEY: "dk",
+    ASR_CONFIGURATIONS: QWEN,
+  });
+
+  expect(selector.isEnabled(QWEN)).toBe(true);
+  expect(selector.isEnabled("byteplus/bigmodel")).toBe(false);
+  expect(selector.isEnabled("definitely/not-real")).toBe(false);
+});
+
 test("the default is always selectable, even if ASR_CONFIGURATIONS omits it", () => {
   const selector = createConfigurationSelector({
     DASHSCOPE_API_KEY: "dk",

@@ -16,6 +16,7 @@ import {
   verifyIdToken,
 } from "./auth.ts";
 import { createSwipedEvent } from "./events.ts";
+import { createEvalStorage, type EvalUploadTargets } from "./evalStorage.ts";
 import { createSubjectStore, type Message } from "./store.ts";
 import { normalizeTranscriptText } from "./transcript.ts";
 import { applyWinner } from "./winner.ts";
@@ -42,6 +43,9 @@ const webhookUrl = process.env.WEBHOOK_URL ?? "";
 // Throws on an unknown ASR_CONFIGURATION/ASR_PROVIDER/ASR_CONFIGURATIONS, so a
 // typo fails the boot rather than silently transcribing with the wrong model.
 const configurationSelector = createConfigurationSelector(process.env);
+// `null` when no bucket is configured: eval storage is optional, and a server
+// without it still records, transcribes, and applies eval winners.
+const evalStorage = createEvalStorage(process.env);
 const ACCESS_TOKEN_TTL_SECONDS = 900; // 15 minutes
 const REFRESH_TOKEN_TTL_SECONDS = 259200; // 3 days
 const DISCOVERY_CACHE_TTL_MS = 3_600_000;
@@ -330,6 +334,27 @@ app.post("/messages/:id/swipe", authMiddleware, (c) => {
  * transcription path propagates one. The webhook re-fires because downstream
  * was already told the primary's answer when the recording finished, and this
  * is the correction; `message.updated` already names what a second update is.
+ *
+ * The response carries the presigned upload URLs for this pick's vote and
+ * eval-set, rather than a separate `POST /eval/upload-url` endpoint minting
+ * them. Three reasons:
+ *
+ *  1. **A vote fires on every winner pick** — there is no pick without one. Two
+ *     endpoints always called together, in fixed order, with the second's
+ *     arguments being exactly the first's input, are one operation wearing two
+ *     hats.
+ *  2. **The `configurationId` is validated here and nowhere else.** A separate
+ *     endpoint would either re-run `isEnabled` (two places to keep honest) or
+ *     mint a URL for an unvalidated id — and an id the server does not serve is
+ *     precisely the noise the vote stream cannot afford, since configuration
+ *     ids *are* the dataset.
+ *  3. **Signing is offline HMAC**, so returning both URLs costs microseconds and
+ *     saves the client a round-trip on the one action a user is waiting on.
+ *
+ * `upload` is `null` when no bucket is configured, and also when signing throws.
+ * Storage is bookkeeping; replacing the answer is the user-visible act, and it
+ * has already happened by the time this line runs. A vote is worth having, not
+ * worth failing a pick over.
  */
 app.post("/messages/:id/winner", authMiddleware, async (c) => {
   const subject = c.get("auth").sub;
@@ -352,7 +377,19 @@ app.post("/messages/:id/winner", authMiddleware, async (c) => {
 
   store.broadcast(subject, { type: "updated", message });
   void sendWebhook(message);
-  return c.json({ ok: true });
+
+  let upload: EvalUploadTargets | null = null;
+  if (evalStorage) {
+    try {
+      upload = await evalStorage.createUploadTargets({ messageId: message.id, at: Date.now() });
+    } catch (error) {
+      // The winner is already applied and broadcast above; losing a vote is the
+      // whole cost of this branch.
+      console.error("Failed to sign eval upload URLs", error);
+    }
+  }
+
+  return c.json({ ok: true, upload });
 });
 
 app.get(

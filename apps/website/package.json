@@ -7,8 +7,8 @@
     "dev": "vp dev",
     "build": "tsc && vp build",
     "preview": "vp preview",
-    "test": "vp test",
-    "check": "vp check"
+    "test": "vp run test:unit",
+    "check": "vp run check:types"
   },
   "dependencies": {
     "@fontsource-variable/tasa-orbiter": "catalog:",
@@ -16,7 +16,8 @@
     "@tauri-apps/api": "2.10.1",
     "nanostores": "^0.11.4",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "vxasr": "workspace:*"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.4",

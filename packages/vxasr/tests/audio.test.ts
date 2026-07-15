@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vite-plus/test";
-import { BYTES_PER_SECOND, readPcm } from "../src/audio.ts";
+import { BYTES_PER_SECOND, WAV_HEADER_BYTES, readPcm, writeWav } from "../src/audio.ts";
 
 /** Builds a WAV container around `data`, optionally injecting extra chunks before it. */
 function buildWav(
@@ -130,5 +130,62 @@ describe("WAV", () => {
       Buffer.concat([Buffer.from("RIFF", "ascii"), Buffer.alloc(4), Buffer.from("WAVE", "ascii")]),
     );
     expect(noData).toThrow(/no data chunk/);
+  });
+});
+
+describe("writeWav", () => {
+  /** A recognisable PCM payload — a ramp, so a byte-order slip shows up. */
+  function samples(count: number): Buffer {
+    const pcm = Buffer.alloc(count * 2);
+    // A sawtooth over the full int16 range: every byte position varies, so a
+    // byte-order or offset slip cannot pass unnoticed.
+    for (let i = 0; i < count; i++) pcm.writeInt16LE((((i * 37) % 65536) - 32768) | 0, i * 2);
+    return pcm;
+  }
+
+  test("round-trips through readPcm", () => {
+    // The point of writing the header where the parser lives: the parser is the
+    // spec, and this proves the writer satisfies it.
+    const pcm = samples(1600);
+    const wav = writeWav(pcm);
+    const parsed = readPcm(Buffer.from(wav));
+
+    expect(parsed.source).toBe("wav");
+    expect(Buffer.from(parsed.pcm)).toEqual(pcm);
+    expect(parsed.seconds).toBe(pcm.length / BYTES_PER_SECOND);
+  });
+
+  test("declares the format this package speaks", () => {
+    const pcm = samples(8);
+    const view = new DataView(writeWav(pcm).buffer);
+
+    expect(view.getUint16(20, true)).toBe(1); // uncompressed PCM
+    expect(view.getUint16(22, true)).toBe(1); // mono
+    expect(view.getUint32(24, true)).toBe(16000); // sample rate
+    expect(view.getUint32(28, true)).toBe(32000); // byte rate
+    expect(view.getUint16(32, true)).toBe(2); // block align
+    expect(view.getUint16(34, true)).toBe(16); // bits per sample
+  });
+
+  test("writes a 44-byte header and sizes both length fields", () => {
+    const pcm = samples(100);
+    const wav = writeWav(pcm);
+    const view = new DataView(wav.buffer);
+
+    expect(wav.length).toBe(WAV_HEADER_BYTES + pcm.length);
+    expect(view.getUint32(4, true)).toBe(36 + pcm.length); // RIFF size
+    expect(view.getUint32(40, true)).toBe(pcm.length); // data size
+  });
+
+  test("wraps empty PCM into a header readPcm then rejects as empty", () => {
+    // Writing it is fine; it is `readPcm` that decides silence is not audio, and
+    // it should still be the one to say so.
+    const wav = writeWav(new Uint8Array(0));
+    expect(wav.length).toBe(WAV_HEADER_BYTES);
+    expect(() => readPcm(Buffer.from(wav))).toThrow(/empty/);
+  });
+
+  test("rejects PCM that cannot be whole 16-bit samples", () => {
+    expect(() => writeWav(new Uint8Array(7))).toThrow(/odd byte length/);
   });
 });

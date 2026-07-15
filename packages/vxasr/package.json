@@ -22,6 +22,7 @@
   "type": "module",
   "exports": {
     ".": "./dist/index.mjs",
+    "./audio": "./dist/audio.mjs",
     "./cli": "./dist/cli.mjs",
     "./package.json": "./package.json"
   },

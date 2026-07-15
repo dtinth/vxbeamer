@@ -1,4 +1,14 @@
 export type { ASRProvider, ASRSession, ASRSessionCallbacks, UsageRecord } from "./asr.ts";
+export {
+  BITS_PER_SAMPLE,
+  BYTES_PER_SECOND,
+  CHANNELS,
+  SAMPLE_RATE,
+  WAV_HEADER_BYTES,
+  readPcm,
+  writeWav,
+} from "./audio.ts";
+export type { PcmAudio } from "./audio.ts";
 export { createQwenProvider } from "./providers/qwen.ts";
 export type { QwenProviderConfig } from "./providers/qwen.ts";
 export { createBytePlusProvider } from "./providers/byteplus.ts";

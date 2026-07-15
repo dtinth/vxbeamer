@@ -28,7 +28,7 @@ OpenAI-compatible realtime protocol. `wss://dashscope-intl.aliyuncs.com/api-ws/v
 | `qwen3-asr-flash-realtime-2025-10-27` | `project นี้เขียนด้วยภาษา TypeScript ใช้ framework ชื่อ Elysia โดย deploy ไปที่ Railway และใช้ MongoDB Atlas เป็นผู้ให้บริการฐานข้อมูล.` |
 | `qwen3-asr-flash-realtime-2026-02-10` | `โปรเจกต์นี้เขียนด้วยภาษา typescript ใช้ framework ชื่อ elixir โดย deploy ไปที่ railway และใช้ mongodb atlas เป็นผู้ให้บริการฐานข้อมูล`  |
 | `qwen3-asr-flash-realtime` + Groq     | `project นี้เขียนด้วยภาษา TypeScript ใช้ framework ชื่อ Elysia โดย deploy ไปที่ Railway และใช้ MongoDB Atlas เป็นผู้ให้บริการฐานข้อมูล.` |
-| `qwen3-omni-flash-realtime`           | **no result** — 60 s timeout on this protocol                                                                                            |
+| `qwen3-omni-flash-realtime`           | **no result** — 60 s timeout. It speaks its own protocol, not this one; see the Qwen Omni (realtime) section.                            |
 
 Usage reported: `dashscope:qwen3-asr-flash:seconds` quantity **10**, unit price `$0.000035` → `$0.000350`.
 With Groq, additionally: `groq:openai/gpt-oss-120b:input-tokens` **224** @ `$1.5e-7`, `output-tokens` **~160** @ `$6e-7` → `$0.000479` total.
@@ -66,9 +66,98 @@ model above:
 The same audio tokenises differently across the two generations (65 vs 117
 audio tokens).
 
-`qwen3-omni-flash-realtime` was also tried against the **Qwen realtime WS
-protocol** and timed out; see the Qwen table above. These offline rows are a
-different endpoint and a different protocol.
+The omni **realtime** models transcribe from their own weights too, over their
+own protocol — see the Qwen Omni (realtime) section. These offline rows are a
+different endpoint (HTTP, not WS) reached with a prompt rather than an
+`instructions` string.
+
+## Alibaba Cloud DashScope — Qwen Omni (realtime)
+
+These have **their own protocol** — not the Qwen ASR realtime one. Same URL
+shape (`wss://…/api-ws/v1/realtime?model=<id>`; the vendor now recommends the
+workspace domain `{WorkspaceId}.ap-southeast-1.maas.aliyuncs.com`, though the
+legacy host answered), `Authorization: Bearer`, but:
+
+- `session.update` with `modalities: ["text"]`, **`input_audio_format: "pcm"`**,
+  `turn_detection: null` (manual), and an **`instructions`** string.
+- `input_audio_buffer.append` (base64) → `input_audio_buffer.commit` → `response.create`.
+- The model's own output arrives on **`response.text.delta` / `response.text.done`**.
+- No `session.finish` — that is the ASR protocol's message, not this one's.
+
+Instructions used for every row below — **these models are instruction-driven,
+so the instruction is part of the input**:
+
+> `Transcribe the user's audio verbatim. Output only the transcript, nothing else.`
+
+| model                         | output                                                                                                                                  |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `qwen3.5-omni-plus-realtime`  | `โปรเจกต์นี้เขียนด้วยภาษา TypeScript ใช้เฟรมเวิร์กชื่อ Elysia โดย deploy ไปที่ Railway และใช้ MongoDB Atlas เป็นผู้ให้บริการฐานข้อมูล`  |
+| `qwen3.5-omni-flash-realtime` | `โปรเจกต์นี้เขียนด้วยภาษา TypeScript ใช้เฟรมเวิร์กชื่อ Elysia โดย deploy ไปที่ Railway และใช้ MongoDB Atlas เป็นผู้ให้บริการฐานข้อมูล`  |
+| `qwen3-omni-flash-realtime`   | `Project นี้เขียนด้วยภาษา TypeScript ใช้ framework ชื่อ Elysia โดย deploy ไปที่ Railway และใช้ MongoDB Atlas เป็นผู้ให้บริการฐานข้อมูล` |
+
+Billing is in **tokens**:
+
+| model                         | input (text + audio) | output | total |
+| ----------------------------- | -------------------- | ------ | ----- |
+| `qwen3.5-omni-plus-realtime`  | 114 (44 + 70)        | 32     | 146   |
+| `qwen3.5-omni-flash-realtime` | 114 (44 + 70)        | 32     | 146   |
+| `qwen3-omni-flash-realtime`   | 165 (40 + 125)       | 47     | 212   |
+
+The vendor documents speech recognition for **113 languages and dialects**, a
+120-minute session cap, and per-model conversation-history limits
+(`qwen3.5-omni-plus-realtime` 100 audio turns / 600 s; `-flash-realtime`
+80 / 480 s; `qwen3-omni-flash-realtime` 8 turns).
+
+### The separate transcription sub-service
+
+Independently of the model's own output, a session may name an ASR model in
+`session.input_audio_transcription`; its results arrive on
+`conversation.item.input_audio_transcription.*`. **This is not the omni model
+transcribing** — it is a different model running alongside:
+
+| `session.input_audio_transcription`                | `conversation.item.input_audio_transcription.completed`                                                                                  |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `{ model: "gummy-realtime-v1" }`                   | `project นี้เขียนด้วยภาษา TypeScript ใช้ framework ชื่อ Elysia โดย deploy ไปที่ Railway และใช้ MongoDB Atlas เป็นผู้ให้บริการฐานข้อมูล.` |
+| `{}` (no model named)                              | no event at all                                                                                                                          |
+| `{ model: "qwen3-asr-flash-realtime-2025-10-27" }` | `project นี้เขียนด้วยภาษา TypeScript ใช้ framework ชื่อ Elysia โดย deploy ไปที่ Railway และใช้ MongoDB Atlas เป็นผู้ให้บริการฐานข้อมูล.` |
+
+Note these differ from the omni model's own `response.text` output above: this
+stream renders `project` in Latin, the omni model renders `โปรเจกต์` in Thai.
+
+### With no `instructions`
+
+Sending `response.create` without an `instructions` string produced a
+**conversational reply**, in Thai, offering to help design the project described
+in the clip — a Tech Stack breakdown with numbered sections and follow-up
+questions. Not a transcript. The audio's content drove a conversation.
+
+Observed event sequence: `session.created`, `session.updated`,
+`conversation.item.input_audio_transcription.delta`, `input_audio_buffer.committed`,
+`response.created`, `response.output_item.added`, `conversation.item.created`,
+`response.content_part.added`, `response.text.delta`,
+`conversation.item.input_audio_transcription.completed`, `response.text.done`,
+`response.content_part.done`, `response.output_item.done`, `response.done`.
+
+### Against our ASR provider
+
+Our `qwen` provider speaks the ASR-specific protocol (`session.finish`) and
+waits for ASR events, so it does not drive these models:
+
+| model                         | result                  |
+| ----------------------------- | ----------------------- |
+| `qwen3-omni-flash-realtime`   | no result, 60 s timeout |
+| `qwen3.5-omni-plus-realtime`  | no result, 60 s timeout |
+| `qwen3.5-omni-flash-realtime` | no result, 60 s timeout |
+
+### `gummy-realtime-v1`
+
+Surfaced only as a value for `input_audio_transcription.model`; it is not in the
+vendor's speech-to-text model list. Addressed **directly** over the native
+run-task protocol with the same key:
+
+| model               | result                                                                         |
+| ------------------- | ------------------------------------------------------------------------------ |
+| `gummy-realtime-v1` | **error** — `AccessDenied: Access denied.` (with and without `language_hints`) |
 
 ## Alibaba Cloud DashScope — Fun-ASR
 

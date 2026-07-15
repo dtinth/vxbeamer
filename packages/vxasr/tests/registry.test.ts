@@ -117,8 +117,17 @@ test("byteplus is reachable through the default registry", () => {
 
   expect(result.ok).toBe(true);
   if (!result.ok) throw new Error("unreachable");
-  expect(result.model).toBe("bigmodel");
+  // The default is the mode that accepts a language, and so the only one that
+  // can transcribe outside the vendor's Chinese/English default set.
+  expect(result.model).toBe("bigmodel_nostream");
   expect(typeof result.provider.createSession).toBe("function");
+});
+
+test("byteplus serves both of the vendor's modes", () => {
+  expect(createDefaultProviderRegistry().get("byteplus")?.models).toEqual([
+    "bigmodel_nostream",
+    "bigmodel",
+  ]);
 });
 
 test("qwen reports its own env var when unconfigured", () => {

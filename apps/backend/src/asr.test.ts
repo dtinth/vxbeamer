@@ -93,9 +93,9 @@ test("a non-qwen configuration is selectable once its credentials exist", () => 
     BYTEPLUS_API_KEY: "bk",
   });
 
-  expect(expectOk(selector.select({ configuration: "byteplus/bigmodel" })).configurationId).toBe(
-    "byteplus/bigmodel",
-  );
+  expect(
+    expectOk(selector.select({ configuration: "byteplus/bigmodel_nostream" })).configurationId,
+  ).toBe("byteplus/bigmodel_nostream");
 });
 
 // --- ASR_CONFIGURATION ---
@@ -151,7 +151,7 @@ test("rejection messages fit in a websocket close reason", () => {
 test("a configuration without credentials is not selectable", () => {
   const selector = createConfigurationSelector({ DASHSCOPE_API_KEY: "dk" });
 
-  expect(expectErr(selector.select({ configuration: "byteplus/bigmodel" })).code).toBe(
+  expect(expectErr(selector.select({ configuration: "byteplus/bigmodel_nostream" })).code).toBe(
     "not_enabled",
   );
   expect(expectErr(selector.select({ configuration: QWEN_GROQ })).code).toBe("not_enabled");
@@ -165,7 +165,7 @@ test("ASR_CONFIGURATIONS narrows what a client may select", () => {
   });
 
   expect(selector.enabledConfigurationIds).toEqual([QWEN]);
-  expect(expectErr(selector.select({ configuration: "byteplus/bigmodel" })).code).toBe(
+  expect(expectErr(selector.select({ configuration: "byteplus/bigmodel_nostream" })).code).toBe(
     "not_enabled",
   );
 });
@@ -182,8 +182,8 @@ test("credentials alone make a configuration selectable", () => {
     QWEN_GROQ,
     QWEN_2026,
     QWEN_2026_GROQ,
-    "byteplus/bigmodel",
-    "byteplus/bigmodel+groq",
+    "byteplus/bigmodel_nostream",
+    "byteplus/bigmodel_nostream+groq",
     "mock/mock",
   ]);
 });
@@ -195,7 +195,7 @@ test("isEnabled answers the same question as select, without building a provider
   });
 
   expect(selector.isEnabled(QWEN)).toBe(true);
-  expect(selector.isEnabled("byteplus/bigmodel")).toBe(false);
+  expect(selector.isEnabled("byteplus/bigmodel_nostream")).toBe(false);
   expect(selector.isEnabled("definitely/not-real")).toBe(false);
 });
 
@@ -285,16 +285,16 @@ test("configurations are described in declared order, not allowlist order", () =
 test("an allowlisted configuration without credentials is described as unconfigured", () => {
   const selector = createConfigurationSelector({
     DASHSCOPE_API_KEY: "dk",
-    ASR_CONFIGURATIONS: `${QWEN},byteplus/bigmodel`,
+    ASR_CONFIGURATIONS: `${QWEN},byteplus/bigmodel_nostream`,
   });
 
   const byId = new Map(selector.listConfigurations().map((c) => [c.id, c]));
 
   // Listed, so the operator can see the gap — but flagged, so a fan-out can
   // skip it rather than open a socket that immediately closes.
-  expect(byId.get("byteplus/bigmodel")?.configured).toBe(false);
+  expect(byId.get("byteplus/bigmodel_nostream")?.configured).toBe(false);
   expect(byId.get(QWEN)?.configured).toBe(true);
-  expect(expectErr(selector.select({ configuration: "byteplus/bigmodel" })).code).toBe(
+  expect(expectErr(selector.select({ configuration: "byteplus/bigmodel_nostream" })).code).toBe(
     "not_configured",
   );
 });
@@ -314,7 +314,7 @@ test("nothing about credentials leaks into a described configuration", () => {
   // "will this work?" without describing the server's environment.
   const selector = createConfigurationSelector({
     DASHSCOPE_API_KEY: "sk-secret-value",
-    ASR_CONFIGURATIONS: `${QWEN},byteplus/bigmodel`,
+    ASR_CONFIGURATIONS: `${QWEN},byteplus/bigmodel_nostream`,
   });
 
   const serialized = JSON.stringify(selector.listConfigurations());

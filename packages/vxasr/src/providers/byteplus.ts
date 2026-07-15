@@ -8,10 +8,64 @@ const BYTEPLUS_PRICE_PER_SECOND = 0.15 / 3600;
 
 export interface BytePlusProviderConfig {
   apiKey: string;
+  /** A mode id from {@link BYTEPLUS_MODES}. Defaults to `bigmodel_nostream`. */
   model?: string;
+  /**
+   * BCP-47 language hint, e.g. `th-TH`. Honoured only by modes that declare
+   * `supportsLanguage`; silently dropped elsewhere, because the vendor does not
+   * accept the field there at all.
+   */
+  language?: string;
   resourceId?: string;
-  url?: string;
+  /** Endpoint base, without the mode's path segment. Overridden in tests. */
+  baseUrl?: string;
 }
+
+const DEFAULT_BASE_URL = "wss://voice.ap-southeast-1.bytepluses.com/api/v3/sauc";
+
+/**
+ * What BytePlus calls a *mode* is a distinct endpoint path, and the modes are
+ * not interchangeable — they differ in what they can transcribe at all.
+ *
+ * `bigmodel` is the bi-directional streaming mode. It does not accept a
+ * `language` field ("Only for streaming input mode /api/v3/sauc/bigmodel_nostream,
+ * not for bi-directional streaming mode"), and with no language it covers only
+ * "Mandarin Chinese, English, Cantonese, Shanghainese, Minnan, Sichuan, Shaanxi
+ * dialect". Thai is not reachable from it — on Thai speech it returns confident
+ * nonsense in English and Chinese rather than failing.
+ *
+ * `bigmodel_nostream` is the streaming-input mode. It takes `language`, and with
+ * `th-TH` it returns correct Thai. The trade is latency: the vendor returns
+ * results "after the input audio exceeds 15 seconds, or after the final packet",
+ * so a clip shorter than 15 s yields no partials at all — it is accuracy-tuned,
+ * not low-latency.
+ *
+ * `model_name` stays `bigmodel` for both: that is the vendor's name for the
+ * *model*, and it distinguishes the two *modes* by path alone.
+ */
+export interface BytePlusMode {
+  /** Final path segment of the endpoint. */
+  readonly path: string;
+  /** Value of `request.model_name` on the wire. */
+  readonly modelName: string;
+  /** Whether this mode accepts `audio.language`. */
+  readonly supportsLanguage: boolean;
+}
+
+export const BYTEPLUS_MODES: Readonly<Record<string, BytePlusMode>> = {
+  bigmodel_nostream: {
+    path: "bigmodel_nostream",
+    modelName: "bigmodel",
+    supportsLanguage: true,
+  },
+  bigmodel: {
+    path: "bigmodel",
+    modelName: "bigmodel",
+    supportsLanguage: false,
+  },
+};
+
+export const BYTEPLUS_DEFAULT_MODE = "bigmodel_nostream";
 
 const CHUNK_SIZE = 6400; // 200ms at 16kHz 16-bit mono (recommended for bi-directional)
 
@@ -57,18 +111,28 @@ function parseServerMessage(data: Buffer): { isLast: boolean; text: string; erro
 }
 
 export function createBytePlusProvider(config: BytePlusProviderConfig): ASRProvider {
+  const modeId = config.model ?? BYTEPLUS_DEFAULT_MODE;
+  const mode = BYTEPLUS_MODES[modeId];
+  if (!mode) {
+    // The registry allowlists models before we are reached, so this is a
+    // programming error rather than a request failure.
+    throw new Error(
+      `Unknown BytePlus mode "${modeId}" (known: ${Object.keys(BYTEPLUS_MODES).join(", ")})`,
+    );
+  }
+
+  const base = (config.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
+  const url = `${base}/${mode.path}`;
+
   return {
     createSession(callbacks: ASRSessionCallbacks): ASRSession {
-      const ws = new WebSocket(
-        config.url ?? "wss://voice.ap-southeast-1.bytepluses.com/api/v3/sauc/bigmodel",
-        {
-          headers: {
-            "X-Api-Key": config.apiKey,
-            "X-Api-Resource-Id": config.resourceId ?? "volc.seedasr.sauc.duration",
-            "X-Api-Connect-Id": randomUUID(),
-          },
+      const ws = new WebSocket(url, {
+        headers: {
+          "X-Api-Key": config.apiKey,
+          "X-Api-Resource-Id": config.resourceId ?? "volc.seedasr.sauc.duration",
+          "X-Api-Connect-Id": randomUUID(),
         },
-      );
+      });
 
       let buffer = Buffer.alloc(0);
       let ready = false;
@@ -84,13 +148,30 @@ export function createBytePlusProvider(config: BytePlusProviderConfig): ASRProvi
         }
       }
 
+      /** Sends whatever is left as the last packet, which ends the turn. */
+      function sendLastPacket() {
+        totalBytesSent += buffer.length;
+        ws.send(buildAudioPacket(buffer, true));
+        buffer = Buffer.alloc(0);
+      }
+
       ws.on("open", () => {
         ws.send(
           buildFullClientRequest({
             user: { uid: "cli-user" },
-            audio: { format: "pcm", codec: "raw", rate: 16000, bits: 16, channel: 1 },
+            audio: {
+              format: "pcm",
+              codec: "raw",
+              rate: 16000,
+              bits: 16,
+              channel: 1,
+              // `language` belongs to the audio object, not the request object,
+              // and only where the mode declares it — the vendor documents it as
+              // unsupported on bi-directional streaming.
+              ...(mode.supportsLanguage && config.language ? { language: config.language } : {}),
+            },
             request: {
-              model_name: config.model ?? "bigmodel",
+              model_name: mode.modelName,
               enable_itn: true,
               enable_punc: true,
             },
@@ -98,6 +179,9 @@ export function createBytePlusProvider(config: BytePlusProviderConfig): ASRProvi
         );
         ready = true;
         flushBuffer();
+        // A clip short enough to finish before the socket opened still has to be
+        // sent; otherwise the turn never ends and the session hangs.
+        if (finishing) sendLastPacket();
       });
 
       ws.on("message", (raw: Buffer) => {
@@ -138,10 +222,10 @@ export function createBytePlusProvider(config: BytePlusProviderConfig): ASRProvi
         finish() {
           if (finishing) return;
           finishing = true;
-          if (ws.readyState !== WebSocket.OPEN) return;
-          totalBytesSent += buffer.length;
-          ws.send(buildAudioPacket(buffer, true));
-          buffer = Buffer.alloc(0);
+          // Not open yet: the `open` handler sends the last packet instead, once
+          // the handshake it must follow has gone out.
+          if (!ready || ws.readyState !== WebSocket.OPEN) return;
+          sendLastPacket();
         },
       };
     },

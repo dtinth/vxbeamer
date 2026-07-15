@@ -120,7 +120,9 @@ services:
 | `ASR_PROVIDER`         | No       | Provider for the derived default: `qwen` (default), `byteplus`, or `mock`                         |
 | `ASR_MODEL`            | No       | Model for the derived default (default: the provider's own default model)                         |
 | `BYTEPLUS_API_KEY`     | No       | BytePlus key; enables the `byteplus` configurations                                               |
+| `BYTEPLUS_LANGUAGE`    | No       | BytePlus language hint, e.g. `th-TH` (default: unset — Mandarin/English only)                     |
 | `BYTEPLUS_RESOURCE_ID` | No       | BytePlus resource id (default: `volc.seedasr.sauc.duration`)                                      |
+| `BYTEPLUS_BASE_URL`    | No       | BytePlus endpoint base, without the mode path segment                                             |
 | `OIDC_DISCOVERY_URL`   | No       | OIDC provider discovery URL (alternative to API keys)                                             |
 | `OIDC_CLIENT_ID`       | No       | OIDC client ID (default: `vxbeamer-mobile`)                                                       |
 | `OIDC_AUDIENCE`        | No       | Expected token audience (default: same as client ID)                                              |
@@ -201,9 +203,11 @@ A configuration is a provider, a model, and the post-processing chain applied to
 | ------------------------------------ | ----------------------------------- |
 | `qwen/qwen3-asr-flash-realtime`      | `DASHSCOPE_API_KEY`                 |
 | `qwen/qwen3-asr-flash-realtime+groq` | `DASHSCOPE_API_KEY`, `GROQ_API_KEY` |
-| `byteplus/bigmodel`                  | `BYTEPLUS_API_KEY`                  |
-| `byteplus/bigmodel+groq`             | `BYTEPLUS_API_KEY`, `GROQ_API_KEY`  |
+| `byteplus/bigmodel_nostream`         | `BYTEPLUS_API_KEY`                  |
+| `byteplus/bigmodel_nostream+groq`    | `BYTEPLUS_API_KEY`, `GROQ_API_KEY`  |
 | `mock/mock`                          | nothing                             |
+
+BytePlus exposes two modes at two endpoints, and only `bigmodel_nostream` accepts a language — the bi-directional `bigmodel` mode covers Mandarin, English and a few Chinese dialects and nothing else, so on any other language it returns confident nonsense. Only `bigmodel_nostream` is offered as a configuration for that reason; the provider still serves `bigmodel` for deployments in those languages. Set `BYTEPLUS_LANGUAGE` (e.g. `th-TH`) or BytePlus falls back to that same Chinese/English default set. Note that `bigmodel_nostream` returns results only after 15 s of audio or the final packet, so it emits few or no partials — it is accuracy-tuned rather than low-latency.
 
 Ids contain `+`, which decodes to a space in a query string, so clients must URL-encode them — `URLSearchParams` does this automatically.
 

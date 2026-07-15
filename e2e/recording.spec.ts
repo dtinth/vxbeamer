@@ -203,8 +203,9 @@ test("evaluates a finished recording against the configured model set", async ({
   expect(vote.type).toBe("vote");
   expect(vote.winner.configurationId).toBe("mock/mock");
   expect(vote.savedForEval).toBe(true);
-  // Every configuration on the ballot, not just the winner.
-  expect(vote.candidates.map((c) => c.configurationId)).toContain("byteplus/bigmodel");
+  // Every configuration on the ballot, not just the winner — including one
+  // that never ran, so a win is a rate rather than a count.
+  expect(vote.candidates.map((c) => c.configurationId)).toContain("byteplus/bigmodel_nostream");
   expect(vote.candidates.some((c) => c.transcript !== undefined)).toBe(false);
 
   // The eval-set went only because save-for-eval was ticked, and it is the one

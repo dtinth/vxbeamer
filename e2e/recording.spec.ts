@@ -135,18 +135,20 @@ test("evaluates a finished recording against the configured model set", async ({
   await page.reload();
   await expect(page.locator('[title="connected"]')).toBeVisible({ timeout: 10_000 });
 
+  // The backend keeps one in-memory log per subject and both tests sign in as
+  // the same one, so an earlier test's message may still be on screen. Work
+  // against the newest card rather than the whole feed — page-wide text is
+  // ambiguous the moment a second card carries the same mock transcript.
+  const card = page.locator(".message-card").last();
+
   await page.getByLabel("Start recording").click();
-  await expect(page.getByText("Good morning")).toBeVisible({ timeout: 10_000 });
+  await expect(card.getByText("Good morning")).toBeVisible({ timeout: 10_000 });
   // Hold the recording open long enough to retain a clip worth replaying: the
   // eval replays at 1x, so the clip's length is the run's length, and a
   // 40-millisecond clip would never show the progress bar moving.
   await page.waitForTimeout(3000);
   await page.getByLabel("Stop recording").click();
 
-  // The backend keeps one in-memory log per subject and both tests sign in as
-  // the same one, so an earlier test's message may still be on screen. Work
-  // against the newest card rather than the whole feed.
-  const card = page.locator(".message-card").last();
   await expect(card.getByText("quarterly results and our plans")).toBeVisible({ timeout: 10_000 });
 
   // --- Eval is offered only where the audio is still in memory ---

@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  check:
+    name: Check and Test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+
+      # `version` pins the global `vp` to the exact version the workspace
+      # catalog pins `vite-plus` to. Leaving it unpinned lets a newer global
+      # `vp` drive older project dependencies, which fails with napi errors.
+      - uses: voidzero-dev/setup-vp@v1
+        with:
+          version: "0.2.4"
+          node-version: "24"
+          cache: true
+
+      # The backend imports vxasr's built types, so type checking needs its
+      # dist output. Only this package is built: `vp run -r build` is both
+      # unnecessary here and OOM-prone, and apps/desktop needs a Rust toolchain.
+      - name: Build vxasr
+        run: vp run vxasr#build
+
+      - name: Format, lint, and type check
+        run: vp check
+
+      - name: Run unit tests
+        run: vp test

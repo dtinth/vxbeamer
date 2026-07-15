@@ -29,6 +29,41 @@ body {
   animation: message-card-swipe-glow 900ms ease-out;
 }
 
+/* An eval row that never streams shows only this for the whole clip — a
+   buffering batch adapter has nothing to say until the audio stops. It has to
+   read as "working", not "stalled". */
+@keyframes eval-ellipsis {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+.eval-ellipsis {
+  animation: eval-ellipsis 1.4s ease-in-out infinite;
+}
+
+.eval-progress {
+  /* The replay is paced in 100 ms steps; ease the bar across them so it reads
+     as the clip playing rather than as a counter ticking. */
+  transition: width 100ms linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eval-ellipsis {
+    animation: none;
+    opacity: 0.6;
+  }
+
+  .eval-progress {
+    transition: none;
+  }
+}
+
 .message-card-snap-scroll {
   scrollbar-width: none;
 }

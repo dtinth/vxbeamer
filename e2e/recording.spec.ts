@@ -14,6 +14,15 @@ test.beforeEach(async ({ page }) => {
       const dest = ctx.createMediaStreamDestination();
       oscillator.connect(dest);
       oscillator.start();
+      await ctx.resume();
+      // Heads-up for anyone asserting on clip length: this fake yields audio far
+      // slower than realtime. Measured in headless Chrome, a running context
+      // delivers ~0.1 s of samples per 2 s of wall clock, so a recording held
+      // open for 3 s retains ~0.15 s of PCM and the eval dialog reports a
+      // fraction-of-a-second clip. It is a limit of a MediaStream with no audio
+      // device behind it, not of retention — the same chunks feed the live
+      // socket. Assert on behaviour here and leave the arithmetic to
+      // `evalRun.test.ts`, which paces frames against a fake clock.
       return dest.stream;
     };
   });
@@ -93,4 +102,71 @@ test("records audio and displays transcript from mock ASR", async ({ page }) => 
   const finalText = page.getByText("quarterly results and our plans for the next quarter");
   await expect(finalText).toBeVisible({ timeout: 10_000 });
   await storyboard.capture("Final transcript displayed", finalText);
+});
+
+test("evaluates a finished recording against the configured model set", async ({ page }) => {
+  // --- Sign in and record, so there is a retained clip to replay ---
+  const tokenRes = await page.request.post(`${BACKEND_URL}/auth/token`, {
+    data: { api_key: E2E_API_KEY },
+  });
+  const { access_token: accessToken } = (await tokenRes.json()) as { access_token: string };
+
+  await page.goto("/");
+  await page.evaluate(
+    ({ backendUrl, token }) => {
+      localStorage.setItem("vxbeamer_backend_url", backendUrl);
+      localStorage.setItem("vxbeamer_access_token", token);
+      localStorage.setItem("vxbeamer_refresh_token", "dummy-refresh-token");
+    },
+    { backendUrl: BACKEND_URL, token: accessToken },
+  );
+  await page.reload();
+  await expect(page.locator('[title="connected"]')).toBeVisible({ timeout: 10_000 });
+
+  await page.getByLabel("Start recording").click();
+  await expect(page.getByText("Good morning")).toBeVisible({ timeout: 10_000 });
+  // Hold the recording open long enough to retain a clip worth replaying: the
+  // eval replays at 1x, so the clip's length is the run's length, and a
+  // 40-millisecond clip would never show the progress bar moving.
+  await page.waitForTimeout(3000);
+  await page.getByLabel("Stop recording").click();
+  await expect(page.getByText("quarterly results and our plans")).toBeVisible({ timeout: 10_000 });
+
+  // --- Eval is offered only where the audio is still in memory ---
+  const evalButton = page.getByRole("button", {
+    name: "Eval this recording against other configurations",
+  });
+  await expect(evalButton).toBeVisible();
+  await storyboard.capture("Eval offered on a finished message", evalButton);
+  await evalButton.click();
+
+  const dialog = page.getByRole("dialog", { name: "Eval" });
+  await expect(dialog).toBeVisible();
+
+  // The clip replays at 1x, so this is the clip's own length however many rows
+  // there are — the bar tracks the audio, not the models.
+  await expect(dialog.getByRole("progressbar")).toBeVisible();
+  await storyboard.capture("Replaying the clip against every configuration", dialog);
+
+  // The rows do not behave alike, and all of it must be legible at once: mock
+  // streams, and the uncredentialled configurations say so rather than hiding.
+  await expect(dialog.getByText("Not set up").first()).toBeVisible();
+  await expect(dialog.getByText("BytePlus Seed-ASR (raw)")).toBeVisible();
+
+  const winnerRow = dialog.getByRole("button", { name: /Mock/ });
+  await expect(winnerRow).toBeVisible({ timeout: 30_000 });
+  await expect(dialog.getByText("Pick the transcript you like")).toBeVisible();
+  await storyboard.capture("Eval results, ready to pick a winner", dialog);
+
+  // Offered before the pick, because the pick is what commits it.
+  const saveForEval = dialog.getByRole("checkbox", { name: /Save this clip for eval/ });
+  await saveForEval.check();
+  await storyboard.capture("Save-for-eval ticked, before choosing a winner", saveForEval);
+
+  await winnerRow.click();
+
+  // The winner replaces the message's answer, and the dialog gets out of the way.
+  await expect(dialog).not.toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText("quarterly results and our plans")).toBeVisible();
+  await storyboard.capture("Winner applied to the message", page);
 });

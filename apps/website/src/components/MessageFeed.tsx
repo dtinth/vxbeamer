@@ -9,6 +9,8 @@ import {
   markPendingLocalSwipe,
   type Message,
 } from "../store.ts";
+import { $retainedRecordings } from "../recordedAudio.ts";
+import { EvalDialog } from "./EvalDialog.tsx";
 import {
   getMessageCardInitialScrollLeft,
   getMessageCardSnapAction,
@@ -27,12 +29,17 @@ function MessageCard({
   backendUrl,
   isActiveRecording,
   swipeHighlightKey,
+  canEval,
+  onEval,
 }: {
   message: Message;
   authToken: string;
   backendUrl: string;
   isActiveRecording: boolean;
   swipeHighlightKey: number | null;
+  /** This message's PCM is still in memory, so there is something to replay. */
+  canEval: boolean;
+  onEval: () => void;
 }) {
   const [copied, setCopied] = useState(false);
   const [swipeGlowing, setSwipeGlowing] = useState(false);
@@ -276,7 +283,25 @@ function MessageCard({
               </span>
             )}
             {message.status === "error" && <span className="text-xs text-(--m3-error)">Error</span>}
-            {copied && <span className="ml-auto text-xs text-green-400">Copied</span>}
+            <span className="ml-auto flex items-center gap-3">
+              {copied && <span className="text-xs text-green-400">Copied</span>}
+              {/* Eval is opt-in per message (privacy), and only offered where it
+                  is possible at all: the audio outlives its message only in this
+                  tab's memory, and the size cap may already have let it go. */}
+              {canEval && (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onEval();
+                  }}
+                  className="rounded-full px-2 py-0.5 text-xs tracking-wider text-(--m3-on-surface-variant) uppercase transition-colors hover:bg-(--m3-surface-container-highest) hover:text-(--m3-on-surface)"
+                  aria-label="Eval this recording against other configurations"
+                >
+                  Eval
+                </button>
+              )}
+            </span>
           </div>
           <p
             className={`text-sm whitespace-pre-wrap leading-relaxed ${message.final ? "text-(--m3-on-surface)" : "text-(--m3-on-surface-variant)"}`}
@@ -329,12 +354,20 @@ export function MessageFeed({ onOpenSettings }: MessageFeedProps = {}) {
   const activeRecordingReferenceId = useStore($activeRecordingReferenceId);
   const lastSwipedMessage = useStore($lastSwipedMessage);
   const messagesMap = useStore($messages);
+  const retainedRecordings = useStore($retainedRecordings);
   const authToken = useStore($sessionToken);
   const backendUrl = useStore($backendUrl);
+  const [evalMessageId, setEvalMessageId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const hasScrolledInitiallyRef = useRef(false);
 
   const messages = Array.from(messagesMap.values()).sort((a, b) => a.createdAt - b.createdAt);
+  const evalMessage = evalMessageId ? messagesMap.get(evalMessageId) : undefined;
+
+  const canEval = (message: Message): boolean =>
+    message.status !== "recording" &&
+    !!message.referenceId &&
+    !!retainedRecordings.get(message.referenceId)?.chunks.length;
 
   useEffect(() => {
     if (messages.length === 0) return;
@@ -380,9 +413,12 @@ export function MessageFeed({ onOpenSettings }: MessageFeedProps = {}) {
             !!activeRecordingReferenceId && msg.referenceId === activeRecordingReferenceId
           }
           swipeHighlightKey={lastSwipedMessage?.messageId === msg.id ? lastSwipedMessage.key : null}
+          canEval={canEval(msg)}
+          onEval={() => setEvalMessageId(msg.id)}
         />
       ))}
       <div ref={bottomRef} />
+      {evalMessage && <EvalDialog message={evalMessage} onClose={() => setEvalMessageId(null)} />}
     </div>
   );
 }

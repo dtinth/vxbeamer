@@ -27,6 +27,16 @@ export default defineConfig({
       env: {
         PORT: String(backendPort),
         ASR_PROVIDER: "mock",
+        // An eval set worth looking at, without a credential in sight: mock is
+        // the only configured one, so the eval dialog shows one row that really
+        // streams alongside the "not set up" rows an under-credentialled server
+        // is meant to surface rather than hide. No vendor is ever called.
+        ASR_CONFIGURATIONS: [
+          "qwen/qwen3-asr-flash-realtime",
+          "qwen/qwen3-asr-flash-realtime+groq",
+          "byteplus/bigmodel",
+          "mock/mock",
+        ].join(","),
         API_KEYS: apiKeyPair,
         OIDC_DISCOVERY_URL: "https://mockapis.onrender.com/oauth/.well-known/openid-configuration",
         OIDC_SECRET: "e2e-test-secret",

@@ -16,6 +16,7 @@ import {
   verifyIdToken,
 } from "./auth.ts";
 import { createSwipedEvent } from "./events.ts";
+import { createEvalSocketHandler } from "./evalSocket.ts";
 import { createEvalStorage, type EvalUploadTargets } from "./evalStorage.ts";
 import { createSubjectStore, type Message } from "./store.ts";
 import { normalizeTranscriptText } from "./transcript.ts";
@@ -492,6 +493,25 @@ app.get(
       },
     };
   }),
+);
+
+/**
+ * Eval replay: transcribe without touching the message log.
+ *
+ * The dialog opens one of these per configuration and replays the retained PCM
+ * through each in parallel, so the fan-out lives entirely in the frontend and
+ * this server stays as stateless for an eval as it is for a recording. See
+ * `./evalSocket.ts` for why this is a route rather than a `?eval=1` on `/ws`.
+ */
+app.get(
+  "/asr/eval",
+  authMiddleware,
+  upgradeWebSocket((c) =>
+    createEvalSocketHandler({
+      selector: configurationSelector,
+      configuration: nonEmptyQuery(c.req.query("configuration")),
+    }),
+  ),
 );
 
 const server = serve({ fetch: app.fetch, port }, () => {

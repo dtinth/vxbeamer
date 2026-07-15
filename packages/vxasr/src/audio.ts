@@ -19,6 +19,62 @@ function fail(message: string): never {
   throw new Error(message);
 }
 
+/** A canonical WAV header: `RIFF` + `fmt ` + `data`, with no extra chunks. */
+export const WAV_HEADER_BYTES = 44;
+
+function writeAscii(target: Uint8Array, offset: number, text: string): void {
+  for (let i = 0; i < text.length; i++) target[offset + i] = text.charCodeAt(i);
+}
+
+/**
+ * Wraps raw PCM in a WAV container, at the one format this package speaks.
+ *
+ * This is `readPcm`'s inverse and lives beside it on purpose: the header this
+ * writes is the header `parseWav` reads, so the two are one spec with one set of
+ * constants, and a round-trip test pins them to each other. A second header
+ * implementation elsewhere — in the frontend, say — would be free to drift from
+ * the parser that has to accept its output.
+ *
+ * 44 bytes buys a file that plays in any audio app and states its own sample
+ * rate. That matters for audio that is saved and revisited: headerless PCM is
+ * only interpretable by someone who already knows it is 16 kHz mono, which a
+ * saved eval set cannot assume of whoever opens it months later.
+ *
+ * Returns a `Uint8Array` rather than a `Buffer` so this runs in a browser too —
+ * the audio being wrapped is captured there, and shipping it to a server to have
+ * a header put on it would be absurd.
+ */
+export function writeWav(pcm: Uint8Array): Uint8Array {
+  if (pcm.length % 2 !== 0) {
+    fail(`Raw PCM has an odd byte length (${pcm.length}); 16-bit samples cannot be odd-sized`);
+  }
+
+  const bytesPerSample = BITS_PER_SAMPLE / 8;
+  const out = new Uint8Array(WAV_HEADER_BYTES + pcm.length);
+  const view = new DataView(out.buffer);
+
+  writeAscii(out, 0, "RIFF");
+  // Size of everything after this field — the header's remaining 36 bytes plus
+  // the payload.
+  view.setUint32(4, 36 + pcm.length, true);
+  writeAscii(out, 8, "WAVE");
+
+  writeAscii(out, 12, "fmt ");
+  view.setUint32(16, 16, true); // fmt chunk body size
+  view.setUint16(20, 1, true); // 1 = uncompressed PCM, which parseWav requires
+  view.setUint16(22, CHANNELS, true);
+  view.setUint32(24, SAMPLE_RATE, true);
+  view.setUint32(28, SAMPLE_RATE * CHANNELS * bytesPerSample, true); // byte rate
+  view.setUint16(32, CHANNELS * bytesPerSample, true); // block align
+  view.setUint16(34, BITS_PER_SAMPLE, true);
+
+  writeAscii(out, 36, "data");
+  view.setUint32(40, pcm.length, true);
+  out.set(pcm, WAV_HEADER_BYTES);
+
+  return out;
+}
+
 /**
  * Reads a WAV container, returning its PCM payload.
  *

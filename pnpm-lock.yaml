@@ -6,6 +6,12 @@ settings:
 
 catalogs:
   default:
+    '@aws-sdk/client-s3':
+      specifier: ^3.1088.0
+      version: 3.1088.0
+    '@aws-sdk/s3-request-presigner':
+      specifier: ^3.1088.0
+      version: 3.1088.0
     '@changesets/cli':
       specifier: ^2.30.0
       version: 2.30.0
@@ -56,6 +62,12 @@ importers:
 
   apps/backend:
     dependencies:
+      '@aws-sdk/client-s3':
+        specifier: 'catalog:'
+        version: 3.1088.0
+      '@aws-sdk/s3-request-presigner':
+        specifier: 'catalog:'
+        version: 3.1088.0
       '@hono/node-server':
         specifier: ^1.14.4
         version: 1.19.11(hono@4.12.8)
@@ -117,6 +129,9 @@ importers:
       react-dom:
         specifier: ^19.1.0
         version: 19.2.4(react@19.2.4)
+      vxasr:
+        specifier: workspace:*
+        version: link:../../packages/vxasr
     devDependencies:
       '@tailwindcss/vite':
         specifier: ^4.1.4
@@ -175,6 +190,82 @@ importers:
         version: 0.2.4(@types/node@25.5.0)(@voidzero-dev/vite-plus-core@0.2.4(@types/node@25.5.0)(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.2))(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.2)
 
 packages:
+
+  '@aws-sdk/checksums@3.1000.18':
+    resolution: {integrity: sha512-IImkbEyXdV6/uaF5r6Wkk+8718mQw1ll83j0a4a30R3JM/rHVFdWAiT4jtJpFjJiIwM/oJ6SxIxr0z2TaQUGqw==}
+    engines: {node: '>=20.0.0'}
+
+  '@aws-sdk/client-s3@3.1088.0':
+    resolution: {integrity: sha512-9ryKKxnjtJRKLDI24P+2gQZki7k28BeV6gz1AySvFDWayhjAZuh4QZjCyx55tqR8Oz0IJxWutgJRO43dDOcXoQ==}
+    engines: {node: '>=20.0.0'}
+
+  '@aws-sdk/core@3.975.3':
+    resolution: {integrity: sha512-7ur3kCKuvPLqlsZ2XlvnNBVQ7KkpSu6Y6dOTwSPHLrFpTEfZM8isLBJc4cgv96WB7GifeVM436mpycwxBd2vEA==}
+    engines: {node: '>=20.0.0'}
+
+  '@aws-sdk/credential-provider-env@3.972.59':
+    resolution: {integrity: sha512-Ny5e4Mfh3QPmiAc0AiUe+cbTXDlxkU3Rc+EpWOfyWeWEy6yp7Fa1KmfNeCc+1a8by9zQ9gtohmiQUkMPScF3ng==}
+    engines: {node: '>=20.0.0'}
+
+  '@aws-sdk/credential-provider-http@3.972.61':
+    resolution: {integrity: sha512-8jAjgStl5Ytq4+HF3X/9f+EmRinaRbGRRtQGktlPfBRVx73H+R1y48vIeXerQtYGFaUqkEp3fT6jP854rVO2yQ==}
+    engines: {node: '>=20.0.0'}
+
+  '@aws-sdk/credential-provider-ini@3.973.3':
+    resolution: {integrity: sha512-WpuqYX4gGkx++fCTSWE8+41JzkZVcrI50SH48Ml4CsG1pyuHKyMmpw/FixBHDrmjoQ553PmeCLa/fZIcst+WyA==}
+    engines: {node: '>=20.0.0'}
+
+  '@aws-sdk/credential-provider-login@3.972.65':
+    resolution: {integrity: sha512-xr9rgjYEdmC2Tpg2lwt9o+nOEaK9Qpd+dBjzrVCuWWyQfvhO91Ezu0Hh9ts2VUxOZxmS/k5T9msa34e4R1bnrQ==}
+    engines: {node: '>=20.0.0'}
+
+  '@aws-sdk/credential-provider-node@3.972.69':
+    resolution: {integrity: sha512-wbJGGesd0Tl18bmUcbj1xJ+e7CpuRJ6PIpMywLFuUttGy615lua87cJ0EA8pFpY/QgPuUXbnupWBtSPJ9tyZhg==}
+    engines: {node: '>=20.0.0'}
+
+  '@aws-sdk/credential-provider-process@3.972.59':
+    resolution: {integrity: sha512-DlZF2/MhLlatDdlrIy3CUCpfdbLrKx+3SMjVo+WyHnPpwzkc/M3vwAHw4OVJf7DMvO+4vfRqSCMc/E9I1auN0g==}
+    engines: {node: '>=20.0.0'}
+
+  '@aws-sdk/credential-provider-sso@3.973.3':
+    resolution: {integrity: sha512-hmdDHoy2G5Es2e8IgelNMYUuSQI6uCIAKZMJ2u2PdKDhxvbk1uWD/g4+R7R5c/tJfKEB1+KjjWiaoCr/S+ZTiQ==}
+    engines: {node: '>=20.0.0'}
+
+  '@aws-sdk/credential-provider-web-identity@3.972.65':
+    resolution: {integrity: sha512-gHQb/Kt0chjk/JQDa/GJDqmAvEuVn8n7z10wK2h0LFM9TUDRkohgOO4aEF+s2sBLM0br7Cl5W6P7phgjrrJvLQ==}
+    engines: {node: '>=20.0.0'}
+
+  '@aws-sdk/middleware-sdk-s3@3.972.64':
+    resolution: {integrity: sha512-RBi43anhDBUv+HCfxCOXwGOE7GmT4n7ChV04Mwr22RhXTNcamW/iWnJlOotDPCZSrJ4dEvhZSiWWQMwLX+ZhFA==}
+    engines: {node: '>=20.0.0'}
+
+  '@aws-sdk/nested-clients@3.997.33':
+    resolution: {integrity: sha512-dVZOroI/r3/ENvqNGgjMPul+jjlz9GddfVusgTXlVjfZj5isibOxecLkGQbRPp8XOuX+RAfjXLFgPkD1JS5xrw==}
+    engines: {node: '>=20.0.0'}
+
+  '@aws-sdk/s3-request-presigner@3.1088.0':
+    resolution: {integrity: sha512-NEv9O5q+IrsDNKPmNhTlZ3hjtomgfL1OEJRCmDSF06dbmZ6IUJfrLQTLO7LWbM4sxvYui1LRAFCdO2TM3Hdq4A==}
+    engines: {node: '>=20.0.0'}
+
+  '@aws-sdk/signature-v4-multi-region@3.996.41':
+    resolution: {integrity: sha512-QMUytg+FQMGouc8gHS00KoYih3+N6cqmVI/pQGOIo7Nr7OpQaiXjSYOuL+vsPZ1tymY4LAQ8MYcHJmws5LRxng==}
+    engines: {node: '>=20.0.0'}
+
+  '@aws-sdk/token-providers@3.1088.0':
+    resolution: {integrity: sha512-4ObatWt2qpJg5FBk4LOOKrTQYzaqeewAtdO3r9ZO8lH9YqLtpTzLyIdy0mJ+nVdfYOnqISkKNfmzP22bNDhwyw==}
+    engines: {node: '>=20.0.0'}
+
+  '@aws-sdk/types@3.974.2':
+    resolution: {integrity: sha512-3W6IUtSxFbH6X7Wb7DzGCV5QiFQsd0g8bOfntpmDxQlzBoKWUMBu/JPQR0DwkE+Hpnxd6db1tXbOwdeHddG6cA==}
+    engines: {node: '>=20.0.0'}
+
+  '@aws-sdk/xml-builder@3.972.36':
+    resolution: {integrity: sha512-RdGmS1GLrtaTOLE1ElSluMldNrpk9Emq6uYs8SS8iHlu5xTAmM9rRkM91o48+rIRryBtyO9t+uLYCoMG6jVMVA==}
+    engines: {node: '>=20.0.0'}
+
+  '@aws/lambda-invoke-store@0.3.0':
+    resolution: {integrity: sha512-sl4Bm6yiMNYrZKkqqDFWN0UfnWhlS8ivKxrYl+6t0gCLrqr8y3B2IqZZbFRkfaVVp7C/baApyh71P+LeE1A2sQ==}
+    engines: {node: '>=18.0.0'}
 
   '@babel/code-frame@7.29.7':
     resolution: {integrity: sha512-Aup7aUOfpbAUg2ROOJN6Iw5f9DMBlzu0mIkm/malLQFN/YQgO48wCj0Kxa3sEHJvPVFg7siR+qRInwXd2qhQKw==}
@@ -610,6 +701,30 @@ packages:
 
   '@rolldown/pluginutils@1.0.0-rc.7':
     resolution: {integrity: sha512-qujRfC8sFVInYSPPMLQByRh7zhwkGFS4+tyMQ83srV1qrxL4g8E2tyxVVyxd0+8QeBM1mIk9KbWxkegRr76XzA==}
+
+  '@smithy/core@3.29.4':
+    resolution: {integrity: sha512-G1GRglAabzEhqghJMBAd54FkRS7SAFGHEwbhcI9r+O+LIMuFsLyXkLZkCoFSgAglRu8s/URVXJB0hglq3ZipIg==}
+    engines: {node: '>=18.0.0'}
+
+  '@smithy/credential-provider-imds@4.4.9':
+    resolution: {integrity: sha512-2nfV4qRKiYeXU4zD2vvSCfg5dfp/BuhrM73vt7q9gzBhxs4rbPxXY21wo+kyI3bRmXcEGRnCLTaW8O437jzHIg==}
+    engines: {node: '>=18.0.0'}
+
+  '@smithy/fetch-http-handler@5.6.6':
+    resolution: {integrity: sha512-NHLgAlORUFZjn5ZfhYuyyKMlXA1WLYOdGxEhyNxrPpbJzoacGbl0chn1lN2KiZ8mpNVk0tV5607CSYlYs/OFgw==}
+    engines: {node: '>=18.0.0'}
+
+  '@smithy/node-http-handler@4.9.6':
+    resolution: {integrity: sha512-odd+HYx3OLcXRSEz0ZeF3JQdSYdK8QnRgA2N87cPW7coWIbKfRk7a9VQjfeWQLqnzrDLk23KMEn46p8N7M/JFg==}
+    engines: {node: '>=18.0.0'}
+
+  '@smithy/signature-v4@5.6.5':
+    resolution: {integrity: sha512-MO5VEhwVl0BN7xVoVeNrZfiUFoQtqxUbgl6/RwOTlMMxCSjblG8twSrVTwz3J4w9WZxd2rBfBAUXjH77agspBg==}
+    engines: {node: '>=18.0.0'}
+
+  '@smithy/types@4.16.1':
+    resolution: {integrity: sha512-0JFs3V2y2M9tKW5na/qxe69Zv+uxLMO7QBbhxF/FHu/Gp2NFZAAL9tWl9PU02xxo07pb3G9FTyjNc6D5uZrJIg==}
+    engines: {node: '>=18.0.0'}
 
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
@@ -1081,6 +1196,9 @@ packages:
   better-path-resolve@1.0.0:
     resolution: {integrity: sha512-pbnl5XzGBdrFU/wT4jqmJVPn2B6UHPBOhzMQkY/SPUPB6QtUXtmBHBIwCbXJol93mOpGMnQyP/+BB19q04xj7g==}
     engines: {node: '>=4'}
+
+  bowser@2.14.1:
+    resolution: {integrity: sha512-tzPjzCxygAKWFOJP011oxFHs57HzIhOEracIgAePE4pqB3LikALKnSzUyU4MGs9/iCEUuHlAJTjTc5M+u7YEGg==}
 
   braces@3.0.3:
     resolution: {integrity: sha512-yQbXgO/OSZVD2IsiLlro+7Hf6Q18EJrKSEsdoMzKePKXct3gvD8oLcOQdIzGupr5Fj+EDe8gO/lxc1BzfMpxvA==}
@@ -1756,6 +1874,9 @@ packages:
   tr46@0.0.3:
     resolution: {integrity: sha512-N3WMsuqV66lT30CrXNbEjx4GEwlow3v6rr4mCcv6prnfwhS01rkgyFdjPNBYd9br7LpXV1+Emh01fHnq2Gdgrw==}
 
+  tslib@2.8.1:
+    resolution: {integrity: sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==}
+
   typescript@5.9.3:
     resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
     engines: {node: '>=14.17'}
@@ -1887,6 +2008,180 @@ packages:
     hasBin: true
 
 snapshots:
+
+  '@aws-sdk/checksums@3.1000.18':
+    dependencies:
+      '@aws-sdk/core': 3.975.3
+      '@aws-sdk/types': 3.974.2
+      '@smithy/core': 3.29.4
+      '@smithy/types': 4.16.1
+      tslib: 2.8.1
+
+  '@aws-sdk/client-s3@3.1088.0':
+    dependencies:
+      '@aws-sdk/checksums': 3.1000.18
+      '@aws-sdk/core': 3.975.3
+      '@aws-sdk/credential-provider-node': 3.972.69
+      '@aws-sdk/middleware-sdk-s3': 3.972.64
+      '@aws-sdk/signature-v4-multi-region': 3.996.41
+      '@aws-sdk/types': 3.974.2
+      '@smithy/core': 3.29.4
+      '@smithy/fetch-http-handler': 5.6.6
+      '@smithy/node-http-handler': 4.9.6
+      '@smithy/types': 4.16.1
+      tslib: 2.8.1
+
+  '@aws-sdk/core@3.975.3':
+    dependencies:
+      '@aws-sdk/types': 3.974.2
+      '@aws-sdk/xml-builder': 3.972.36
+      '@aws/lambda-invoke-store': 0.3.0
+      '@smithy/core': 3.29.4
+      '@smithy/signature-v4': 5.6.5
+      '@smithy/types': 4.16.1
+      bowser: 2.14.1
+      tslib: 2.8.1
+
+  '@aws-sdk/credential-provider-env@3.972.59':
+    dependencies:
+      '@aws-sdk/core': 3.975.3
+      '@aws-sdk/types': 3.974.2
+      '@smithy/core': 3.29.4
+      '@smithy/types': 4.16.1
+      tslib: 2.8.1
+
+  '@aws-sdk/credential-provider-http@3.972.61':
+    dependencies:
+      '@aws-sdk/core': 3.975.3
+      '@aws-sdk/types': 3.974.2
+      '@smithy/core': 3.29.4
+      '@smithy/fetch-http-handler': 5.6.6
+      '@smithy/node-http-handler': 4.9.6
+      '@smithy/types': 4.16.1
+      tslib: 2.8.1
+
+  '@aws-sdk/credential-provider-ini@3.973.3':
+    dependencies:
+      '@aws-sdk/core': 3.975.3
+      '@aws-sdk/credential-provider-env': 3.972.59
+      '@aws-sdk/credential-provider-http': 3.972.61
+      '@aws-sdk/credential-provider-login': 3.972.65
+      '@aws-sdk/credential-provider-process': 3.972.59
+      '@aws-sdk/credential-provider-sso': 3.973.3
+      '@aws-sdk/credential-provider-web-identity': 3.972.65
+      '@aws-sdk/nested-clients': 3.997.33
+      '@aws-sdk/types': 3.974.2
+      '@smithy/core': 3.29.4
+      '@smithy/credential-provider-imds': 4.4.9
+      '@smithy/types': 4.16.1
+      tslib: 2.8.1
+
+  '@aws-sdk/credential-provider-login@3.972.65':
+    dependencies:
+      '@aws-sdk/core': 3.975.3
+      '@aws-sdk/nested-clients': 3.997.33
+      '@aws-sdk/types': 3.974.2
+      '@smithy/core': 3.29.4
+      '@smithy/types': 4.16.1
+      tslib: 2.8.1
+
+  '@aws-sdk/credential-provider-node@3.972.69':
+    dependencies:
+      '@aws-sdk/credential-provider-env': 3.972.59
+      '@aws-sdk/credential-provider-http': 3.972.61
+      '@aws-sdk/credential-provider-ini': 3.973.3
+      '@aws-sdk/credential-provider-process': 3.972.59
+      '@aws-sdk/credential-provider-sso': 3.973.3
+      '@aws-sdk/credential-provider-web-identity': 3.972.65
+      '@aws-sdk/types': 3.974.2
+      '@smithy/core': 3.29.4
+      '@smithy/credential-provider-imds': 4.4.9
+      '@smithy/types': 4.16.1
+      tslib: 2.8.1
+
+  '@aws-sdk/credential-provider-process@3.972.59':
+    dependencies:
+      '@aws-sdk/core': 3.975.3
+      '@aws-sdk/types': 3.974.2
+      '@smithy/core': 3.29.4
+      '@smithy/types': 4.16.1
+      tslib: 2.8.1
+
+  '@aws-sdk/credential-provider-sso@3.973.3':
+    dependencies:
+      '@aws-sdk/core': 3.975.3
+      '@aws-sdk/nested-clients': 3.997.33
+      '@aws-sdk/token-providers': 3.1088.0
+      '@aws-sdk/types': 3.974.2
+      '@smithy/core': 3.29.4
+      '@smithy/types': 4.16.1
+      tslib: 2.8.1
+
+  '@aws-sdk/credential-provider-web-identity@3.972.65':
+    dependencies:
+      '@aws-sdk/core': 3.975.3
+      '@aws-sdk/nested-clients': 3.997.33
+      '@aws-sdk/types': 3.974.2
+      '@smithy/core': 3.29.4
+      '@smithy/types': 4.16.1
+      tslib: 2.8.1
+
+  '@aws-sdk/middleware-sdk-s3@3.972.64':
+    dependencies:
+      '@aws-sdk/core': 3.975.3
+      '@aws-sdk/signature-v4-multi-region': 3.996.41
+      '@aws-sdk/types': 3.974.2
+      '@smithy/core': 3.29.4
+      '@smithy/types': 4.16.1
+      tslib: 2.8.1
+
+  '@aws-sdk/nested-clients@3.997.33':
+    dependencies:
+      '@aws-sdk/core': 3.975.3
+      '@aws-sdk/signature-v4-multi-region': 3.996.41
+      '@aws-sdk/types': 3.974.2
+      '@smithy/core': 3.29.4
+      '@smithy/fetch-http-handler': 5.6.6
+      '@smithy/node-http-handler': 4.9.6
+      '@smithy/types': 4.16.1
+      tslib: 2.8.1
+
+  '@aws-sdk/s3-request-presigner@3.1088.0':
+    dependencies:
+      '@aws-sdk/core': 3.975.3
+      '@aws-sdk/signature-v4-multi-region': 3.996.41
+      '@aws-sdk/types': 3.974.2
+      '@smithy/core': 3.29.4
+      '@smithy/types': 4.16.1
+      tslib: 2.8.1
+
+  '@aws-sdk/signature-v4-multi-region@3.996.41':
+    dependencies:
+      '@aws-sdk/types': 3.974.2
+      '@smithy/signature-v4': 5.6.5
+      '@smithy/types': 4.16.1
+      tslib: 2.8.1
+
+  '@aws-sdk/token-providers@3.1088.0':
+    dependencies:
+      '@aws-sdk/core': 3.975.3
+      '@aws-sdk/nested-clients': 3.997.33
+      '@aws-sdk/types': 3.974.2
+      '@smithy/core': 3.29.4
+      '@smithy/types': 4.16.1
+      tslib: 2.8.1
+
+  '@aws-sdk/types@3.974.2':
+    dependencies:
+      '@smithy/types': 4.16.1
+      tslib: 2.8.1
+
+  '@aws-sdk/xml-builder@3.972.36':
+    dependencies:
+      '@smithy/types': 4.16.1
+      tslib: 2.8.1
+
+  '@aws/lambda-invoke-store@0.3.0': {}
 
   '@babel/code-frame@7.29.7':
     dependencies:
@@ -2267,6 +2562,39 @@ snapshots:
 
   '@rolldown/pluginutils@1.0.0-rc.7': {}
 
+  '@smithy/core@3.29.4':
+    dependencies:
+      '@smithy/types': 4.16.1
+      tslib: 2.8.1
+
+  '@smithy/credential-provider-imds@4.4.9':
+    dependencies:
+      '@smithy/core': 3.29.4
+      '@smithy/types': 4.16.1
+      tslib: 2.8.1
+
+  '@smithy/fetch-http-handler@5.6.6':
+    dependencies:
+      '@smithy/core': 3.29.4
+      '@smithy/types': 4.16.1
+      tslib: 2.8.1
+
+  '@smithy/node-http-handler@4.9.6':
+    dependencies:
+      '@smithy/core': 3.29.4
+      '@smithy/types': 4.16.1
+      tslib: 2.8.1
+
+  '@smithy/signature-v4@5.6.5':
+    dependencies:
+      '@smithy/core': 3.29.4
+      '@smithy/types': 4.16.1
+      tslib: 2.8.1
+
+  '@smithy/types@4.16.1':
+    dependencies:
+      tslib: 2.8.1
+
   '@standard-schema/spec@1.1.0': {}
 
   '@tailwindcss/node@4.2.2':
@@ -2479,12 +2807,12 @@ snapshots:
       '@rolldown/pluginutils': 1.0.0-rc.7
       vite: '@voidzero-dev/vite-plus-core@0.2.4(@types/node@25.5.0)(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.2)'
 
-  '@vitest/browser-preview@4.1.10(@voidzero-dev/vite-plus-core@0.2.4(@types/node@24.12.0)(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.2))(vitest@4.1.10(@types/node@25.5.0)(@vitest/browser-preview@4.1.10)(@voidzero-dev/vite-plus-core@0.2.4(@types/node@25.5.0)(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.2)))':
+  '@vitest/browser-preview@4.1.10(@voidzero-dev/vite-plus-core@0.2.4(@types/node@24.12.0)(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.2))(vitest@4.1.10)':
     dependencies:
       '@testing-library/dom': 10.4.1
       '@testing-library/user-event': 14.6.1(@testing-library/dom@10.4.1)
-      '@vitest/browser': 4.1.10(@voidzero-dev/vite-plus-core@0.2.4(@types/node@24.12.0)(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.2))(vitest@4.1.10(@types/node@25.5.0)(@vitest/browser-preview@4.1.10)(@voidzero-dev/vite-plus-core@0.2.4(@types/node@25.5.0)(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.2)))
-      vitest: 4.1.10(@types/node@25.5.0)(@vitest/browser-preview@4.1.10)(@voidzero-dev/vite-plus-core@0.2.4(@types/node@25.5.0)(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.2))
+      '@vitest/browser': 4.1.10(@voidzero-dev/vite-plus-core@0.2.4(@types/node@24.12.0)(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.2))(vitest@4.1.10)
+      vitest: 4.1.10(@types/node@24.12.0)(@vitest/browser-preview@4.1.10)(@voidzero-dev/vite-plus-core@0.2.4(@types/node@24.12.0)(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.2))
     transitivePeerDependencies:
       - bufferutil
       - msw
@@ -2503,7 +2831,7 @@ snapshots:
       - utf-8-validate
       - vite
 
-  '@vitest/browser@4.1.10(@voidzero-dev/vite-plus-core@0.2.4(@types/node@24.12.0)(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.2))(vitest@4.1.10(@types/node@25.5.0)(@vitest/browser-preview@4.1.10)(@voidzero-dev/vite-plus-core@0.2.4(@types/node@25.5.0)(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.2)))':
+  '@vitest/browser@4.1.10(@voidzero-dev/vite-plus-core@0.2.4(@types/node@24.12.0)(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.2))(vitest@4.1.10)':
     dependencies:
       '@blazediff/core': 1.9.1
       '@vitest/mocker': 4.1.10(@voidzero-dev/vite-plus-core@0.2.4(@types/node@24.12.0)(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.2))
@@ -2512,7 +2840,7 @@ snapshots:
       pngjs: 7.0.0
       sirv: 3.0.2
       tinyrainbow: 3.1.0
-      vitest: 4.1.10(@types/node@25.5.0)(@vitest/browser-preview@4.1.10)(@voidzero-dev/vite-plus-core@0.2.4(@types/node@25.5.0)(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.2))
+      vitest: 4.1.10(@types/node@24.12.0)(@vitest/browser-preview@4.1.10)(@voidzero-dev/vite-plus-core@0.2.4(@types/node@24.12.0)(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.2))
       ws: 8.20.0
     transitivePeerDependencies:
       - bufferutil
@@ -2671,6 +2999,8 @@ snapshots:
   better-path-resolve@1.0.0:
     dependencies:
       is-windows: 1.0.2
+
+  bowser@2.14.1: {}
 
   braces@3.0.3:
     dependencies:
@@ -3309,6 +3639,8 @@ snapshots:
 
   tr46@0.0.3: {}
 
+  tslib@2.8.1: {}
+
   typescript@5.9.3: {}
 
   unconfig-core@7.5.0:
@@ -3338,8 +3670,8 @@ snapshots:
     dependencies:
       '@oxc-project/types': 0.138.0
       '@oxlint/plugins': 1.68.0
-      '@vitest/browser': 4.1.10(@voidzero-dev/vite-plus-core@0.2.4(@types/node@24.12.0)(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.2))(vitest@4.1.10(@types/node@25.5.0)(@vitest/browser-preview@4.1.10)(@voidzero-dev/vite-plus-core@0.2.4(@types/node@25.5.0)(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.2)))
-      '@vitest/browser-preview': 4.1.10(@voidzero-dev/vite-plus-core@0.2.4(@types/node@24.12.0)(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.2))(vitest@4.1.10(@types/node@25.5.0)(@vitest/browser-preview@4.1.10)(@voidzero-dev/vite-plus-core@0.2.4(@types/node@25.5.0)(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.2)))
+      '@vitest/browser': 4.1.10(@voidzero-dev/vite-plus-core@0.2.4(@types/node@24.12.0)(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.2))(vitest@4.1.10)
+      '@vitest/browser-preview': 4.1.10(@voidzero-dev/vite-plus-core@0.2.4(@types/node@24.12.0)(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.2))(vitest@4.1.10)
       '@vitest/expect': 4.1.10
       '@vitest/mocker': 4.1.10(@voidzero-dev/vite-plus-core@0.2.4(@types/node@24.12.0)(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.2))
       '@vitest/pretty-format': 4.1.10
@@ -3351,7 +3683,7 @@ snapshots:
       oxfmt: 0.57.0(vite-plus@0.2.4(@types/node@24.12.0)(@voidzero-dev/vite-plus-core@0.2.4(@types/node@24.12.0)(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.2))(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.2))
       oxlint: 1.72.0(oxlint-tsgolint@0.24.0)(vite-plus@0.2.4(@types/node@24.12.0)(@voidzero-dev/vite-plus-core@0.2.4(@types/node@24.12.0)(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.2))(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.2))
       oxlint-tsgolint: 0.24.0
-      vitest: 4.1.10(@types/node@24.12.0)(@vitest/browser-preview@4.1.10(@voidzero-dev/vite-plus-core@0.2.4(@types/node@25.5.0)(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.2))(vitest@4.1.10))(@voidzero-dev/vite-plus-core@0.2.4(@types/node@24.12.0)(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.2))
+      vitest: 4.1.10(@types/node@24.12.0)(@vitest/browser-preview@4.1.10)(@voidzero-dev/vite-plus-core@0.2.4(@types/node@24.12.0)(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.2))
     optionalDependencies:
       '@voidzero-dev/vite-plus-darwin-arm64': 0.2.4
       '@voidzero-dev/vite-plus-darwin-x64': 0.2.4
@@ -3450,7 +3782,7 @@ snapshots:
       - vite
       - yaml
 
-  vitest@4.1.10(@types/node@24.12.0)(@vitest/browser-preview@4.1.10(@voidzero-dev/vite-plus-core@0.2.4(@types/node@25.5.0)(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.2))(vitest@4.1.10))(@voidzero-dev/vite-plus-core@0.2.4(@types/node@24.12.0)(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.2)):
+  vitest@4.1.10(@types/node@24.12.0)(@vitest/browser-preview@4.1.10)(@voidzero-dev/vite-plus-core@0.2.4(@types/node@24.12.0)(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.2)):
     dependencies:
       '@vitest/expect': 4.1.10
       '@vitest/mocker': 4.1.10(@voidzero-dev/vite-plus-core@0.2.4(@types/node@24.12.0)(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.2))
@@ -3474,7 +3806,7 @@ snapshots:
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 24.12.0
-      '@vitest/browser-preview': 4.1.10(@voidzero-dev/vite-plus-core@0.2.4(@types/node@25.5.0)(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.2))(vitest@4.1.10)
+      '@vitest/browser-preview': 4.1.10(@voidzero-dev/vite-plus-core@0.2.4(@types/node@24.12.0)(jiti@2.6.1)(typescript@5.9.3)(yaml@2.8.2))(vitest@4.1.10)
     transitivePeerDependencies:
       - msw
 

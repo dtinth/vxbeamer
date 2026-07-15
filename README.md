@@ -128,26 +128,52 @@ services:
 | `WEBHOOK_URL`          | No       | Endpoint to POST completed transcriptions to                                                      |
 | `PORT`                 | No       | HTTP port (default: `8787`)                                                                       |
 
+#### Eval storage
+
+Where eval **votes** and **eval-sets** are saved. The backend only signs upload URLs; the browser uploads directly to the bucket, so recordings never pass through the server and no bucket credential ever reaches a browser. Setting `EVAL_STORAGE_BUCKET` turns the feature on; without it, evals still run and winners still apply, they are just not recorded.
+
+| Variable                         | Required    | Description                                                           |
+| -------------------------------- | ----------- | --------------------------------------------------------------------- |
+| `EVAL_STORAGE_BUCKET`            | No          | S3-compatible bucket for votes and eval-sets. Enables eval storage    |
+| `EVAL_STORAGE_ACCESS_KEY_ID`     | With bucket | Access key id used to sign upload URLs                                |
+| `EVAL_STORAGE_SECRET_ACCESS_KEY` | With bucket | Secret access key used to sign upload URLs                            |
+| `EVAL_STORAGE_REGION`            | No          | Bucket region (default: `us-east-1`)                                  |
+| `EVAL_STORAGE_ENDPOINT`          | No          | Custom S3-compatible endpoint, e.g. MinIO or R2 (default: AWS)        |
+| `EVAL_STORAGE_FORCE_PATH_STYLE`  | No          | Set to `true` for endpoints needing path-style addressing, e.g. MinIO |
+| `EVAL_STORAGE_PREFIX`            | No          | Key prefix placed before `votes/` and `eval-sets/`                    |
+
+Objects are keyed by kind, then UTC date, then time and message id:
+
+```
+votes/2026/07/16/2026-07-16T09-30-00-123Z-<messageId>.json
+eval-sets/2026/07/16/2026-07-16T09-30-00-123Z-<messageId>.json
+```
+
+A **vote** (`{"type":"vote",…}`) is written on every winner pick and carries the winning configuration id, the full candidate list, per-candidate cost/latency/errors, and the audio's duration — but **no audio and no transcripts**, so it is safe to store unconditionally. An **eval-set** (`{"type":"eval-set",…}`) is written only when the user ticks save-for-eval, and adds the recording as a base64 WAV plus every candidate's transcript. A pick's vote and eval-set share a key suffix, so one finds the other.
+
 ## API
 
 The backend exposes a REST + SSE + WebSocket API on port 8787. All endpoints (except `/healthz` and `/auth/*`) require an access token, obtained by exchanging OIDC id_tokens or API keys.
 
 ### Endpoints
 
-| Method      | Path                  | Description                                              |
-| ----------- | --------------------- | -------------------------------------------------------- |
-| `GET`       | `/healthz`            | Health check                                             |
-| `GET`       | `/auth/config`        | OIDC configuration for the frontend                      |
-| `POST`      | `/auth/session`       | Exchange an OIDC `id_token` for access & refresh tokens  |
-| `POST`      | `/auth/token`         | Exchange an API key for an access token (no refresh)     |
-| `POST`      | `/auth/refresh`       | Exchange a refresh token for new access & refresh tokens |
-| `GET`       | `/sse`                | Server-Sent Events stream of all activity                |
-| `GET`       | `/asr/configurations` | List the selectable model configurations                 |
-| `GET`       | `/messages`           | List all messages (last 24 hours)                        |
-| `GET`       | `/messages/:id`       | Get a single message                                     |
-| `DELETE`    | `/messages/:id`       | Delete a message                                         |
-| `POST`      | `/messages/:id/swipe` | Broadcast a swipe event for integrators                  |
-| `WebSocket` | `/ws`                 | Stream PCM audio for transcription                       |
+| Method      | Path                   | Description                                              |
+| ----------- | ---------------------- | -------------------------------------------------------- |
+| `GET`       | `/healthz`             | Health check                                             |
+| `GET`       | `/auth/config`         | OIDC configuration for the frontend                      |
+| `POST`      | `/auth/session`        | Exchange an OIDC `id_token` for access & refresh tokens  |
+| `POST`      | `/auth/token`          | Exchange an API key for an access token (no refresh)     |
+| `POST`      | `/auth/refresh`        | Exchange a refresh token for new access & refresh tokens |
+| `GET`       | `/sse`                 | Server-Sent Events stream of all activity                |
+| `GET`       | `/asr/configurations`  | List the selectable model configurations                 |
+| `GET`       | `/messages`            | List all messages (last 24 hours)                        |
+| `GET`       | `/messages/:id`        | Get a single message                                     |
+| `DELETE`    | `/messages/:id`        | Delete a message                                         |
+| `POST`      | `/messages/:id/swipe`  | Broadcast a swipe event for integrators                  |
+| `POST`      | `/messages/:id/winner` | Replace the primary answer with an eval winner's         |
+| `WebSocket` | `/ws`                  | Stream PCM audio for transcription                       |
+
+`POST /messages/:id/winner` takes `{ configurationId, transcript }` and replies with `{ ok: true, upload }`. When eval storage is configured, `upload` carries presigned PUT URLs for this pick's vote and eval-set; it is `null` otherwise. Signing is offline, so the URLs come back with the winner rather than costing a second round-trip — and because the winner is applied before they are minted, storage being unavailable can never fail the pick.
 
 ### SSE events
 

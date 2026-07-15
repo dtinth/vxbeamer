@@ -11,7 +11,18 @@ import { createMockProvider } from "./mock.ts";
 export const qwenProviderDefinition: ProviderDefinition = defineProvider<QwenProviderConfig>({
   id: "qwen",
   label: "Alibaba Cloud DashScope (Qwen3-ASR-Flash)",
-  models: ["qwen3-asr-flash-realtime"],
+  // Pinned snapshots only. The undated `qwen3-asr-flash-realtime` id floats —
+  // DashScope repoints it at a new snapshot without notice — so a transcript
+  // it produced last month is not one it would produce today, and a vote cast
+  // for it names a moving target. Sibling models show that is not theoretical:
+  // Fun-ASR's newest snapshot silently dropped Thai, which a floating id would
+  // have delivered as a language quietly ceasing to work.
+  //
+  // The first entry is this provider's default model, so it is what the
+  // ASR_PROVIDER/ASR_MODEL compatibility shim derives the primary from.
+  // 2025-10-27 leads because it is what the floating id resolved to when it
+  // was dropped: the primary's behaviour is unchanged, only pinned.
+  models: ["qwen3-asr-flash-realtime-2025-10-27", "qwen3-asr-flash-realtime-2026-02-10"],
   resolveConfig(env) {
     const apiKey = env.DASHSCOPE_API_KEY;
     if (!apiKey) return { ok: false, missing: ["DASHSCOPE_API_KEY"] };

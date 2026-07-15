@@ -183,13 +183,28 @@ test("two configurations with the same composition collide", () => {
 // --- The built-in catalogue ---
 
 test("the default catalogue offers raw and enhanced variants of each real model", () => {
+  // Every model is pinned — no floating `qwen3-asr-flash-realtime`.
   expect(createDefaultConfigurationCatalogue().ids).toEqual([
-    "qwen/qwen3-asr-flash-realtime",
-    "qwen/qwen3-asr-flash-realtime+groq",
+    "qwen/qwen3-asr-flash-realtime-2025-10-27",
+    "qwen/qwen3-asr-flash-realtime-2025-10-27+groq",
+    "qwen/qwen3-asr-flash-realtime-2026-02-10",
+    "qwen/qwen3-asr-flash-realtime-2026-02-10+groq",
     "byteplus/bigmodel",
     "byteplus/bigmodel+groq",
     "mock/mock",
   ]);
+});
+
+test("no configuration names a floating model id", () => {
+  // A floating id lets the vendor change a transcript with nothing in this
+  // repo changing, which makes a vote name a moving target. Fun-ASR's newest
+  // snapshot dropped Thai outright — the same class of change, arriving
+  // silently. Every real model here is pinned to a dated snapshot.
+  for (const configuration of createDefaultConfigurationCatalogue().list()) {
+    if (configuration.providerId === "mock") continue;
+    if (configuration.providerId === "byteplus") continue;
+    expect(configuration.model).toMatch(/-\d{4}-\d{2}-\d{2}$/);
+  }
 });
 
 test("no configuration pairs the mock fake with a real LLM call", () => {
@@ -206,12 +221,11 @@ test("no configuration pairs the mock fake with a real LLM call", () => {
 test("the enhanced qwen configuration needs both keys", () => {
   const catalogue = createDefaultConfigurationCatalogue();
 
-  expect(catalogue.get("qwen/qwen3-asr-flash-realtime+groq")?.missingConfig({})).toEqual([
-    "DASHSCOPE_API_KEY",
-    "GROQ_API_KEY",
-  ]);
+  expect(catalogue.get("qwen/qwen3-asr-flash-realtime-2025-10-27+groq")?.missingConfig({})).toEqual(
+    ["DASHSCOPE_API_KEY", "GROQ_API_KEY"],
+  );
   expect(
-    catalogue.get("qwen/qwen3-asr-flash-realtime+groq")?.isConfigured({
+    catalogue.get("qwen/qwen3-asr-flash-realtime-2025-10-27+groq")?.isConfigured({
       DASHSCOPE_API_KEY: "d",
       GROQ_API_KEY: "g",
     }),

@@ -32,8 +32,8 @@ export default defineConfig({
         // streams alongside the "not set up" rows an under-credentialled server
         // is meant to surface rather than hide. No vendor is ever called.
         ASR_CONFIGURATIONS: [
-          "qwen/qwen3-asr-flash-realtime",
-          "qwen/qwen3-asr-flash-realtime+groq",
+          "qwen/qwen3-asr-flash-realtime-2025-10-27",
+          "qwen/qwen3-asr-flash-realtime-2025-10-27+groq",
           "byteplus/bigmodel",
           "mock/mock",
         ].join(","),

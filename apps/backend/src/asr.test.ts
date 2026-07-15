@@ -1,8 +1,13 @@
 import { expect, test } from "vite-plus/test";
 import { createConfigurationSelector } from "./asr.ts";
 
-const QWEN = "qwen/qwen3-asr-flash-realtime";
-const QWEN_GROQ = "qwen/qwen3-asr-flash-realtime+groq";
+// Every model is pinned; there is no floating `qwen3-asr-flash-realtime`.
+// 2025-10-27 leads the provider's model list, so it is the derived default —
+// which is what the undated id resolved to when it was dropped.
+const QWEN = "qwen/qwen3-asr-flash-realtime-2025-10-27";
+const QWEN_GROQ = "qwen/qwen3-asr-flash-realtime-2025-10-27+groq";
+const QWEN_2026 = "qwen/qwen3-asr-flash-realtime-2026-02-10";
+const QWEN_2026_GROQ = "qwen/qwen3-asr-flash-realtime-2026-02-10+groq";
 
 function expectOk(result: ReturnType<ReturnType<typeof createConfigurationSelector>["select"]>) {
   if (!result.ok) throw new Error(`expected ok, got ${result.code}: ${result.message}`);
@@ -110,7 +115,7 @@ test("ASR_CONFIGURATION names the default outright", () => {
 test("ASR_MODEL still feeds the derived default", () => {
   const selector = createConfigurationSelector({
     DASHSCOPE_API_KEY: "dk",
-    ASR_MODEL: "qwen3-asr-flash-realtime",
+    ASR_MODEL: "qwen3-asr-flash-realtime-2025-10-27",
   });
 
   expect(selector.defaultConfigurationId).toBe(QWEN);
@@ -175,6 +180,8 @@ test("credentials alone make a configuration selectable", () => {
   expect(selector.enabledConfigurationIds).toEqual([
     QWEN,
     QWEN_GROQ,
+    QWEN_2026,
+    QWEN_2026_GROQ,
     "byteplus/bigmodel",
     "byteplus/bigmodel+groq",
     "mock/mock",
@@ -227,9 +234,9 @@ test("a described configuration carries its identity components and a label", ()
 
   expect(descriptor).toEqual({
     id: QWEN_GROQ,
-    label: "Qwen3-ASR-Flash + Groq formatting",
+    label: "Qwen3-ASR-Flash (2025-10-27) + Groq formatting",
     providerId: "qwen",
-    model: "qwen3-asr-flash-realtime",
+    model: "qwen3-asr-flash-realtime-2025-10-27",
     postProcessing: ["groq"],
     configured: true,
   });
@@ -239,12 +246,14 @@ test("raw and enhanced are described as two distinct entries", () => {
   // They share a provider and a model, so only the id tells them apart.
   const selector = createConfigurationSelector({ DASHSCOPE_API_KEY: "dk", GROQ_API_KEY: "gk" });
 
-  const qwens = selector.listConfigurations().filter((c) => c.providerId === "qwen");
+  const qwens = selector
+    .listConfigurations()
+    .filter((c) => c.model === "qwen3-asr-flash-realtime-2025-10-27");
 
   expect(qwens.map((c) => c.id)).toEqual([QWEN, QWEN_GROQ]);
   expect(qwens.map((c) => c.model)).toEqual([
-    "qwen3-asr-flash-realtime",
-    "qwen3-asr-flash-realtime",
+    "qwen3-asr-flash-realtime-2025-10-27",
+    "qwen3-asr-flash-realtime-2025-10-27",
   ]);
 });
 

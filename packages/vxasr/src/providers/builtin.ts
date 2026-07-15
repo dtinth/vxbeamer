@@ -5,6 +5,7 @@ import {
   type ProviderDefinition,
 } from "../registry.ts";
 import { createQwenProvider, type QwenProviderConfig } from "./qwen.ts";
+import { createQwenOmniProvider, type QwenOmniProviderConfig } from "./qwen-omni.ts";
 import { createBytePlusProvider, type BytePlusProviderConfig } from "./byteplus.ts";
 import { createMockProvider } from "./mock.ts";
 
@@ -32,6 +33,38 @@ export const qwenProviderDefinition: ProviderDefinition = defineProvider<QwenPro
     return createQwenProvider({ ...config, model });
   },
 });
+
+export const qwenOmniProviderDefinition: ProviderDefinition =
+  defineProvider<QwenOmniProviderConfig>({
+    id: "qwen-omni",
+    label: "Alibaba Cloud DashScope (Qwen Omni Realtime)",
+    // Same vendor and same key as `qwen`, but a separate provider because it is
+    // a separate wire protocol and a separate billing model — see `./qwen-omni.ts`.
+    //
+    // Pinned snapshots, like `qwen`. The undated ids float, and the vendor's own
+    // model list carries dated siblings for all three, so there is nothing to
+    // exempt here: `qwen3.5-omni-flash-realtime-2026-03-15`,
+    // `qwen3.5-omni-plus-realtime-2026-03-15`, and — for the older generation,
+    // which publishes two — `qwen3-omni-flash-realtime-2025-12-01`, the newer,
+    // and the one the floating id currently resolves to (verified: it reproduces
+    // the floating id's transcript and token counts exactly).
+    //
+    // Flash leads, so it is the default model: it produced a byte-identical
+    // transcript to plus on the test fixture at roughly a third of the cost.
+    models: [
+      "qwen3.5-omni-flash-realtime-2026-03-15",
+      "qwen3.5-omni-plus-realtime-2026-03-15",
+      "qwen3-omni-flash-realtime-2025-12-01",
+    ],
+    resolveConfig(env) {
+      const apiKey = env.DASHSCOPE_API_KEY;
+      if (!apiKey) return { ok: false, missing: ["DASHSCOPE_API_KEY"] };
+      return { ok: true, config: { apiKey } };
+    },
+    create(config, model) {
+      return createQwenOmniProvider({ ...config, model });
+    },
+  });
 
 export const bytePlusProviderDefinition: ProviderDefinition =
   defineProvider<BytePlusProviderConfig>({
@@ -82,6 +115,7 @@ export const mockProviderDefinition: ProviderDefinition = defineProvider<Record<
 
 export const builtinProviderDefinitions: readonly ProviderDefinition[] = [
   qwenProviderDefinition,
+  qwenOmniProviderDefinition,
   bytePlusProviderDefinition,
   mockProviderDefinition,
 ];

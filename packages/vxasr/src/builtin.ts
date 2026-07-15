@@ -67,6 +67,35 @@ export const builtinConfigurations: readonly ConfigurationSpec[] = [
     postProcessing: ["groq"],
     label: "Qwen3-ASR-Flash (2026-02-10) + Groq formatting",
   },
+  // The Qwen Omni realtime models. Declared **raw only, no `+groq`**: the
+  // enhancement exists to tidy an ASR model's output, and these do not need
+  // tidying — they already render Thai words in Thai and product names in
+  // Latin, which is the shape the enhancement was reaching for. Groq measurably
+  // added nothing to Qwen ASR's cleaner output, and this is cleaner still, so a
+  // `+groq` variant here would be a second LLM call bought with a vote slot.
+  //
+  // All three generations are offered because they genuinely differ, and which
+  // one is better is exactly what a vote is for: the 3.5 pair produced a
+  // byte-identical transcript on the test fixture, while `qwen3-omni-flash`
+  // rendered `Project`/`framework` in Latin where they render Thai. Cost
+  // separates the 3.5 pair (plus is ~3.6x flash for the same output on one
+  // clip) — but one 9-second clip is not a verdict, which is the whole reason
+  // the eval loop exists.
+  {
+    provider: "qwen-omni",
+    model: "qwen3.5-omni-flash-realtime-2026-03-15",
+    label: "Qwen3.5-Omni-Flash Realtime (2026-03-15, raw)",
+  },
+  {
+    provider: "qwen-omni",
+    model: "qwen3.5-omni-plus-realtime-2026-03-15",
+    label: "Qwen3.5-Omni-Plus Realtime (2026-03-15, raw)",
+  },
+  {
+    provider: "qwen-omni",
+    model: "qwen3-omni-flash-realtime-2025-12-01",
+    label: "Qwen3-Omni-Flash Realtime (2025-12-01, raw)",
+  },
   // `byteplus/bigmodel_nostream`, the mode that accepts a language. The
   // bi-directional `bigmodel` mode is deliberately NOT declared: it cannot be
   // given a language, so outside its Chinese/English default set it returns

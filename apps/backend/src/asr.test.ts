@@ -8,6 +8,9 @@ const QWEN = "qwen/qwen3-asr-flash-realtime-2025-10-27";
 const QWEN_GROQ = "qwen/qwen3-asr-flash-realtime-2025-10-27+groq";
 const QWEN_2026 = "qwen/qwen3-asr-flash-realtime-2026-02-10";
 const QWEN_2026_GROQ = "qwen/qwen3-asr-flash-realtime-2026-02-10+groq";
+// A separate provider from `qwen` — same vendor and key, different protocol and
+// billing — so its models are pinned snapshots too. Flash leads its list.
+const OMNI_FLASH = "qwen-omni/qwen3.5-omni-flash-realtime-2026-03-15";
 
 function expectOk(result: ReturnType<ReturnType<typeof createConfigurationSelector>["select"]>) {
   if (!result.ok) throw new Error(`expected ok, got ${result.code}: ${result.message}`);
@@ -182,6 +185,12 @@ test("credentials alone make a configuration selectable", () => {
     QWEN_GROQ,
     QWEN_2026,
     QWEN_2026_GROQ,
+    // The Qwen Omni models ride on the same DASHSCOPE_API_KEY as `qwen`, so
+    // credentialling one credentials both — they are a separate provider for
+    // protocol and billing reasons, not a separate account.
+    OMNI_FLASH,
+    "qwen-omni/qwen3.5-omni-plus-realtime-2026-03-15",
+    "qwen-omni/qwen3-omni-flash-realtime-2025-12-01",
     "byteplus/bigmodel_nostream",
     "byteplus/bigmodel_nostream+groq",
     "mock/mock",

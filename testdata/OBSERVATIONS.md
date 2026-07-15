@@ -253,6 +253,6 @@ node --env-file=.env packages/vxasr/dist/cli.mjs <configuration-id> testdata/tes
 
 `vxasr --list` shows the configuration ids.
 
-Rows the shipped CLI **can** reproduce: the pinned Qwen snapshots (raw and `+groq`), and `byteplus/bigmodel_nostream` with `BYTEPLUS_LANGUAGE=th-TH`.
+Rows the shipped CLI **can** reproduce: the pinned Qwen snapshots (raw and `+groq`), `byteplus/bigmodel_nostream` with `BYTEPLUS_LANGUAGE=th-TH`, and the Qwen Omni **realtime** rows under `qwen-omni/…` — the undated ids in the table below are now pinned to `qwen3.5-omni-flash-realtime-2026-03-15`, `qwen3.5-omni-plus-realtime-2026-03-15`, and `qwen3-omni-flash-realtime-2025-12-01`.
 
-Rows it **cannot**: the floating `qwen3-asr-flash-realtime` id and `byteplus/bigmodel` (both removed from the catalogue), and everything under Fun-ASR and Qwen Omni (no adapter exists). Those came from throwaway scripts against the same endpoints.
+Rows it **cannot**: the floating `qwen3-asr-flash-realtime` id and `byteplus/bigmodel` (both removed from the catalogue), the Qwen Omni **offline** rows and the transcription-sub-service rows (no adapter — the sub-service is deliberately silenced), and everything under Fun-ASR. Those came from throwaway scripts against the same endpoints.

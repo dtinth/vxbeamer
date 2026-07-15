@@ -21,10 +21,60 @@ export interface SelectionRequest {
   configuration?: string | undefined;
 }
 
+/**
+ * One selectable configuration, as described to a client.
+ *
+ * This is what an eval fans out to: the frontend opens one `/ws` per entry,
+ * naming {@link id} in `?configuration=`. The identity components are spelled
+ * out rather than left to be parsed back out of the id — the id is derived
+ * *from* them (see `buildConfigurationId`), and a client re-deriving them by
+ * splitting on `/` and `+` would be reversing a one-way step and would break
+ * the moment a model id contains either character.
+ *
+ * Deliberately absent: anything about *which* credentials are missing. See
+ * {@link ConfigurationSelector.listConfigurations}.
+ */
+export interface ConfigurationDescriptor {
+  readonly id: string;
+  /** Human-readable name, for display. */
+  readonly label: string;
+  readonly providerId: string;
+  readonly model: string;
+  /** Decorator ids, in application order. */
+  readonly postProcessing: readonly string[];
+  /**
+   * Whether the server carries every credential this configuration needs.
+   *
+   * Nearly always true — a configuration normally *earns* its place in this
+   * list by being configured. It is false only when the operator forced one in
+   * without credentialling it: an `ASR_CONFIGURATIONS` entry, or the default
+   * configuration, which is always listed so this can never contradict the
+   * default path. Such an entry is listed rather than hidden so the gap is
+   * visible, but a client should not fan out to it — the socket would open and
+   * immediately close.
+   */
+  readonly configured: boolean;
+}
+
 export interface ConfigurationSelector {
   readonly defaultConfigurationId: string;
   /** Configurations a client may name in `?configuration=`. */
   readonly enabledConfigurationIds: readonly string[];
+  /**
+   * Describes every selectable configuration, in the catalogue's declared
+   * order — a stable presentation order that does not shift with how
+   * `ASR_CONFIGURATIONS` happens to be written.
+   *
+   * Credentials never appear here, in any form. Not their values, which is
+   * obvious, but not the *names* of the missing env vars either: a token
+   * authenticates a subject, not an operator, and the shape of the server's
+   * environment is not that subject's business. A client only needs to know
+   * whether a configuration will work ({@link ConfigurationDescriptor.configured}),
+   * not why it will not. The operator learns the specific missing var from the
+   * `/ws` close reason ("DASHSCOPE_API_KEY not configured"), which is where
+   * that answer already lives.
+   */
+  listConfigurations(): readonly ConfigurationDescriptor[];
   select(request: SelectionRequest): SelectionResult;
 }
 
@@ -144,9 +194,30 @@ export function createConfigurationSelector(
   );
   enabled.add(defaultConfigurationId);
 
+  // Walk the catalogue rather than the set, so both the listing and the id list
+  // come out in declared order from one rule, and cannot drift apart.
+  const descriptors: readonly ConfigurationDescriptor[] = catalogue.list().flatMap((definition) =>
+    enabled.has(definition.id)
+      ? [
+          {
+            id: definition.id,
+            label: definition.label,
+            providerId: definition.providerId,
+            model: definition.model,
+            postProcessing: definition.postProcessing,
+            configured: definition.isConfigured(env),
+          },
+        ]
+      : [],
+  );
+
   return {
     defaultConfigurationId,
-    enabledConfigurationIds: [...enabled],
+    enabledConfigurationIds: descriptors.map((descriptor) => descriptor.id),
+
+    listConfigurations() {
+      return descriptors;
+    },
 
     select(request) {
       const explicit = request.configuration !== undefined;

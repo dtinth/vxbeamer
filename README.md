@@ -142,6 +142,7 @@ The backend exposes a REST + SSE + WebSocket API on port 8787. All endpoints (ex
 | `POST`      | `/auth/token`         | Exchange an API key for an access token (no refresh)     |
 | `POST`      | `/auth/refresh`       | Exchange a refresh token for new access & refresh tokens |
 | `GET`       | `/sse`                | Server-Sent Events stream of all activity                |
+| `GET`       | `/asr/configurations` | List the selectable model configurations                 |
 | `GET`       | `/messages`           | List all messages (last 24 hours)                        |
 | `GET`       | `/messages/:id`       | Get a single message                                     |
 | `DELETE`    | `/messages/:id`       | Delete a message                                         |
@@ -181,6 +182,30 @@ A configuration is a provider, a model, and the post-processing chain applied to
 Ids contain `+`, which decodes to a space in a query string, so clients must URL-encode them — `URLSearchParams` does this automatically.
 
 By default a configuration is selectable once the environment carries every credential it needs — which means `mock/mock`, needing none, is always selectable. Set `ASR_CONFIGURATIONS` to pin the list down explicitly. Requests naming an unknown, unconfigured, or disabled configuration are closed with code `1008` before any message is created.
+
+#### Discovering them
+
+`GET /asr/configurations` returns the selectable set, so a client does not have to hardcode the table above:
+
+```json
+{
+  "primaryConfigurationId": "qwen/qwen3-asr-flash-realtime+groq",
+  "configurations": [
+    {
+      "id": "qwen/qwen3-asr-flash-realtime+groq",
+      "label": "Qwen3-ASR-Flash + Groq formatting",
+      "providerId": "qwen",
+      "model": "qwen3-asr-flash-realtime",
+      "postProcessing": ["groq"],
+      "configured": true
+    }
+  ]
+}
+```
+
+Every listed `id` is one `/ws` accepts in `?configuration=`, which is what makes this list usable as a fan-out plan: an eval opens one socket per entry. `primaryConfigurationId` names the configuration the primary path uses; it is listed alongside the rest, since it competes on the same terms.
+
+`configured` is almost always true — a configuration normally earns its place here by being credentialled. It is false only where an `ASR_CONFIGURATIONS` entry (or the default, which is always listed) was named without its credentials; such an entry is shown rather than hidden so the gap is visible, but connecting to it would close immediately. The response never carries credentials — not their values, and not the names of the missing variables either; the `/ws` close reason is where an operator reads which one to set.
 
 ### Authentication
 

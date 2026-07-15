@@ -110,17 +110,23 @@ services:
 
 ### Environment variables
 
-| Variable             | Required | Description                                                  |
-| -------------------- | -------- | ------------------------------------------------------------ |
-| `DASHSCOPE_API_KEY`  | Yes      | Alibaba Cloud DashScope key for Qwen3-ASR-Flash              |
-| `API_KEYS`           | No       | Comma-separated `sub:secret` pairs for API key exchange      |
-| `GROQ_API_KEY`       | No       | Groq API key for gpt-oss-120b post-processing                |
-| `OIDC_DISCOVERY_URL` | No       | OIDC provider discovery URL (alternative to API keys)        |
-| `OIDC_CLIENT_ID`     | No       | OIDC client ID (default: `vxbeamer-mobile`)                  |
-| `OIDC_AUDIENCE`      | No       | Expected token audience (default: same as client ID)         |
-| `OIDC_SECRET`        | No       | HMAC secret for session tokens (default: `local-dev-secret`) |
-| `WEBHOOK_URL`        | No       | Endpoint to POST completed transcriptions to                 |
-| `PORT`               | No       | HTTP port (default: `8787`)                                  |
+| Variable               | Required | Description                                                                                       |
+| ---------------------- | -------- | ------------------------------------------------------------------------------------------------- |
+| `DASHSCOPE_API_KEY`    | Yes      | Alibaba Cloud DashScope key for Qwen3-ASR-Flash                                                   |
+| `API_KEYS`             | No       | Comma-separated `sub:secret` pairs for API key exchange                                           |
+| `GROQ_API_KEY`         | No       | Groq API key for gpt-oss-120b post-processing; enables the `+groq` configurations                 |
+| `ASR_CONFIGURATION`    | No       | Default configuration id (default: derived from `ASR_PROVIDER`/`ASR_MODEL`/`GROQ_API_KEY`)        |
+| `ASR_CONFIGURATIONS`   | No       | Comma-separated configurations clients may select (default: every configuration with credentials) |
+| `ASR_PROVIDER`         | No       | Provider for the derived default: `qwen` (default), `byteplus`, or `mock`                         |
+| `ASR_MODEL`            | No       | Model for the derived default (default: the provider's own default model)                         |
+| `BYTEPLUS_API_KEY`     | No       | BytePlus key; enables the `byteplus` configurations                                               |
+| `BYTEPLUS_RESOURCE_ID` | No       | BytePlus resource id (default: `volc.seedasr.sauc.duration`)                                      |
+| `OIDC_DISCOVERY_URL`   | No       | OIDC provider discovery URL (alternative to API keys)                                             |
+| `OIDC_CLIENT_ID`       | No       | OIDC client ID (default: `vxbeamer-mobile`)                                                       |
+| `OIDC_AUDIENCE`        | No       | Expected token audience (default: same as client ID)                                              |
+| `OIDC_SECRET`          | No       | HMAC secret for session tokens (default: `local-dev-secret`)                                      |
+| `WEBHOOK_URL`          | No       | Endpoint to POST completed transcriptions to                                                      |
+| `PORT`                 | No       | HTTP port (default: `8787`)                                                                       |
 
 ## API
 
@@ -157,6 +163,24 @@ Connect to `/sse` to receive real-time events. Pass `?events=<type>` to filter, 
 ### WebSocket protocol
 
 Connect to `/ws?access_token=<token>`. Send raw PCM audio as binary frames (16 kHz, 16-bit signed, mono, little-endian). Send `{ "type": "stop" }` as a text frame to end the session gracefully.
+
+Optionally add `?configuration=<id>` to transcribe with a specific **model configuration** instead of the default one. Omit it and the session uses the configured default.
+
+### Model configurations
+
+A configuration is a provider, a model, and the post-processing chain applied to it. Post-processing is part of a configuration's identity rather than a request flag, so a model raw and the same model with Groq formatting are two separately selectable configurations that can be compared on equal terms:
+
+| Configuration id                     | Needs                               |
+| ------------------------------------ | ----------------------------------- |
+| `qwen/qwen3-asr-flash-realtime`      | `DASHSCOPE_API_KEY`                 |
+| `qwen/qwen3-asr-flash-realtime+groq` | `DASHSCOPE_API_KEY`, `GROQ_API_KEY` |
+| `byteplus/bigmodel`                  | `BYTEPLUS_API_KEY`                  |
+| `byteplus/bigmodel+groq`             | `BYTEPLUS_API_KEY`, `GROQ_API_KEY`  |
+| `mock/mock`                          | nothing                             |
+
+Ids contain `+`, which decodes to a space in a query string, so clients must URL-encode them — `URLSearchParams` does this automatically.
+
+By default a configuration is selectable once the environment carries every credential it needs — which means `mock/mock`, needing none, is always selectable. Set `ASR_CONFIGURATIONS` to pin the list down explicitly. Requests naming an unknown, unconfigured, or disabled configuration are closed with code `1008` before any message is created.
 
 ### Authentication
 

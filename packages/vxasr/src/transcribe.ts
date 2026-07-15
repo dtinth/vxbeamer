@@ -1,46 +1,37 @@
 /**
  * Realtime microphone transcription
- * Usage: vp exec tsx src/transcribe.ts <qwen|byteplus>
+ * Usage: vp exec tsx src/transcribe.ts <configuration>
  *
  * Requires: rec (sox)
- * Env vars: DASHSCOPE_API_KEY (qwen), BYTEPLUS_API_KEY (byteplus)
+ * Env vars: DASHSCOPE_API_KEY (qwen), BYTEPLUS_API_KEY (byteplus), GROQ_API_KEY (+groq)
  */
 
 import { spawn } from "child_process";
-import { createQwenProvider } from "./providers/qwen.ts";
-import { createBytePlusProvider } from "./providers/byteplus.ts";
-import { withGroqEnhancement } from "./providers/groq-enhancement.ts";
-import type { ASRProvider } from "./asr.ts";
+import { createDefaultConfigurationCatalogue } from "./builtin.ts";
 
-const providerName = process.argv[2];
+const catalogue = createDefaultConfigurationCatalogue();
+const configurationId = process.argv[2];
 
-let provider: ASRProvider;
-if (providerName === "qwen") {
-  const apiKey = process.env.DASHSCOPE_API_KEY;
-  if (!apiKey) {
-    console.error("Error: DASHSCOPE_API_KEY is not set.");
-    process.exit(1);
+if (!configurationId || !catalogue.get(configurationId)) {
+  console.error("Usage: transcribe.ts <configuration>\n\nConfigurations:");
+  for (const configuration of catalogue.list()) {
+    console.error(`  ${configuration.id}\n    ${configuration.label}`);
   }
-  provider = createQwenProvider({ apiKey });
-} else if (providerName === "byteplus") {
-  const apiKey = process.env.BYTEPLUS_API_KEY;
-  if (!apiKey) {
-    console.error("Error: BYTEPLUS_API_KEY is not set.");
-    process.exit(1);
-  }
-  provider = createBytePlusProvider({ apiKey });
-} else {
-  console.error("Usage: transcribe.ts <qwen|byteplus> [--enhance]");
   process.exit(1);
 }
 
-if (process.argv.includes("--enhance")) {
-  if (!process.env.GROQ_API_KEY) {
-    console.error("Error: GROQ_API_KEY is not set.");
-    process.exit(1);
-  }
-  provider = withGroqEnhancement(provider, { apiKey: process.env.GROQ_API_KEY });
+const resolution = catalogue.resolve(process.env, configurationId);
+if (!resolution.ok) {
+  const missing = resolution.error.missing ?? [];
+  console.error(
+    missing.length > 0
+      ? `Error: ${missing.join(", ")} is not set.`
+      : `Error: ${resolution.error.message}`,
+  );
+  process.exit(1);
 }
+
+const provider = resolution.provider;
 
 // ===== Display =====
 // Keep finalized lines and re-render from top on every update,
@@ -57,9 +48,7 @@ function render() {
 
 // Clear screen on start
 process.stdout.write("\x1b[2J\x1b[H");
-process.stdout.write(
-  `[Session] Using ${providerName}${process.argv.includes("--enhance") ? " + groq" : ""}. Speak — Ctrl+C to stop.\n\n`,
-);
+process.stdout.write(`[Session] Using ${configurationId}. Speak — Ctrl+C to stop.\n\n`);
 
 const session = provider.createSession({
   onPartial(text) {

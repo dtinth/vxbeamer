@@ -1,5 +1,14 @@
 # website
 
+## 0.1.0-next.2
+
+### Patch Changes
+
+- Updated dependencies [9663f08]
+- Updated dependencies [94e7feb]
+- Updated dependencies [ac46ea8]
+  - vxasr@0.1.0-next.2
+
 ## 0.1.0-next.1
 
 ### Minor Changes

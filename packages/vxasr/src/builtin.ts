@@ -38,6 +38,21 @@ export const builtinDecorators: readonly DecoratorDefinition[] = [groqDecorator]
 export const builtinConfigurations: readonly ConfigurationSpec[] = [
   { provider: "qwen", label: "Qwen3-ASR-Flash (raw)" },
   { provider: "qwen", postProcessing: ["groq"], label: "Qwen3-ASR-Flash + Groq formatting" },
+  // Pinned snapshots of the same model, listed so the undated id's drift is
+  // visible rather than inferred. They are declared raw and unenhanced: what
+  // differs between snapshots is the recognition, and a formatting layer over
+  // the top only obscures it. Enabled by the same DASHSCOPE_API_KEY, so they
+  // cost a Qwen run each — narrow with ASR_CONFIGURATIONS to opt out.
+  {
+    provider: "qwen",
+    model: "qwen3-asr-flash-realtime-2026-02-10",
+    label: "Qwen3-ASR-Flash (2026-02-10)",
+  },
+  {
+    provider: "qwen",
+    model: "qwen3-asr-flash-realtime-2025-10-27",
+    label: "Qwen3-ASR-Flash (2025-10-27)",
+  },
   { provider: "byteplus", label: "BytePlus Seed-ASR (raw)" },
   { provider: "byteplus", postProcessing: ["groq"], label: "BytePlus Seed-ASR + Groq formatting" },
   { provider: "mock", label: "Mock (canned transcript, no network)" },

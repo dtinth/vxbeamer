@@ -3,6 +3,8 @@ import { createConfigurationSelector } from "./asr.ts";
 
 const QWEN = "qwen/qwen3-asr-flash-realtime";
 const QWEN_GROQ = "qwen/qwen3-asr-flash-realtime+groq";
+const QWEN_2026 = "qwen/qwen3-asr-flash-realtime-2026-02-10";
+const QWEN_2025 = "qwen/qwen3-asr-flash-realtime-2025-10-27";
 
 function expectOk(result: ReturnType<ReturnType<typeof createConfigurationSelector>["select"]>) {
   if (!result.ok) throw new Error(`expected ok, got ${result.code}: ${result.message}`);
@@ -175,6 +177,8 @@ test("credentials alone make a configuration selectable", () => {
   expect(selector.enabledConfigurationIds).toEqual([
     QWEN,
     QWEN_GROQ,
+    QWEN_2026,
+    QWEN_2025,
     "byteplus/bigmodel",
     "byteplus/bigmodel+groq",
     "mock/mock",
@@ -239,7 +243,7 @@ test("raw and enhanced are described as two distinct entries", () => {
   // They share a provider and a model, so only the id tells them apart.
   const selector = createConfigurationSelector({ DASHSCOPE_API_KEY: "dk", GROQ_API_KEY: "gk" });
 
-  const qwens = selector.listConfigurations().filter((c) => c.providerId === "qwen");
+  const qwens = selector.listConfigurations().filter((c) => c.model === "qwen3-asr-flash-realtime");
 
   expect(qwens.map((c) => c.id)).toEqual([QWEN, QWEN_GROQ]);
   expect(qwens.map((c) => c.model)).toEqual([

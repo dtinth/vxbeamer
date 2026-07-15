@@ -186,6 +186,8 @@ test("the default catalogue offers raw and enhanced variants of each real model"
   expect(createDefaultConfigurationCatalogue().ids).toEqual([
     "qwen/qwen3-asr-flash-realtime",
     "qwen/qwen3-asr-flash-realtime+groq",
+    "qwen/qwen3-asr-flash-realtime-2026-02-10",
+    "qwen/qwen3-asr-flash-realtime-2025-10-27",
     "byteplus/bigmodel",
     "byteplus/bigmodel+groq",
     "mock/mock",

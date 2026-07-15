@@ -11,7 +11,16 @@ import { createMockProvider } from "./mock.ts";
 export const qwenProviderDefinition: ProviderDefinition = defineProvider<QwenProviderConfig>({
   id: "qwen",
   label: "Alibaba Cloud DashScope (Qwen3-ASR-Flash)",
-  models: ["qwen3-asr-flash-realtime"],
+  // The undated id floats: DashScope repoints it at a new snapshot without
+  // notice, so what it transcribes today is not what it transcribed last
+  // month. The dated ids are pinned, which is what makes them worth listing
+  // separately — they let a drift be seen rather than inferred. All three
+  // speak the same OpenAI-compatible realtime protocol.
+  models: [
+    "qwen3-asr-flash-realtime",
+    "qwen3-asr-flash-realtime-2026-02-10",
+    "qwen3-asr-flash-realtime-2025-10-27",
+  ],
   resolveConfig(env) {
     const apiKey = env.DASHSCOPE_API_KEY;
     if (!apiKey) return { ok: false, missing: ["DASHSCOPE_API_KEY"] };

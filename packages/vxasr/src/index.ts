@@ -11,6 +11,13 @@ export {
 export type { PcmAudio } from "./audio.ts";
 export { createQwenProvider } from "./providers/qwen.ts";
 export type { QwenProviderConfig } from "./providers/qwen.ts";
+export {
+  QWEN_OMNI_DEFAULT_MODEL,
+  QWEN_OMNI_PRICING,
+  QWEN_OMNI_TRANSCRIPTION_INSTRUCTIONS,
+  createQwenOmniProvider,
+} from "./providers/qwen-omni.ts";
+export type { QwenOmniProviderConfig, QwenOmniTokenPricing } from "./providers/qwen-omni.ts";
 export { createBytePlusProvider } from "./providers/byteplus.ts";
 export type { BytePlusProviderConfig } from "./providers/byteplus.ts";
 export { withGroqEnhancement } from "./providers/groq-enhancement.ts";
@@ -32,6 +39,7 @@ export {
   bytePlusProviderDefinition,
   createDefaultProviderRegistry,
   mockProviderDefinition,
+  qwenOmniProviderDefinition,
   qwenProviderDefinition,
 } from "./providers/builtin.ts";
 export {

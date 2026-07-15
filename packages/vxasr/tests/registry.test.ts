@@ -106,8 +106,10 @@ test("registering the same id twice is a programming error", () => {
   ).toThrow(/Duplicate/);
 });
 
-test("the default registry exposes qwen, byteplus and mock", () => {
-  expect(createDefaultProviderRegistry().ids).toEqual(["qwen", "byteplus", "mock"]);
+test("the default registry exposes qwen, qwen-omni, byteplus and mock", () => {
+  // `qwen` and `qwen-omni` are the same vendor on the same key, split because
+  // one provider id means one wire protocol — see `providers/qwen-omni.ts`.
+  expect(createDefaultProviderRegistry().ids).toEqual(["qwen", "qwen-omni", "byteplus", "mock"]);
 });
 
 test("byteplus is reachable through the default registry", () => {

@@ -182,13 +182,22 @@ test("two configurations with the same composition collide", () => {
 
 // --- The built-in catalogue ---
 
-test("the default catalogue offers raw and enhanced variants of each real model", () => {
+test("the default catalogue offers each real model, enhanced only where that helps", () => {
   // Every model is pinned — no floating `qwen3-asr-flash-realtime`.
+  // The ASR models are offered raw and enhanced, because the enhancement
+  // changes their output enough to be worth a vote of its own. The Qwen Omni
+  // models are offered raw only: they already produce what the enhancement is
+  // reaching for, so a `+groq` sibling would spend an LLM call and a vote slot
+  // to change nothing.
   expect(createDefaultConfigurationCatalogue().ids).toEqual([
     "qwen/qwen3-asr-flash-realtime-2025-10-27",
     "qwen/qwen3-asr-flash-realtime-2025-10-27+groq",
     "qwen/qwen3-asr-flash-realtime-2026-02-10",
     "qwen/qwen3-asr-flash-realtime-2026-02-10+groq",
+    // Raw only: the Qwen Omni models need no tidying, so no `+groq` sibling.
+    "qwen-omni/qwen3.5-omni-flash-realtime-2026-03-15",
+    "qwen-omni/qwen3.5-omni-plus-realtime-2026-03-15",
+    "qwen-omni/qwen3-omni-flash-realtime-2025-12-01",
     "byteplus/bigmodel_nostream",
     "byteplus/bigmodel_nostream+groq",
     "mock/mock",
@@ -200,6 +209,10 @@ test("no configuration names a floating model id", () => {
   // repo changing, which makes a vote name a moving target. Fun-ASR's newest
   // snapshot dropped Thai outright — the same class of change, arriving
   // silently. Every real model here is pinned to a dated snapshot.
+  //
+  // The Qwen Omni models needed no exemption: the vendor's docs say only to
+  // "check the console", but its model list serves dated siblings for all three
+  // undated ids, so they are pinned like the rest.
   for (const configuration of createDefaultConfigurationCatalogue().list()) {
     if (configuration.providerId === "mock") continue;
     // BytePlus is exempt because its ids name *modes* (`bigmodel_nostream` is

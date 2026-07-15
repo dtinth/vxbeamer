@@ -6,3 +6,21 @@ export type { BytePlusProviderConfig } from "./providers/byteplus.ts";
 export { withGroqEnhancement } from "./providers/groq-enhancement.ts";
 export type { GroqEnhancementConfig } from "./providers/groq-enhancement.ts";
 export { createMockProvider } from "./providers/mock.ts";
+export { createProviderRegistry, defineProvider } from "./registry.ts";
+export type {
+  ASRProviderRegistry,
+  ConfigResolution,
+  ProviderDefinition,
+  ProviderEnv,
+  ProviderError,
+  ProviderErrorCode,
+  ProviderResolution,
+  ProviderSpec,
+} from "./registry.ts";
+export {
+  builtinProviderDefinitions,
+  bytePlusProviderDefinition,
+  createDefaultProviderRegistry,
+  mockProviderDefinition,
+  qwenProviderDefinition,
+} from "./providers/builtin.ts";

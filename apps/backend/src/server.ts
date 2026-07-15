@@ -5,8 +5,8 @@ import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { createNodeWebSocket } from "@hono/node-ws";
 import type { WSContext, WSMessageReceive } from "hono/ws";
-import { createQwenProvider, createMockProvider, withGroqEnhancement } from "vxasr";
-import type { ASRProvider, ASRSession } from "vxasr";
+import type { ASRSession } from "vxasr";
+import { createProviderSelector } from "./asr.ts";
 import {
   type AccessTokenPayload,
   createAccessToken,
@@ -38,6 +38,9 @@ const apiKeys = new Map(
     }),
 );
 const webhookUrl = process.env.WEBHOOK_URL ?? "";
+// Throws on an unknown ASR_PROVIDER/ASR_PROVIDERS, so a typo fails the boot
+// rather than silently transcribing with the wrong model.
+const providerSelector = createProviderSelector(process.env);
 const ACCESS_TOKEN_TTL_SECONDS = 900; // 15 minutes
 const REFRESH_TOKEN_TTL_SECONDS = 259200; // 3 days
 const DISCOVERY_CACHE_TTL_MS = 3_600_000;
@@ -91,6 +94,12 @@ function extractToken(
 ): string | null {
   if (authHeader?.startsWith("Bearer ")) return authHeader.slice(7);
   return queryToken ?? null;
+}
+
+/** `?provider=` with no value means "not specified", not "the empty provider". */
+function nonEmptyQuery(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
 }
 
 // --- Hono App ---
@@ -297,22 +306,20 @@ app.get(
     let message: Message | null = null;
     let finished = false;
     const referenceId = c.req.query("reference_id");
+    const providerParam = nonEmptyQuery(c.req.query("provider"));
+    const modelParam = nonEmptyQuery(c.req.query("model"));
 
     return {
       onOpen(_evt: Event, ws: WSContext) {
-        let provider: ASRProvider;
-        if (process.env.ASR_PROVIDER === "mock") {
-          provider = createMockProvider();
-        } else {
-          const apiKey = process.env.DASHSCOPE_API_KEY;
-          if (!apiKey) {
-            ws.close(1011, "DASHSCOPE_API_KEY not configured");
-            return;
-          }
-          const groqApiKey = process.env.GROQ_API_KEY;
-          const qwen = createQwenProvider({ apiKey });
-          provider = groqApiKey ? withGroqEnhancement(qwen, { apiKey: groqApiKey }) : qwen;
+        const result = providerSelector.select({ provider: providerParam, model: modelParam });
+        if (!result.ok) {
+          // 1011 for a server-side misconfiguration, 1008 for a request naming
+          // a provider/model the server will not serve. Either way the socket
+          // closes before any message is stored.
+          ws.close(result.code === "not_configured" ? 1011 : 1008, result.message);
+          return;
         }
+        const { provider } = result.selection;
 
         message = {
           id: crypto.randomUUID(),

@@ -1,38 +1,38 @@
 /**
  * Realtime microphone transcription
- * Usage: vp exec tsx src/transcribe.ts <qwen|byteplus>
+ * Usage: vp exec tsx src/transcribe.ts <provider> [--model <id>] [--enhance]
  *
  * Requires: rec (sox)
  * Env vars: DASHSCOPE_API_KEY (qwen), BYTEPLUS_API_KEY (byteplus)
  */
 
 import { spawn } from "child_process";
-import { createQwenProvider } from "./providers/qwen.ts";
-import { createBytePlusProvider } from "./providers/byteplus.ts";
+import { createDefaultProviderRegistry } from "./providers/builtin.ts";
 import { withGroqEnhancement } from "./providers/groq-enhancement.ts";
 import type { ASRProvider } from "./asr.ts";
 
+const registry = createDefaultProviderRegistry();
 const providerName = process.argv[2];
+const modelFlagIndex = process.argv.indexOf("--model");
+const model = modelFlagIndex === -1 ? undefined : process.argv[modelFlagIndex + 1];
 
-let provider: ASRProvider;
-if (providerName === "qwen") {
-  const apiKey = process.env.DASHSCOPE_API_KEY;
-  if (!apiKey) {
-    console.error("Error: DASHSCOPE_API_KEY is not set.");
-    process.exit(1);
-  }
-  provider = createQwenProvider({ apiKey });
-} else if (providerName === "byteplus") {
-  const apiKey = process.env.BYTEPLUS_API_KEY;
-  if (!apiKey) {
-    console.error("Error: BYTEPLUS_API_KEY is not set.");
-    process.exit(1);
-  }
-  provider = createBytePlusProvider({ apiKey });
-} else {
-  console.error("Usage: transcribe.ts <qwen|byteplus> [--enhance]");
+if (!providerName || !registry.get(providerName)) {
+  console.error(`Usage: transcribe.ts <${registry.ids.join("|")}> [--model <id>] [--enhance]`);
   process.exit(1);
 }
+
+const resolution = registry.resolve(process.env, { provider: providerName, model });
+if (!resolution.ok) {
+  const missing = resolution.error.missing ?? [];
+  console.error(
+    missing.length > 0
+      ? `Error: ${missing.join(", ")} is not set.`
+      : `Error: ${resolution.error.message}`,
+  );
+  process.exit(1);
+}
+
+let provider: ASRProvider = resolution.provider;
 
 if (process.argv.includes("--enhance")) {
   if (!process.env.GROQ_API_KEY) {
@@ -58,7 +58,7 @@ function render() {
 // Clear screen on start
 process.stdout.write("\x1b[2J\x1b[H");
 process.stdout.write(
-  `[Session] Using ${providerName}${process.argv.includes("--enhance") ? " + groq" : ""}. Speak — Ctrl+C to stop.\n\n`,
+  `[Session] Using ${providerName} (${resolution.model})${process.argv.includes("--enhance") ? " + groq" : ""}. Speak — Ctrl+C to stop.\n\n`,
 );
 
 const session = provider.createSession({

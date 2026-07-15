@@ -110,17 +110,22 @@ services:
 
 ### Environment variables
 
-| Variable             | Required | Description                                                  |
-| -------------------- | -------- | ------------------------------------------------------------ |
-| `DASHSCOPE_API_KEY`  | Yes      | Alibaba Cloud DashScope key for Qwen3-ASR-Flash              |
-| `API_KEYS`           | No       | Comma-separated `sub:secret` pairs for API key exchange      |
-| `GROQ_API_KEY`       | No       | Groq API key for gpt-oss-120b post-processing                |
-| `OIDC_DISCOVERY_URL` | No       | OIDC provider discovery URL (alternative to API keys)        |
-| `OIDC_CLIENT_ID`     | No       | OIDC client ID (default: `vxbeamer-mobile`)                  |
-| `OIDC_AUDIENCE`      | No       | Expected token audience (default: same as client ID)         |
-| `OIDC_SECRET`        | No       | HMAC secret for session tokens (default: `local-dev-secret`) |
-| `WEBHOOK_URL`        | No       | Endpoint to POST completed transcriptions to                 |
-| `PORT`               | No       | HTTP port (default: `8787`)                                  |
+| Variable               | Required | Description                                                                                              |
+| ---------------------- | -------- | -------------------------------------------------------------------------------------------------------- |
+| `DASHSCOPE_API_KEY`    | Yes      | Alibaba Cloud DashScope key for Qwen3-ASR-Flash                                                          |
+| `API_KEYS`             | No       | Comma-separated `sub:secret` pairs for API key exchange                                                  |
+| `GROQ_API_KEY`         | No       | Groq API key for gpt-oss-120b post-processing                                                            |
+| `ASR_PROVIDER`         | No       | Primary provider: `qwen` (default), `byteplus`, or `mock`                                                |
+| `ASR_MODEL`            | No       | Primary model (default: the provider's own default model)                                                |
+| `ASR_PROVIDERS`        | No       | Comma-separated providers clients may select via `?provider=` (default: every provider with credentials) |
+| `BYTEPLUS_API_KEY`     | No       | BytePlus key; enables the `byteplus` provider                                                            |
+| `BYTEPLUS_RESOURCE_ID` | No       | BytePlus resource id (default: `volc.seedasr.sauc.duration`)                                             |
+| `OIDC_DISCOVERY_URL`   | No       | OIDC provider discovery URL (alternative to API keys)                                                    |
+| `OIDC_CLIENT_ID`       | No       | OIDC client ID (default: `vxbeamer-mobile`)                                                              |
+| `OIDC_AUDIENCE`        | No       | Expected token audience (default: same as client ID)                                                     |
+| `OIDC_SECRET`          | No       | HMAC secret for session tokens (default: `local-dev-secret`)                                             |
+| `WEBHOOK_URL`          | No       | Endpoint to POST completed transcriptions to                                                             |
+| `PORT`                 | No       | HTTP port (default: `8787`)                                                                              |
 
 ## API
 
@@ -157,6 +162,10 @@ Connect to `/sse` to receive real-time events. Pass `?events=<type>` to filter, 
 ### WebSocket protocol
 
 Connect to `/ws?access_token=<token>`. Send raw PCM audio as binary frames (16 kHz, 16-bit signed, mono, little-endian). Send `{ "type": "stop" }` as a text frame to end the session gracefully.
+
+Optionally add `?provider=<id>&model=<id>` to transcribe with a specific ASR model instead of the configured primary. Both are optional: omit them and the session uses `ASR_PROVIDER`/`ASR_MODEL`, post-processed with Groq when `GROQ_API_KEY` is set. Naming a provider or model explicitly returns that model's raw output, without Groq post-processing, so models can be compared head to head.
+
+By default a provider is selectable once the environment carries its credentials — which means `mock`, needing none, is always selectable. Set `ASR_PROVIDERS` to pin the list down explicitly. Requests naming an unknown, unconfigured, or disabled provider or model are closed with code `1008` before any message is created.
 
 ### Authentication
 

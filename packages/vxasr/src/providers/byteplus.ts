@@ -8,6 +8,7 @@ const BYTEPLUS_PRICE_PER_SECOND = 0.15 / 3600;
 
 export interface BytePlusProviderConfig {
   apiKey: string;
+  model?: string;
   resourceId?: string;
   url?: string;
 }
@@ -88,7 +89,11 @@ export function createBytePlusProvider(config: BytePlusProviderConfig): ASRProvi
           buildFullClientRequest({
             user: { uid: "cli-user" },
             audio: { format: "pcm", codec: "raw", rate: 16000, bits: 16, channel: 1 },
-            request: { model_name: "bigmodel", enable_itn: true, enable_punc: true },
+            request: {
+              model_name: config.model ?? "bigmodel",
+              enable_itn: true,
+              enable_punc: true,
+            },
           }),
         );
         ready = true;

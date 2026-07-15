@@ -33,6 +33,43 @@ OpenAI-compatible realtime protocol. `wss://dashscope-intl.aliyuncs.com/api-ws/v
 Usage reported: `dashscope:qwen3-asr-flash:seconds` quantity **10**, unit price `$0.000035` → `$0.000350`.
 With Groq, additionally: `groq:openai/gpt-oss-120b:input-tokens` **224** @ `$1.5e-7`, `output-tokens` **~160** @ `$6e-7` → `$0.000479` total.
 
+## Alibaba Cloud DashScope — Qwen Omni (offline)
+
+**Not** the realtime WS protocol — these are offline/batch models reached over
+HTTP. `POST https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions`
+(OpenAI-compatible), `Authorization: Bearer`, a `messages` array carrying an
+`input_audio` content part (base64 WAV data URI) alongside a text prompt, with
+`modalities: ["text"]`.
+
+The whole 9.218 s clip is uploaded at once; there is no pacing.
+
+Prompt used for every row below — **these models are prompt-driven, so the
+prompt is part of the input**:
+
+> `Transcribe this audio verbatim. Output only the transcript.`
+
+| model                | output                                                                                                                                 | wall  |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| `qwen3.5-omni-plus`  | `โปรเจกต์นี้เขียนด้วยภาษา TypeScript ใช้เฟรมเวิร์กชื่อ Elysia โดย deploy ไปที่ Railway และใช้ MongoDB Atlas เป็นผู้ให้บริการฐานข้อมูล` | 1.7 s |
+| `qwen3-omni-flash`   | `โปรเจกต์นี้เขียนด้วยภาษา TypeScript ใช้เฟรมเวิร์กชื่อ Elysia โดย Deploy ไปที่ Railway และใช้ MongoDB Atlas เป็นผู้ให้บริการฐานข้อมูล` | 1.7 s |
+| `qwen3.5-omni-flash` | `โปรเจกต์นี้เขียนด้วยภาษา TypeScript ใช้เฟรมเวิร์กชื่อ Alecia โดย deploy ไปที่ Railway และใช้ MongoDB Atlas เป็นผู้ให้บริการฐานข้อมูล` | 1.7 s |
+
+**Billing is in tokens, not seconds** — a different cost model from every ASR
+model above:
+
+| model                | prompt (audio + text) | completion | total |
+| -------------------- | --------------------- | ---------- | ----- |
+| `qwen3.5-omni-plus`  | 89 (65 + 24)          | 32         | 121   |
+| `qwen3.5-omni-flash` | 89 (65 + 24)          | 31         | 120   |
+| `qwen3-omni-flash`   | 137 (117 + 20)        | 55         | 192   |
+
+The same audio tokenises differently across the two generations (65 vs 117
+audio tokens).
+
+`qwen3-omni-flash-realtime` was also tried against the **Qwen realtime WS
+protocol** and timed out; see the Qwen table above. These offline rows are a
+different endpoint and a different protocol.
+
 ## Alibaba Cloud DashScope — Fun-ASR
 
 Native run-task protocol. `wss://dashscope-intl.aliyuncs.com/api-ws/v1/inference`, `Authorization: Bearer`, JSON `run-task` → wait `task-started` → **raw binary** audio frames → `finish-task`.
@@ -125,4 +162,8 @@ vp run vxasr#build
 node --env-file=.env packages/vxasr/dist/cli.mjs <configuration-id> testdata/test-audio.bin
 ```
 
-`vxasr --list` shows the configuration ids. Rows for models or parameters that are not in the catalogue (`bigmodel_nostream`, `fun-asr-realtime`, `language_hints`) were produced by throwaway scripts against the same endpoints and are not reproducible from the shipped CLI.
+`vxasr --list` shows the configuration ids.
+
+Rows the shipped CLI **can** reproduce: the pinned Qwen snapshots (raw and `+groq`), and `byteplus/bigmodel_nostream` with `BYTEPLUS_LANGUAGE=th-TH`.
+
+Rows it **cannot**: the floating `qwen3-asr-flash-realtime` id and `byteplus/bigmodel` (both removed from the catalogue), and everything under Fun-ASR and Qwen Omni (no adapter exists). Those came from throwaway scripts against the same endpoints.

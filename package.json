@@ -13,6 +13,7 @@
     "@changesets/cli": "catalog:",
     "@playwright/test": "catalog:",
     "visual-storyboard": "catalog:",
+    "vite": "catalog:",
     "vite-plus": "catalog:"
   },
   "engines": {

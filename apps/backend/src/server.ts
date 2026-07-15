@@ -18,6 +18,7 @@ import {
 import { createSwipedEvent } from "./events.ts";
 import { createSubjectStore, type Message } from "./store.ts";
 import { normalizeTranscriptText } from "./transcript.ts";
+import { applyWinner } from "./winner.ts";
 
 // --- Config ---
 const oidcDiscoveryUrl = process.env.OIDC_DISCOVERY_URL ?? "";
@@ -321,6 +322,39 @@ app.post("/messages/:id/swipe", authMiddleware, (c) => {
   return c.json({ ok: true });
 });
 
+/**
+ * The user picked an eval winner: its transcript becomes this message's answer.
+ *
+ * Eval runs create no message of their own, so there is nothing to merge — this
+ * is an update to the existing message, propagated exactly as the live
+ * transcription path propagates one. The webhook re-fires because downstream
+ * was already told the primary's answer when the recording finished, and this
+ * is the correction; `message.updated` already names what a second update is.
+ */
+app.post("/messages/:id/winner", authMiddleware, async (c) => {
+  const subject = c.get("auth").sub;
+  const message = store.findMessage(subject, c.req.param("id"));
+  if (!message) return c.json({ error: "Not found" }, 404);
+
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "Invalid request body" }, 400);
+  }
+
+  const result = applyWinner(message, body, {
+    isEnabledConfiguration: (id) => configurationSelector.isEnabled(id),
+  });
+  if (!result.ok) {
+    return c.json({ error: result.message }, result.code === "not_replaceable" ? 409 : 400);
+  }
+
+  store.broadcast(subject, { type: "updated", message });
+  void sendWebhook(message);
+  return c.json({ ok: true });
+});
+
 app.get(
   "/ws",
   authMiddleware,
@@ -342,7 +376,7 @@ app.get(
           ws.close(result.code === "not_configured" ? 1011 : 1008, result.message);
           return;
         }
-        const { provider } = result.selection;
+        const { provider, configurationId } = result.selection;
 
         message = {
           id: crypto.randomUUID(),
@@ -350,6 +384,7 @@ app.get(
           status: "recording",
           createdAt: Date.now(),
           updatedAt: Date.now(),
+          configurationId,
         };
         store.addMessage(subject, message);
         store.broadcast(subject, { type: "created", message });

@@ -12,6 +12,13 @@ export interface Message {
   createdAt: number;
   updatedAt: number;
   usage?: UsageRecord[];
+  /**
+   * The model configuration that authored the current answer. Set from the
+   * recording's own configuration, and overwritten when an eval winner replaces
+   * the answer — so a message always says where its transcript came from, and a
+   * second `message.updated` webhook is legible to whoever receives it.
+   */
+  configurationId?: string;
 }
 
 type SseSend = (data: string) => void;

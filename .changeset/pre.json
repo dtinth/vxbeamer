@@ -7,5 +7,5 @@
     "website": "0.0.4",
     "vxasr": "0.0.4"
   },
-  "changesets": []
+  "changesets": ["soft-pans-shake"]
 }

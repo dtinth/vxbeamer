@@ -1,5 +1,10 @@
 import { atom, computed } from "nanostores";
 import { handleDesktopSwipeBehavior, type DesktopSwipeBehavior } from "./desktop.ts";
+import {
+  $retainedRecordings,
+  clearRetainedRecordings,
+  releaseRetainedRecording,
+} from "./recordedAudio.ts";
 
 export interface Message {
   id: string;
@@ -149,7 +154,48 @@ export function clearSessionToken(): void {
   $refreshToken.set(null);
   localStorage.removeItem(SESSION_TOKEN_KEY);
   localStorage.removeItem(REFRESH_TOKEN_KEY);
+  // The session's audio has no owner once the session is gone.
+  claimedRecordingReferenceIds.clear();
+  clearRetainedRecordings();
 }
+
+// Reference ids whose message we have already seen in `$messages`. A retained
+// recording is published before its message arrives over SSE, so absence only
+// means "released" after the message has shown up at least once.
+const claimedRecordingReferenceIds = new Set<string>();
+
+/**
+ * Retained audio lives exactly as long as the message it produced: once that
+ * message is deleted, its PCM is released.
+ */
+function releaseRetainedAudioForGoneMessages(messages: Map<string, Message>): void {
+  const retained = $retainedRecordings.get();
+  if (retained.size === 0) {
+    claimedRecordingReferenceIds.clear();
+    return;
+  }
+
+  const liveReferenceIds = new Set<string>();
+  for (const message of messages.values()) {
+    if (message.referenceId) liveReferenceIds.add(message.referenceId);
+  }
+
+  for (const referenceId of retained.keys()) {
+    if (liveReferenceIds.has(referenceId)) {
+      claimedRecordingReferenceIds.add(referenceId);
+    } else if (claimedRecordingReferenceIds.has(referenceId)) {
+      claimedRecordingReferenceIds.delete(referenceId);
+      releaseRetainedRecording(referenceId);
+    }
+  }
+
+  // Forget ids whose audio the size cap already evicted.
+  for (const referenceId of claimedRecordingReferenceIds) {
+    if (!retained.has(referenceId)) claimedRecordingReferenceIds.delete(referenceId);
+  }
+}
+
+$messages.subscribe(releaseRetainedAudioForGoneMessages);
 
 export function setActiveRecordingReferenceId(referenceId: string | null): void {
   $activeRecordingReferenceId.set(referenceId);

@@ -67,6 +67,63 @@ test("backend URL defaults to blank", async () => {
   expect($backendUrl.get()).toBe("");
 });
 
+test("releases retained audio once its message is deleted", async () => {
+  const [{ applySSEEvent }, { getRetainedRecording, retainRecording }] = await Promise.all([
+    import("./store.ts"),
+    import("./recordedAudio.ts"),
+  ]);
+
+  const retainer = retainRecording("ref-1");
+  retainer.append(new ArrayBuffer(4));
+  retainer.commit();
+
+  const message = {
+    id: "message-1",
+    referenceId: "ref-1",
+    status: "done" as const,
+    final: "Hello",
+    createdAt: 1,
+    updatedAt: 1,
+  };
+
+  applySSEEvent({ type: "created", message });
+  expect(getRetainedRecording("ref-1")).toBeDefined();
+
+  applySSEEvent({ type: "deleted", messageId: "message-1" });
+  expect(getRetainedRecording("ref-1")).toBeUndefined();
+});
+
+test("keeps retained audio while its message has not arrived yet", async () => {
+  const [{ $messages }, { getRetainedRecording, retainRecording }] = await Promise.all([
+    import("./store.ts"),
+    import("./recordedAudio.ts"),
+  ]);
+
+  const retainer = retainRecording("ref-1");
+  retainer.append(new ArrayBuffer(4));
+  retainer.commit();
+
+  // An unrelated message lands before the recording's own message does.
+  $messages.set(new Map([["other", { id: "other", status: "done", createdAt: 1, updatedAt: 1 }]]));
+
+  expect(getRetainedRecording("ref-1")).toBeDefined();
+});
+
+test("releases retained audio when the session is cleared", async () => {
+  const [{ clearSessionToken }, { getRetainedRecording, retainRecording }] = await Promise.all([
+    import("./store.ts"),
+    import("./recordedAudio.ts"),
+  ]);
+
+  const retainer = retainRecording("ref-1");
+  retainer.append(new ArrayBuffer(4));
+  retainer.commit();
+
+  clearSessionToken();
+
+  expect(getRetainedRecording("ref-1")).toBeUndefined();
+});
+
 test("deduplicates swiped SSE events that reuse the same event id", async () => {
   const { applySSEEvent, setDesktopSwipeBehavior } = await import("./store.ts");
 

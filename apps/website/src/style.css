@@ -53,7 +53,33 @@ body {
   transition: width 100ms linear;
 }
 
+/* Drag-charge feedback. Dragging a message out to another app rides the OS
+   long-press "lift", which takes ~0.7s and cannot be shortened from the web
+   (measured: iPad ~654ms, Android ~591ms). So make the wait legible: while a
+   finger holds the bubble, a soft tint fills left→right over that window. Touch
+   only — a mouse drag has no lift delay to fill. MessageFeed drives the fill
+   imperatively; this owns only the look. */
+.charge-sweep {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transform-origin: left center;
+  transform: scaleX(0);
+  opacity: 0;
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--m3-primary) 9%, transparent),
+    color-mix(in srgb, var(--m3-primary) 15%, transparent) 72%,
+    color-mix(in srgb, var(--m3-primary) 26%, transparent)
+  );
+  will-change: transform, opacity;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .charge-sweep {
+    display: none;
+  }
+
   .eval-ellipsis {
     animation: none;
     opacity: 0.6;

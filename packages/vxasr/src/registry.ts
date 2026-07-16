@@ -1,4 +1,5 @@
 import type { ASRProvider } from "./asr.ts";
+import { quoteId } from "./quoteId.ts";
 
 /**
  * Environment-shaped record used to resolve provider credentials.
@@ -38,15 +39,6 @@ export interface ProviderSpec<TConfig> {
   resolveConfig(env: ProviderEnv): ConfigResolution<TConfig>;
   /** Build a provider. `model` is always one of `models`. */
   create(config: TConfig, model: string): ASRProvider;
-}
-
-/**
- * Ids reach us from untrusted query params, and the errors quoting them end up
- * in places with hard length limits (a websocket close reason caps at 123
- * bytes). Keep the echo short so an absurd id cannot burst the frame.
- */
-function quoteId(id: string): string {
-  return JSON.stringify(id.length > 32 ? `${id.slice(0, 32)}…` : id);
 }
 
 export type ProviderErrorCode = "unknown_provider" | "unknown_model" | "not_configured";

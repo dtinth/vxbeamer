@@ -18,12 +18,10 @@ const candidates: EvalCandidateResult[] = [
     configurationId: "qwen/qwen3-asr-flash-realtime",
     transcript: "hello there",
     usage: [{ sku: "qwen-asr", unitPrice: 0.0001, quantity: 9 }],
-    latencyMs: 1200,
   },
   {
     configurationId: "qwen/qwen3-asr-flash-realtime+groq",
     transcript: "Hello there!",
-    latencyMs: 2400,
   },
   { configurationId: "byteplus/bigmodel", error: "socket hang up" },
 ];
@@ -99,7 +97,6 @@ describe("buildVotePayload", () => {
     expect(vote.candidates[0]?.usage).toEqual([
       { sku: "qwen-asr", unitPrice: 0.0001, quantity: 9 },
     ]);
-    expect(vote.candidates[0]?.latencyMs).toBe(1200);
     // A crash is a loss on availability, not on quality.
     expect(vote.candidates[2]?.error).toBe("socket hang up");
   });

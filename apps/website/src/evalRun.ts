@@ -1,4 +1,6 @@
 import { atom, computed, type ReadableAtom } from "nanostores";
+import type { UsageRecord } from "vxasr";
+import { BYTES_PER_SECOND } from "vxasr/audio";
 import { RETAINED_AUDIO_FORMAT } from "./recordedAudio.ts";
 
 /**
@@ -24,18 +26,17 @@ import { RETAINED_AUDIO_FORMAT } from "./recordedAudio.ts";
  * and nowhere else. Nothing here writes to disk, localStorage or IndexedDB.
  */
 
-/** One 100 ms frame at 16 kHz / 16-bit / mono. */
-export const EVAL_FRAME_BYTES = 3200;
+/** One 100 ms frame, derived from the format rather than restated as a literal. */
+export const EVAL_FRAME_BYTES = BYTES_PER_SECOND / 10;
 
 /** See the note above. Do not tune this down. */
 export const EVAL_FRAME_INTERVAL_MS = 100;
 
-/** Wire shape of `UsageRecord` — mirrors what `/asr/eval` sends as JSON. */
-export interface EvalUsageRecord {
-  sku: string;
-  unitPrice: number;
-  quantity: number;
-}
+/**
+ * What `/asr/eval` sends as JSON is a `UsageRecord`; use the real type rather
+ * than a mirror of it, so a change to the SKU shape reaches this file.
+ */
+export type EvalUsageRecord = UsageRecord;
 
 /** Server -> client on `/asr/eval`. Mirrors `EvalServerEvent` on the backend. */
 export type EvalServerEvent =

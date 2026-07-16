@@ -2,10 +2,11 @@ import type { Message } from "./store.ts";
 import { normalizeTranscriptText } from "./transcript.ts";
 
 /**
- * The longest transcript we accept from a client. Intake caps a recording at
- * 20 MB of PCM (~11 minutes), which no honest transcript comes near filling;
- * this only stops an authenticated client from parking megabytes of text in the
- * in-memory message log.
+ * The longest transcript we accept from a client. The backend never saw the
+ * eval that produced it and stores no recording, so it cannot check the text
+ * against anything — this only stops an authenticated client from parking
+ * megabytes of text in the in-memory message log. Far above any honest
+ * transcript: speech runs to roughly 150 words a minute.
  */
 const MAX_TRANSCRIPT_LENGTH = 100_000;
 

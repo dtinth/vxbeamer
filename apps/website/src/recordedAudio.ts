@@ -1,4 +1,5 @@
 import { atom } from "nanostores";
+import { BITS_PER_SAMPLE, BYTES_PER_SECOND, CHANNELS, SAMPLE_RATE } from "vxasr/audio";
 
 /**
  * In-memory retention of the PCM captured for a recording, keyed by the
@@ -10,13 +11,20 @@ import { atom } from "nanostores";
  * Anything that wants to send it must ask the user first.
  */
 
-/** The wire format every retained chunk is in — see `createMicrophoneSource`. */
+/**
+ * The wire format every retained chunk is in — see `createMicrophoneSource`.
+ *
+ * Re-exported from `vxasr/audio` rather than restated: that module owns the
+ * format, and its WAV writer has to agree with the reader that accepts the
+ * output. A second copy of these numbers here would be free to drift from the
+ * ones the encoder actually writes.
+ */
 export const RETAINED_AUDIO_FORMAT = {
-  sampleRate: 16000,
-  bitsPerSample: 16,
-  channels: 1,
-  /** 16000 samples/s x 2 bytes — handy for turning byte counts into seconds. */
-  bytesPerSecond: 32000,
+  sampleRate: SAMPLE_RATE,
+  bitsPerSample: BITS_PER_SAMPLE,
+  channels: CHANNELS,
+  /** Handy for turning byte counts into seconds. */
+  bytesPerSecond: BYTES_PER_SECOND,
 } as const;
 
 /**

@@ -32,8 +32,6 @@ export interface EvalCandidateResult {
   transcript?: string;
   /** Usage the backend reported for this replay, for per-candidate cost. */
   usage?: readonly UsageRecord[];
-  /** Wall-clock ms from replay start to final transcript, if measured. */
-  latencyMs?: number;
   /** Present when this candidate failed rather than produced a transcript. */
   error?: string;
 }
@@ -66,7 +64,6 @@ interface AudioDescriptor {
 export interface VoteCandidate {
   readonly configurationId: string;
   readonly usage?: readonly UsageRecord[];
-  readonly latencyMs?: number;
   readonly error?: string;
 }
 
@@ -137,11 +134,10 @@ export interface EvalSetPayload extends Omit<VotePayload, "type" | "candidates" 
 
 /** Strips `transcript` off a candidate. The vote's privacy promise, in one place. */
 function toVoteCandidate(candidate: EvalCandidateResult): VoteCandidate {
-  const { configurationId, usage, latencyMs, error } = candidate;
+  const { configurationId, usage, error } = candidate;
   return {
     configurationId,
     ...(usage ? { usage } : {}),
-    ...(latencyMs !== undefined ? { latencyMs } : {}),
     ...(error !== undefined ? { error } : {}),
   };
 }

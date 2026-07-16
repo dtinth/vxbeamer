@@ -10,12 +10,14 @@
   "changesets": [
     "asr-cli",
     "byteplus-language",
+    "drag-charge-feedback",
     "eval-configuration-discovery",
     "eval-dialog-prototype",
     "eval-vote-and-eval-set-upload",
     "lazy-eels-repeat",
     "qwen-dated-snapshots",
     "qwen-omni-realtime",
+    "review-fixes",
     "soft-pans-shake"
   ]
 }

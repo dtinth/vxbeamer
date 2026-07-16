@@ -1,5 +1,11 @@
 # vxasr
 
+## 0.1.0-next.3
+
+### Patch Changes
+
+- 2fd891a: Remove a `latencyMs` field nothing produced, share `quoteId` between the provider registry and the configuration catalogue, and derive the frontend's audio constants from `vxasr/audio` rather than restating them.
+
 ## 0.1.0-next.2
 
 ### Minor Changes

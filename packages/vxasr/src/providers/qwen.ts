@@ -1,8 +1,7 @@
 import WebSocket from "ws";
 import type { ASRProvider, ASRSession, ASRSessionCallbacks } from "../asr.ts";
+import { BYTES_PER_SECOND } from "../audio.ts";
 
-// 16kHz 16-bit mono = 32000 bytes/sec
-const BYTES_PER_SECOND = 32000;
 const QWEN_PRICE_PER_SECOND = 0.000035;
 
 export interface QwenProviderConfig {

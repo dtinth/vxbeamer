@@ -1,9 +1,8 @@
 import WebSocket from "ws";
 import { randomUUID } from "crypto";
 import type { ASRProvider, ASRSession, ASRSessionCallbacks } from "../asr.ts";
+import { BYTES_PER_SECOND } from "../audio.ts";
 
-// 16kHz 16-bit mono = 32000 bytes/sec
-const BYTES_PER_SECOND = 32000;
 const BYTEPLUS_PRICE_PER_SECOND = 0.15 / 3600;
 
 export interface BytePlusProviderConfig {

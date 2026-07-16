@@ -22,6 +22,13 @@ import {
 const SWIPE_GLOW_DURATION_MS = 900;
 const DRAG_CLICK_SUPPRESSION_MS = 250;
 const DRAG_FREEZE_DELAY_MS = 50;
+/** How long the charge tint takes to fill — sized to the OS long-press lift the
+ *  drag rides (measured ~590–654ms across iPad/Android), rounded up so the fill
+ *  is still travelling when the lift lands rather than sitting full and idle. */
+const DRAG_CHARGE_MS = 700;
+/** Finger travel that means "I'm swiping/scrolling", not holding to lift — abort
+ *  the charge. The card is a horizontal swipe surface, so movement is common. */
+const DRAG_CHARGE_ABORT_PX = 12;
 
 function MessageCard({
   message,
@@ -50,6 +57,10 @@ function MessageCard({
   const suppressClickTimeoutRef = useRef<number | null>(null);
   const dragFreezeTimeoutRef = useRef<number | null>(null);
   const swipeableRef = useRef(message.status !== "recording");
+  const sweepRef = useRef<HTMLDivElement>(null);
+  const chargingRef = useRef(false);
+  const chargeStartRef = useRef<{ x: number; y: number } | null>(null);
+  const sweepResetTimeoutRef = useRef<number | null>(null);
 
   const text =
     message.final ??
@@ -161,11 +172,92 @@ function MessageCard({
     });
   };
 
+  // --- Drag-charge feedback (touch only) ---------------------------------
+  //
+  // Dragging a message out to another app rides the OS long-press lift, which
+  // takes ~0.7s and is not web-adjustable. The tint sweeps left→right over that
+  // window so the wait is legible; dragstart rushes it home, a swipe/scroll/tap
+  // slides it back. Driven imperatively (like the swipe gestures here) to keep
+  // per-frame touch work off React's render path.
+  const clearSweepReset = () => {
+    if (sweepResetTimeoutRef.current !== null) {
+      window.clearTimeout(sweepResetTimeoutRef.current);
+      sweepResetTimeoutRef.current = null;
+    }
+  };
+
+  const restSweep = () => {
+    const el = sweepRef.current;
+    if (!el) return;
+    el.style.transition = "none";
+    el.style.transform = "scaleX(0)";
+    el.style.opacity = "0";
+  };
+
+  const startCharge = (x: number, y: number) => {
+    const el = sweepRef.current;
+    if (!el || !copyable) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    clearSweepReset();
+    chargingRef.current = true;
+    chargeStartRef.current = { x, y };
+    // Snap to empty-but-visible, commit it, then fill over the hold window.
+    el.style.transition = "none";
+    el.style.transform = "scaleX(0)";
+    el.style.opacity = "1";
+    void el.offsetWidth;
+    el.style.transition = `transform ${DRAG_CHARGE_MS}ms linear, opacity 120ms ease-out`;
+    el.style.transform = "scaleX(1)";
+  };
+
+  // Called from dragstart. A no-op unless a touch charge is live, which is what
+  // keeps this touch-only: a mouse drag never armed one.
+  const completeCharge = () => {
+    const el = sweepRef.current;
+    if (!el || !chargingRef.current) return;
+    chargingRef.current = false;
+    chargeStartRef.current = null;
+    clearSweepReset();
+    el.style.transition = "transform 130ms ease-out, opacity 240ms ease-out";
+    el.style.transform = "scaleX(1)";
+    el.style.opacity = "0";
+    sweepResetTimeoutRef.current = window.setTimeout(restSweep, 260);
+  };
+
+  // Swipe, scroll, or tap-release before the lift: reverse to the left and fade
+  // at once, so it does not linger as a half-full bar.
+  const abortCharge = () => {
+    const el = sweepRef.current;
+    if (!el || !chargingRef.current) return;
+    chargingRef.current = false;
+    chargeStartRef.current = null;
+    clearSweepReset();
+    el.style.transition = "transform 200ms ease-in, opacity 200ms ease-in";
+    el.style.transform = "scaleX(0)";
+    el.style.opacity = "0";
+    sweepResetTimeoutRef.current = window.setTimeout(restSweep, 220);
+  };
+
+  const handleChargeTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    const touch = event.touches[0];
+    if (touch) startCharge(touch.clientX, touch.clientY);
+  };
+
+  const handleChargeTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
+    const start = chargeStartRef.current;
+    const touch = event.touches[0];
+    if (!start || !touch) return;
+    if (Math.hypot(touch.clientX - start.x, touch.clientY - start.y) > DRAG_CHARGE_ABORT_PX) {
+      abortCharge();
+    }
+  };
+
   const handleDragStart = (event: React.DragEvent<HTMLDivElement>) => {
     if (!copyable) {
       event.preventDefault();
       return;
     }
+    completeCharge();
     scheduleClickSuppression();
     if (dragFreezeTimeoutRef.current !== null) {
       window.clearTimeout(dragFreezeTimeoutRef.current);
@@ -186,6 +278,14 @@ function MessageCard({
     }
     document.body.removeAttribute("data-dragging-message");
   };
+
+  useEffect(() => {
+    return () => {
+      if (sweepResetTimeoutRef.current !== null) {
+        window.clearTimeout(sweepResetTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (swipeHighlightKey === null) return;
@@ -268,13 +368,18 @@ function MessageCard({
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
           onClick={handleClick}
+          onTouchStart={handleChargeTouchStart}
+          onTouchMove={handleChargeTouchMove}
+          onTouchEnd={abortCharge}
+          onTouchCancel={abortCharge}
           className={[
-            "snap-center flex-none bg-(--m3-surface-container-high) px-4 py-3",
+            "relative snap-center flex-none bg-(--m3-surface-container-high) px-4 py-3",
             copyable ? "cursor-pointer active:bg-(--m3-surface-container-highest)" : "",
           ].join(" ")}
           style={{ width: "100%" }}
         >
-          <div className="mb-1 flex items-center gap-2">
+          {copyable && <div ref={sweepRef} aria-hidden="true" className="charge-sweep" />}
+          <div className="relative z-10 mb-1 flex items-center gap-2">
             <span className="text-xs text-(--m3-on-surface-variant)">{time}</span>
             {message.status === "recording" && (
               <span className="flex items-center gap-1 text-xs text-(--m3-error)">
@@ -324,7 +429,7 @@ function MessageCard({
             </span>
           </div>
           <p
-            className={`text-sm whitespace-pre-wrap leading-relaxed ${message.final ? "text-(--m3-on-surface)" : "text-(--m3-on-surface-variant)"}`}
+            className={`relative z-10 text-sm whitespace-pre-wrap leading-relaxed ${message.final ? "text-(--m3-on-surface)" : "text-(--m3-on-surface-variant)"}`}
           >
             {text}
           </p>

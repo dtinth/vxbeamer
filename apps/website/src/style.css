@@ -75,6 +75,15 @@ body {
   will-change: transform, opacity;
 }
 
+/* Baked into the custom drag image: the sweep filled and flat. A still can't
+   sweep, so the gradient would read as a frozen seam — instead, a flat wash of
+   the gradient's lightest stop, so the dragged bubble looks gently charged. */
+.charge-sweep--baked {
+  transform: scaleX(1);
+  opacity: 1;
+  background: color-mix(in srgb, var(--m3-primary) 9%, transparent);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .charge-sweep {
     display: none;

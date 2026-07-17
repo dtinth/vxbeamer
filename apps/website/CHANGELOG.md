@@ -1,5 +1,13 @@
 # website
 
+## 0.1.0-next.4
+
+### Patch Changes
+
+- b89025e: Bake a flat charge tint into the message drag image: the dragged bubble now carries a solid wash of the charge sweep's lightest tint (rather than being plain), so it reads as gently charged. Flat, not the gradient — a still image can't sweep.
+- 6fbe108: Give the message drag a custom drag image: a squared-off clone of the bubble without the charge sweep, so dragging a message out to another app shows a clean rectangle instead of the browser's default screenshot (which drags the rounded corners as opaque corners and freezes the sweep mid-fill). Verified on iPadOS Safari and Android Chrome.
+  - vxasr@0.1.0-next.4
+
 ## 0.1.0-next.3
 
 ### Patch Changes

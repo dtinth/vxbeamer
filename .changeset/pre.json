@@ -9,8 +9,10 @@
   },
   "changesets": [
     "asr-cli",
+    "baked-drag-tint",
     "byteplus-language",
     "drag-charge-feedback",
+    "drag-image-preview",
     "eval-configuration-discovery",
     "eval-dialog-prototype",
     "eval-vote-and-eval-set-upload",

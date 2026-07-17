@@ -274,14 +274,20 @@ function MessageCard({
 
   // The browser's default drag image is a screenshot of the bubble, which drags
   // its rounded corners as opaque rectangle corners and — on touch — freezes the
-  // charge sweep mid-fill. Replace it with a squared-off clone of the bubble
-  // without the sweep. An off-screen clone is what survives here: verified on
-  // iPadOS Safari and Android Chrome, where staging it on-screen-but-hidden
-  // instead snapshots as an empty black rectangle.
+  // charge sweep mid-fill. Replace it with a squared-off clone of the bubble.
+  // An off-screen clone is what survives here: verified on iPadOS Safari and
+  // Android Chrome, where staging it on-screen-but-hidden instead snapshots as
+  // an empty black rectangle.
   const applyCustomDragImage = (bubble: HTMLElement, event: React.DragEvent<HTMLDivElement>) => {
     const rect = bubble.getBoundingClientRect();
     const clone = bubble.cloneNode(true) as HTMLElement;
-    clone.querySelector(".charge-sweep")?.remove();
+    // Bake the sweep into the clone at a flat, full fill — drop the live
+    // element's imperative transform/opacity so the `--baked` class takes over.
+    const clonedSweep = clone.querySelector<HTMLElement>(".charge-sweep");
+    if (clonedSweep) {
+      clonedSweep.removeAttribute("style");
+      clonedSweep.classList.add("charge-sweep--baked");
+    }
     // Pin the width: the bubble is width:100% of the scroll viewport, and a clone
     // appended to <body> would otherwise re-resolve that to the full page width.
     clone.style.width = `${rect.width}px`;

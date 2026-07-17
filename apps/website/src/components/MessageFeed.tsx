@@ -61,6 +61,7 @@ function MessageCard({
   const chargingRef = useRef(false);
   const chargeStartRef = useRef<{ x: number; y: number } | null>(null);
   const sweepResetTimeoutRef = useRef<number | null>(null);
+  const dragImageRef = useRef<HTMLElement | null>(null);
 
   const text =
     message.final ??
@@ -268,6 +269,41 @@ function MessageCard({
     }, DRAG_FREEZE_DELAY_MS);
     event.dataTransfer.effectAllowed = "copy";
     event.dataTransfer.setData("text/plain", text);
+    applyCustomDragImage(event.currentTarget, event);
+  };
+
+  // The browser's default drag image is a screenshot of the bubble, which drags
+  // its rounded corners as opaque rectangle corners and — on touch — freezes the
+  // charge sweep mid-fill. Replace it with a squared-off clone of the bubble
+  // without the sweep. An off-screen clone is what survives here: verified on
+  // iPadOS Safari and Android Chrome, where staging it on-screen-but-hidden
+  // instead snapshots as an empty black rectangle.
+  const applyCustomDragImage = (bubble: HTMLElement, event: React.DragEvent<HTMLDivElement>) => {
+    const rect = bubble.getBoundingClientRect();
+    const clone = bubble.cloneNode(true) as HTMLElement;
+    clone.querySelector(".charge-sweep")?.remove();
+    // Pin the width: the bubble is width:100% of the scroll viewport, and a clone
+    // appended to <body> would otherwise re-resolve that to the full page width.
+    clone.style.width = `${rect.width}px`;
+    clone.style.margin = "0";
+    clone.style.borderRadius = "0";
+    clone.style.position = "absolute";
+    clone.style.top = "-9999px";
+    clone.style.left = "0";
+    clone.style.pointerEvents = "none";
+    document.body.appendChild(clone);
+    dragImageRef.current = clone;
+    // Keep the grab point under the finger: prefer the held touch point, fall
+    // back to the drag event's own coordinates for a mouse.
+    const point = chargeStartRef.current ?? { x: event.clientX, y: event.clientY };
+    const offsetX = Math.max(0, Math.min(rect.width, point.x - rect.left));
+    const offsetY = Math.max(0, Math.min(rect.height, point.y - rect.top));
+    event.dataTransfer.setDragImage(clone, offsetX, offsetY);
+  };
+
+  const removeDragImage = () => {
+    dragImageRef.current?.remove();
+    dragImageRef.current = null;
   };
 
   const handleDragEnd = () => {
@@ -277,6 +313,7 @@ function MessageCard({
       dragFreezeTimeoutRef.current = null;
     }
     document.body.removeAttribute("data-dragging-message");
+    removeDragImage();
   };
 
   useEffect(() => {
@@ -284,6 +321,8 @@ function MessageCard({
       if (sweepResetTimeoutRef.current !== null) {
         window.clearTimeout(sweepResetTimeoutRef.current);
       }
+      // If the component unmounts mid-drag, dragend never fires to clean up.
+      dragImageRef.current?.remove();
     };
   }, []);
 

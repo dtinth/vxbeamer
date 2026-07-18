@@ -61,6 +61,26 @@ test("stores audio processing mode in localStorage", async () => {
   expect($audioProcessingMode.get()).toBe("off");
 });
 
+test("stores transcript list mode in localStorage", async () => {
+  const { $transcriptListMode, setTranscriptListMode } = await import("./store.ts");
+
+  expect($transcriptListMode.get()).toBe("all");
+
+  setTranscriptListMode("latest");
+  expect($transcriptListMode.get()).toBe("latest");
+  expect(localStorage.getItem("vxbeamer_transcript_list_mode")).toBe("latest");
+});
+
+test("stores recording button size in localStorage", async () => {
+  const { $recordingButtonSize, setRecordingButtonSize } = await import("./store.ts");
+
+  expect($recordingButtonSize.get()).toBe("default");
+
+  setRecordingButtonSize("hidden");
+  expect($recordingButtonSize.get()).toBe("hidden");
+  expect(localStorage.getItem("vxbeamer_recording_button_size")).toBe("hidden");
+});
+
 test("backend URL defaults to blank", async () => {
   const { $backendUrl } = await import("./store.ts");
 

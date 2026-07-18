@@ -6,7 +6,9 @@ import {
   $lastSwipedMessage,
   $messages,
   $sessionToken,
+  $transcriptListMode,
   markPendingLocalSwipe,
+  TRANSCRIPT_LIST_LIMIT,
   type Message,
 } from "../store.ts";
 import { $retainedRecordings } from "../recordedAudio.ts";
@@ -17,6 +19,8 @@ import {
   getMessageFeedScrollBehavior,
   MESSAGE_CARD_ACTION_WIDTH,
   MESSAGE_CARD_SNAP_TOLERANCE,
+  MESSAGE_FEED_PRUNE_FALLBACK_MS,
+  selectVisibleMessages,
 } from "./messageFeedScroll.ts";
 
 const SWIPE_GLOW_DURATION_MS = 900;
@@ -527,11 +531,43 @@ export function MessageFeed({ onOpenSettings }: MessageFeedProps = {}) {
   const retainedRecordings = useStore($retainedRecordings);
   const authToken = useStore($sessionToken);
   const backendUrl = useStore($backendUrl);
+  const transcriptListMode = useStore($transcriptListMode);
   const [evalMessageId, setEvalMessageId] = useState<string | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const hasScrolledInitiallyRef = useRef(false);
+  // Ids committed to the DOM on the previous render, and a mirror of the ids
+  // we are currently keeping mounted past the trim — both read from effects.
+  const prevDisplayedRef = useRef<string[]>([]);
+  const retainedIdsRef = useRef<string[]>([]);
 
-  const messages = Array.from(messagesMap.values()).sort((a, b) => a.createdAt - b.createdAt);
+  const sorted = Array.from(messagesMap.values()).sort((a, b) => a.createdAt - b.createdAt);
+  const limit = transcriptListMode === "latest" ? TRANSCRIPT_LIST_LIMIT : null;
+  const target = selectVisibleMessages(sorted, limit);
+
+  // When the message set or the trim mode changes, hold onto whatever was on
+  // screen a moment ago so trimmed bubbles do not pop out before we have
+  // scrolled. Updating state during render keeps this flicker-free — React
+  // re-renders with the retained ids before the browser paints.
+  const [snapshot, setSnapshot] = useState<{
+    map: Map<string, Message>;
+    mode: string;
+    retainedIds: string[];
+  }>(() => ({ map: messagesMap, mode: transcriptListMode, retainedIds: [] }));
+  if (snapshot.map !== messagesMap || snapshot.mode !== transcriptListMode) {
+    setSnapshot({
+      map: messagesMap,
+      mode: transcriptListMode,
+      retainedIds:
+        limit === null ? [] : prevDisplayedRef.current.filter((id) => messagesMap.has(id)),
+    });
+  }
+
+  const keptIds = new Set(target.map((m) => m.id));
+  for (const id of snapshot.retainedIds) keptIds.add(id);
+  const messages = limit === null ? sorted : sorted.filter((m) => keptIds.has(m.id));
+  retainedIdsRef.current = messages.length > target.length ? snapshot.retainedIds : [];
+
   const evalMessage = evalMessageId ? messagesMap.get(evalMessageId) : undefined;
 
   const canEval = (message: Message): boolean =>
@@ -540,14 +576,41 @@ export function MessageFeed({ onOpenSettings }: MessageFeedProps = {}) {
     !!retainedRecordings.get(message.referenceId)?.chunks.length;
 
   useEffect(() => {
-    if (messages.length === 0) return;
-    bottomRef.current?.scrollIntoView({
-      behavior: getMessageFeedScrollBehavior(hasScrolledInitiallyRef.current),
-    });
-    hasScrolledInitiallyRef.current = true;
-  }, [messages]);
+    prevDisplayedRef.current = messages.map((m) => m.id);
+  });
 
-  if (messages.length === 0) {
+  useEffect(() => {
+    if (sorted.length === 0) return;
+    const behavior = getMessageFeedScrollBehavior(hasScrolledInitiallyRef.current);
+    bottomRef.current?.scrollIntoView({ behavior });
+    hasScrolledInitiallyRef.current = true;
+
+    // Nothing is being held past the trim, so there is nothing to prune.
+    if (retainedIdsRef.current.length === 0) return;
+
+    // Drop the retained bubbles only once the scroll has come to rest, so they
+    // leave the DOM without yanking the viewport mid-animation. `scrollend`
+    // covers the smooth scroll; the timeout covers the case where the feed was
+    // already at the bottom and no scroll (hence no `scrollend`) ever happens.
+    const container = scrollContainerRef.current;
+    let settled = false;
+    const prune = () => {
+      if (settled) return;
+      settled = true;
+      container?.removeEventListener("scrollend", prune);
+      window.clearTimeout(fallback);
+      setSnapshot((s) => (s.retainedIds.length === 0 ? s : { ...s, retainedIds: [] }));
+    };
+    const fallback = window.setTimeout(prune, MESSAGE_FEED_PRUNE_FALLBACK_MS);
+    container?.addEventListener("scrollend", prune);
+    return () => {
+      settled = true;
+      container?.removeEventListener("scrollend", prune);
+      window.clearTimeout(fallback);
+    };
+  }, [messagesMap, transcriptListMode]);
+
+  if (sorted.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3 px-6 text-center">
@@ -571,7 +634,7 @@ export function MessageFeed({ onOpenSettings }: MessageFeedProps = {}) {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto py-1">
+    <div ref={scrollContainerRef} className="flex-1 overflow-y-auto py-1">
       <div className="h-[50vh]" />
       {messages.map((msg) => (
         <MessageCard

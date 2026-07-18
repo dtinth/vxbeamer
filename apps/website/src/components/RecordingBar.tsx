@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useStore } from "@nanostores/react";
 import {
   $audioProcessingMode,
+  $recordingButtonSize,
   $sessionToken,
   $backendUrl,
   $wakeLockMode,
@@ -25,6 +26,7 @@ export function RecordingBar({
   const backendUrl = useStore($backendUrl);
   const audioProcessingMode = useStore($audioProcessingMode);
   const wakeLockMode = useStore($wakeLockMode);
+  const recordingButtonSize = useStore($recordingButtonSize);
   const [isRecording, setIsRecording] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -242,10 +244,19 @@ export function RecordingBar({
 
   const canRecord = !!authToken;
 
+  // The button is hidden entirely for display-only use — the component stays
+  // mounted so an in-progress recording and the always-on wake lock keep going.
+  if (recordingButtonSize === "hidden") return null;
+
+  const isSmall = recordingButtonSize === "small";
+  const buttonBoxClass = isSmall ? "w-20 h-20" : "w-32 h-32";
+  const innerSizeClass = isSmall ? "w-7 h-7" : "w-10 h-10";
+  const settingsIconSize = isSmall ? 28 : 40;
+
   return (
     <div className="flex-none border-t border-(--m3-outline-variant) px-4 py-4">
       {error && <p className="text-xs text-(--m3-error) mb-2 text-center">{error}</p>}
-      <div className="relative h-32 flex items-center justify-center">
+      <div className={`relative flex items-center justify-center ${isSmall ? "h-24" : "h-32"}`}>
         <canvas
           ref={canvasRef}
           width={600}
@@ -255,23 +266,22 @@ export function RecordingBar({
         <button
           onClick={handleToggle}
           className={[
-            "relative z-10 w-32 h-32 rounded-full flex items-center justify-center transition-all shadow-lg",
+            "relative z-10 rounded-full flex items-center justify-center transition-all shadow-lg",
+            buttonBoxClass,
             isRecording
               ? "bg-red-500 scale-110 shadow-red-500/50"
-              : canRecord
-                ? "bg-(--m3-surface-container-high) hover:bg-(--m3-surface-container-highest) active:scale-95"
-                : "bg-(--m3-surface-container-high) hover:bg-(--m3-surface-container-highest) active:scale-95",
+              : "bg-(--m3-surface-container-high) hover:bg-(--m3-surface-container-highest) active:scale-95",
           ].join(" ")}
           aria-label={
             isRecording ? "Stop recording" : canRecord ? "Start recording" : "Open settings"
           }
         >
           {isRecording ? (
-            <span className="w-10 h-10 rounded-md bg-(--m3-on-error)" />
+            <span className={`${innerSizeClass} rounded-md bg-(--m3-on-error)`} />
           ) : canRecord ? (
-            <span className="w-10 h-10 rounded-full bg-red-500" />
+            <span className={`${innerSizeClass} rounded-full bg-red-500`} />
           ) : (
-            <SettingsIcon size={40} />
+            <SettingsIcon size={settingsIconSize} />
           )}
         </button>
       </div>

@@ -27,6 +27,10 @@ test("web sign-in actions are disabled until the backend URL is filled", async (
   expect(markup).toContain("Audio Processing");
   expect(markup).toContain(">On<");
   expect(markup).toContain(">Off<");
+  expect(markup).toContain("Transcript history");
+  expect(markup).toContain("Latest 10 only");
+  expect(markup).toContain("Recording button");
+  expect(markup).toContain("Refresh app");
   expect(markup).toContain("Sign in with OIDC");
   expect(markup).toContain("Log in with another browser");
   expect(markup).toContain("disabled");

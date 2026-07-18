@@ -25,6 +25,8 @@ const REFRESH_TOKEN_KEY = "vxbeamer_refresh_token";
 const WAKE_LOCK_KEY = "vxbeamer_wake_lock";
 const AUDIO_PROCESSING_KEY = "vxbeamer_audio_processing";
 const DESKTOP_SWIPE_BEHAVIOR_KEY = "vxbeamer_desktop_swipe_behavior";
+const TRANSCRIPT_LIST_MODE_KEY = "vxbeamer_transcript_list_mode";
+const RECORDING_BUTTON_SIZE_KEY = "vxbeamer_recording_button_size";
 const TOKEN_CHECK_INTERVAL_SECONDS = 60; // Check every minute if we need to refresh
 // Keep locally triggered swipes pending long enough for the matching SSE echo to arrive.
 const PENDING_LOCAL_SWIPE_TIMEOUT_MS = 5000;
@@ -106,6 +108,36 @@ export function setAudioProcessingMode(mode: AudioProcessingMode): void {
 export function setDesktopSwipeBehavior(mode: DesktopSwipeBehavior): void {
   $desktopSwipeBehavior.set(mode);
   localStorage.setItem(DESKTOP_SWIPE_BEHAVIOR_KEY, mode);
+}
+
+// How many transcripts the feed keeps on screen. "latest" trims to the newest
+// TRANSCRIPT_LIST_LIMIT bubbles; a purely visual, per-browser preference.
+export type TranscriptListMode = "all" | "latest";
+export const TRANSCRIPT_LIST_LIMIT = 10;
+
+function loadTranscriptListMode(): TranscriptListMode {
+  return localStorage.getItem(TRANSCRIPT_LIST_MODE_KEY) === "latest" ? "latest" : "all";
+}
+
+export const $transcriptListMode = atom<TranscriptListMode>(loadTranscriptListMode());
+
+export function setTranscriptListMode(mode: TranscriptListMode): void {
+  $transcriptListMode.set(mode);
+  localStorage.setItem(TRANSCRIPT_LIST_MODE_KEY, mode);
+}
+
+export type RecordingButtonSize = "default" | "small" | "hidden";
+
+function loadRecordingButtonSize(): RecordingButtonSize {
+  const value = localStorage.getItem(RECORDING_BUTTON_SIZE_KEY);
+  return value === "small" || value === "hidden" ? value : "default";
+}
+
+export const $recordingButtonSize = atom<RecordingButtonSize>(loadRecordingButtonSize());
+
+export function setRecordingButtonSize(size: RecordingButtonSize): void {
+  $recordingButtonSize.set(size);
+  localStorage.setItem(RECORDING_BUTTON_SIZE_KEY, size);
 }
 
 export const $backendUrl = atom<string>(localStorage.getItem(BACKEND_URL_KEY) ?? "");

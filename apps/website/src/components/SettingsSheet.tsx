@@ -4,7 +4,9 @@ import {
   $audioProcessingMode,
   $backendUrl,
   $desktopSwipeBehavior,
+  $recordingButtonSize,
   $sessionToken,
+  $transcriptListMode,
   $userInfo,
   $wakeLockMode,
   $wakeLockActive,
@@ -12,9 +14,13 @@ import {
   clearSessionToken,
   setAudioProcessingMode,
   setDesktopSwipeBehavior,
+  setRecordingButtonSize,
+  setTranscriptListMode,
   setWakeLockMode,
   saveSessionToken,
   type AudioProcessingMode,
+  type RecordingButtonSize,
+  type TranscriptListMode,
   type WakeLockMode,
 } from "../store.ts";
 import { startSignIn } from "../oidc.ts";
@@ -32,6 +38,8 @@ export function SettingsSheet({ open: controlledOpen, onOpenChange }: SettingsSh
   const backendUrl = useStore($backendUrl);
   const audioProcessingMode = useStore($audioProcessingMode);
   const desktopSwipeBehavior = useStore($desktopSwipeBehavior);
+  const transcriptListMode = useStore($transcriptListMode);
+  const recordingButtonSize = useStore($recordingButtonSize);
   const sessionToken = useStore($sessionToken);
   const userInfo = useStore($userInfo);
   const wakeLockMode = useStore($wakeLockMode);
@@ -74,7 +82,7 @@ export function SettingsSheet({ open: controlledOpen, onOpenChange }: SettingsSh
       onClick={() => setOpen(false)}
     >
       <div
-        className="bg-(--m3-surface-container-high) rounded-t-2xl px-4 pt-5 pb-10 space-y-5"
+        className="bg-(--m3-surface-container-high) rounded-t-2xl px-4 pt-5 pb-10 space-y-5 max-h-[85dvh] overflow-y-auto overscroll-contain"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
@@ -135,6 +143,35 @@ export function SettingsSheet({ open: controlledOpen, onOpenChange }: SettingsSh
           >
             <option value="on">On</option>
             <option value="off">Off</option>
+          </select>
+        </div>
+
+        <div className="space-y-1.5">
+          <span className="text-xs font-medium text-(--m3-on-surface-variant) uppercase tracking-wider">
+            Transcript history
+          </span>
+          <select
+            value={transcriptListMode}
+            onChange={(e) => setTranscriptListMode(e.target.value as TranscriptListMode)}
+            className="w-full bg-(--m3-surface-container-highest) rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-(--m3-outline) appearance-none"
+          >
+            <option value="all">Show all</option>
+            <option value="latest">Latest 10 only</option>
+          </select>
+        </div>
+
+        <div className="space-y-1.5">
+          <span className="text-xs font-medium text-(--m3-on-surface-variant) uppercase tracking-wider">
+            Recording button
+          </span>
+          <select
+            value={recordingButtonSize}
+            onChange={(e) => setRecordingButtonSize(e.target.value as RecordingButtonSize)}
+            className="w-full bg-(--m3-surface-container-highest) rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-(--m3-outline) appearance-none"
+          >
+            <option value="default">Default</option>
+            <option value="small">Small</option>
+            <option value="hidden">Hidden</option>
           </select>
         </div>
 
@@ -219,6 +256,15 @@ export function SettingsSheet({ open: controlledOpen, onOpenChange }: SettingsSh
               )}
             </>
           )}
+        </div>
+
+        <div className="pt-1 border-t border-(--m3-outline-variant)">
+          <button
+            onClick={() => location.reload()}
+            className="w-full mt-4 py-3 rounded-xl bg-(--m3-surface-container-highest) hover:bg-(--m3-surface-bright) text-sm font-medium transition-colors"
+          >
+            Refresh app
+          </button>
         </div>
 
         {authModalOpen && (

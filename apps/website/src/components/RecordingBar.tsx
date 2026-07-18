@@ -254,7 +254,9 @@ export function RecordingBar({
   const settingsIconSize = isSmall ? 28 : 40;
 
   return (
-    <div className="flex-none border-t border-(--m3-outline-variant) px-4 py-4">
+    <div
+      className={`flex-none border-t border-(--m3-outline-variant) px-4 ${isSmall ? "py-1.5" : "py-4"}`}
+    >
       {error && <p className="text-xs text-(--m3-error) mb-2 text-center">{error}</p>}
       <div className={`relative flex items-center justify-center ${isSmall ? "h-24" : "h-32"}`}>
         <canvas

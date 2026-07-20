@@ -136,6 +136,7 @@ export function createBytePlusProvider(config: BytePlusProviderConfig): ASRProvi
       let buffer = Buffer.alloc(0);
       let ready = false;
       let finishing = false;
+      let closed = false;
       let totalBytesSent = 0;
 
       function flushBuffer() {
@@ -184,6 +185,7 @@ export function createBytePlusProvider(config: BytePlusProviderConfig): ASRProvi
       });
 
       ws.on("message", (raw: Buffer) => {
+        if (closed) return;
         const { isLast, text, error } = parseServerMessage(raw as Buffer);
 
         if (error) {
@@ -209,7 +211,13 @@ export function createBytePlusProvider(config: BytePlusProviderConfig): ASRProvi
         }
       });
 
-      ws.on("error", (err: Error) => callbacks.onError?.(err));
+      ws.on("error", (err: Error) => {
+        if (closed) return;
+        callbacks.onError?.(err);
+        // A transport error leaves the socket half-open; close it so its slot in
+        // the vendor's connection pool is released rather than lingering.
+        ws.close();
+      });
 
       return {
         sendAudio(chunk: Buffer) {
@@ -225,6 +233,16 @@ export function createBytePlusProvider(config: BytePlusProviderConfig): ASRProvi
           // the handshake it must follow has gone out.
           if (!ready || ws.readyState !== WebSocket.OPEN) return;
           sendLastPacket();
+        },
+
+        close() {
+          if (closed) return;
+          closed = true;
+          // Stop feeding and finishing; from here the socket is being torn down,
+          // not wound down. `terminate` releases the connection immediately in
+          // any state (CONNECTING included), which `close()` cannot promise.
+          finishing = true;
+          ws.terminate();
         },
       };
     },

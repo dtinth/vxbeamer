@@ -1,6 +1,7 @@
 import type { WSContext, WSMessageReceive } from "hono/ws";
 import type { ASRSession, UsageRecord } from "vxasr";
 import type { ConfigurationSelector } from "./asr.ts";
+import { createIdleWatchdog, type IdleWatchdog } from "./idleWatchdog.ts";
 import { normalizeTranscriptText } from "./transcript.ts";
 
 /**
@@ -41,7 +42,16 @@ export interface EvalSocketOptions {
   selector: Pick<ConfigurationSelector, "select">;
   /** The `?configuration=` query param, if the client sent a non-empty one. */
   configuration: string | undefined;
+  /**
+   * Kick the session if it goes this long without audio, reclaiming its vendor
+   * connection — the same cap the recording socket guards against. An eval
+   * fans one of these out per configuration, so a stalled fan-out can hold
+   * several vendor slots at once. Non-positive disables it; defaults to 60s.
+   */
+  idleTimeoutMs?: number;
 }
+
+const DEFAULT_IDLE_TIMEOUT_MS = 60_000;
 
 /**
  * A `hono/ws` handler set. Structurally typed rather than imported as `WSEvents`
@@ -54,9 +64,11 @@ export interface EvalSocketHandler {
 }
 
 export function createEvalSocketHandler(options: EvalSocketOptions): EvalSocketHandler {
+  const idleTimeoutMs = options.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS;
   let session: ASRSession | null = null;
   let finished = false;
   let closed = false;
+  let idle: IdleWatchdog | null = null;
 
   const send = (ws: WSContext, event: EvalServerEvent): void => {
     if (closed) return;
@@ -66,6 +78,7 @@ export function createEvalSocketHandler(options: EvalSocketOptions): EvalSocketH
   const close = (ws: WSContext, code: number, reason: string): void => {
     if (closed) return;
     closed = true;
+    idle?.stop();
     ws.close(code, reason);
   };
 
@@ -104,6 +117,22 @@ export function createEvalSocketHandler(options: EvalSocketOptions): EvalSocketH
         },
       });
 
+      // A vendor connection is now open. Kick the session if it falls silent so
+      // an abandoned eval replay releases that connection — an eval fans one of
+      // these out per configuration, so a stalled fan-out can otherwise pin
+      // several of the vendor's capped slots at once. `close()` aborts the
+      // vendor socket; the graceful `finish()` waits for an end silence will
+      // never produce.
+      idle = createIdleWatchdog(idleTimeoutMs, () => {
+        if (closed) return;
+        session?.close();
+        send(ws, {
+          type: "error",
+          message: `Idle timeout: no audio received for ${Math.round(idleTimeoutMs / 1000)}s`,
+        });
+        close(ws, 1008, "idle timeout");
+      });
+
       // Announced only once the vendor session exists, so a client that waits
       // for it is not pacing 100 ms frames into a socket about to close.
       send(ws, { type: "ready", configurationId });
@@ -112,8 +141,10 @@ export function createEvalSocketHandler(options: EvalSocketOptions): EvalSocketH
     onMessage(evt: MessageEvent<WSMessageReceive>) {
       const { data } = evt;
       if (data instanceof ArrayBuffer) {
+        idle?.poke();
         session?.sendAudio(Buffer.from(data));
       } else if (ArrayBuffer.isView(data)) {
+        idle?.poke();
         session?.sendAudio(
           Buffer.from(data.buffer as ArrayBuffer, data.byteOffset, data.byteLength),
         );
@@ -122,6 +153,9 @@ export function createEvalSocketHandler(options: EvalSocketOptions): EvalSocketH
           const message = JSON.parse(data) as { type?: string };
           if (message.type === "stop" && !finished) {
             finished = true;
+            // The client is done sending; the vendor now owns the clock while it
+            // finalises, so stop watching for client silence.
+            idle?.stop();
             session?.finish();
           }
         } catch {
@@ -132,6 +166,7 @@ export function createEvalSocketHandler(options: EvalSocketOptions): EvalSocketH
 
     onClose() {
       closed = true;
+      idle?.stop();
       if (!finished) {
         finished = true;
         session?.finish();

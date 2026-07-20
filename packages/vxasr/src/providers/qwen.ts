@@ -26,6 +26,7 @@ export function createQwenProvider(config: QwenProviderConfig): ASRProvider {
       let buffer = Buffer.alloc(0);
       let ready = false;
       let finishing = false;
+      let closed = false;
       let totalBytesSent = 0;
 
       function flushBuffer() {
@@ -79,6 +80,7 @@ export function createQwenProvider(config: QwenProviderConfig): ASRProvider {
       });
 
       ws.on("message", (raw: Buffer) => {
+        if (closed) return;
         const data = JSON.parse(raw.toString());
 
         if (data.type === "conversation.item.input_audio_transcription.text") {
@@ -98,10 +100,22 @@ export function createQwenProvider(config: QwenProviderConfig): ASRProvider {
           ws.close(1000, "done");
         } else if (data.type === "error") {
           callbacks.onError?.(new Error(JSON.stringify(data)));
+          // The turn is over and will produce nothing, so hang up rather than
+          // hold the socket open. An errored session still counts against the
+          // vendor's connection cap until it closes — and "connections too much"
+          // is itself one of these error frames, so leaking here compounds the
+          // very condition it reports.
+          ws.close();
         }
       });
 
-      ws.on("error", (err: Error) => callbacks.onError?.(err));
+      ws.on("error", (err: Error) => {
+        if (closed) return;
+        callbacks.onError?.(err);
+        // A transport error leaves the socket half-open; close it so its slot in
+        // the vendor's connection pool is released rather than lingering.
+        ws.close();
+      });
 
       return {
         sendAudio(chunk: Buffer) {
@@ -115,6 +129,16 @@ export function createQwenProvider(config: QwenProviderConfig): ASRProvider {
           finishing = true;
           if (ready) doFinish();
           // else: doFinish() will be called from the 'open' handler
+        },
+
+        close() {
+          if (closed) return;
+          closed = true;
+          // Stop feeding and finishing; from here the socket is being torn down,
+          // not wound down. `terminate` releases the connection immediately in
+          // any state (CONNECTING included), which `close()` cannot promise.
+          finishing = true;
+          ws.terminate();
         },
       };
     },

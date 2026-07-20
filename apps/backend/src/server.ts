@@ -7,6 +7,7 @@ import { createNodeWebSocket } from "@hono/node-ws";
 import type { WSContext, WSMessageReceive } from "hono/ws";
 import type { ASRSession } from "vxasr";
 import { createConfigurationSelector } from "./asr.ts";
+import { createIdleWatchdog, type IdleWatchdog } from "./idleWatchdog.ts";
 import {
   type AccessTokenPayload,
   createAccessToken,
@@ -41,6 +42,11 @@ const apiKeys = new Map(
     }),
 );
 const webhookUrl = process.env.WEBHOOK_URL ?? "";
+// How long a recording socket may go without audio before it is kicked and its
+// upstream vendor connection reclaimed. Vendor connections are capped per
+// account, so an abandoned session that never sends `stop` must not pin one
+// open forever. `0` (or any non-positive value) disables idle-kicking.
+const wsIdleTimeoutMs = Number(process.env.WS_IDLE_TIMEOUT_MS ?? "60000");
 // Throws on an unknown ASR_CONFIGURATION/ASR_PROVIDER/ASR_CONFIGURATIONS, so a
 // typo fails the boot rather than silently transcribing with the wrong model.
 const configurationSelector = createConfigurationSelector(process.env);
@@ -401,6 +407,10 @@ app.get(
     let asrSession: ASRSession | null = null;
     let message: Message | null = null;
     let finished = false;
+    // Guards the message's terminal transition so the socket settles once,
+    // whichever of end / error / idle-timeout gets there first.
+    let settled = false;
+    let idle: IdleWatchdog | null = null;
     const referenceId = c.req.query("reference_id");
     const configurationParam = nonEmptyQuery(c.req.query("configuration"));
 
@@ -445,7 +455,9 @@ app.get(
             store.broadcast(subject, { type: "updated", message });
           },
           onEnd() {
-            if (!message) return;
+            if (!message || settled) return;
+            settled = true;
+            idle?.stop();
             message.status = "done";
             message.updatedAt = Date.now();
             store.broadcast(subject, { type: "updated", message });
@@ -453,7 +465,9 @@ app.get(
             ws.close(1000, "done");
           },
           onError(err) {
-            if (!message) return;
+            if (!message || settled) return;
+            settled = true;
+            idle?.stop();
             message.status = "error";
             message.error = err instanceof Error ? err.message : String(err);
             message.updatedAt = Date.now();
@@ -462,13 +476,37 @@ app.get(
             ws.close(1011, "ASR error");
           },
         });
+
+        // From here a vendor connection is open. Kick the session if it falls
+        // silent, so an abandoned recording releases that connection rather than
+        // holding one of the vendor's capped slots until it reaps the session
+        // itself. `close()` aborts the vendor socket outright — the graceful
+        // `finish()` waits for a terminal event silence will never produce.
+        idle = createIdleWatchdog(wsIdleTimeoutMs, () => {
+          if (settled) return;
+          settled = true;
+          finished = true;
+          asrSession?.close();
+          if (message) {
+            message.status = "error";
+            message.error = `Idle timeout: no audio received for ${Math.round(
+              wsIdleTimeoutMs / 1000,
+            )}s`;
+            message.updatedAt = Date.now();
+            store.broadcast(subject, { type: "updated", message });
+            void sendWebhook(message);
+          }
+          ws.close(1008, "idle timeout");
+        });
       },
 
       onMessage(evt: MessageEvent<WSMessageReceive>) {
         const { data } = evt;
         if (data instanceof ArrayBuffer) {
+          idle?.poke();
           asrSession?.sendAudio(Buffer.from(data));
         } else if (ArrayBuffer.isView(data)) {
+          idle?.poke();
           asrSession?.sendAudio(
             Buffer.from(data.buffer as ArrayBuffer, data.byteOffset, data.byteLength),
           );
@@ -477,6 +515,9 @@ app.get(
             const msg = JSON.parse(data) as { type?: string };
             if (msg.type === "stop" && !finished) {
               finished = true;
+              // The client is done sending; the vendor now owns the clock while
+              // it finalises, so stop watching for client silence.
+              idle?.stop();
               asrSession?.finish();
             }
           } catch {
@@ -486,6 +527,7 @@ app.get(
       },
 
       onClose() {
+        idle?.stop();
         if (!finished) {
           finished = true;
           asrSession?.finish();
@@ -510,6 +552,7 @@ app.get(
     createEvalSocketHandler({
       selector: configurationSelector,
       configuration: nonEmptyQuery(c.req.query("configuration")),
+      idleTimeoutMs: wsIdleTimeoutMs,
     }),
   ),
 );

@@ -24,6 +24,19 @@ export interface ASRSession {
    */
   sendAudio(chunk: Buffer): void;
   finish(): void;
+  /**
+   * Hang up the vendor connection immediately, without waiting for a final
+   * transcript. Idempotent, and safe to call in any state.
+   *
+   * Unlike {@link finish}, this makes no attempt to end the turn gracefully: it
+   * exists so an abandoned or idle session can be reclaimed even when the vendor
+   * would never send its terminal event. These are metered, capped connections
+   * (the vendors reject new sockets past a per-account limit), so a session that
+   * can no longer produce a transcript must release its socket rather than hold
+   * it until the vendor's own session cap reaps it. After `close()`, the session
+   * emits no further callbacks — the caller asked for the teardown and owns it.
+   */
+  close(): void;
 }
 
 export interface ASRProvider {

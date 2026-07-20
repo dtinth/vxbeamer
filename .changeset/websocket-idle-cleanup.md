@@ -11,7 +11,7 @@ those open for its whole life. Two gaps let those connections leak until the cap
 was hit:
 
 - **No way to hang up an abandoned session.** `ASRSession` only exposed
-  `sendAudio()` and `finish()`, and `finish()` is *graceful* — it waits for the
+  `sendAudio()` and `finish()`, and `finish()` is _graceful_ — it waits for the
   vendor's terminal event, which never comes for a socket that has simply gone
   silent. `ASRSession.close()` is new: an immediate, idempotent teardown that
   `terminate()`s the vendor socket and emits no further callbacks, so a session
@@ -27,6 +27,6 @@ was hit:
 Idle-kicking is now enforced at the socket layer: a watchdog, armed when the
 vendor session opens and deferred on every audio frame, closes the client and
 aborts the vendor session after `WS_IDLE_TIMEOUT_MS` of silence (default 60s; a
-non-positive value disables it). It watches *audio*, not liveness, so a client
+non-positive value disables it). It watches _audio_, not liveness, so a client
 that keeps the socket open but stops speaking is still reclaimed. The watchdog is
 disarmed on `stop`, since finalisation is the vendor's clock, not the client's.

@@ -156,9 +156,7 @@ export function createBytePlusProvider(config: BytePlusProviderConfig): ASRProvi
                 // `language` belongs to the audio object, not the request
                 // object, and only where the mode declares it — the vendor
                 // documents it as unsupported on bi-directional streaming.
-                ...(mode.supportsLanguage && config.language
-                  ? { language: config.language }
-                  : {}),
+                ...(mode.supportsLanguage && config.language ? { language: config.language } : {}),
               },
               request: {
                 model_name: mode.modelName,

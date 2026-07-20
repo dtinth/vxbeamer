@@ -3,6 +3,7 @@ import type { ASRSession, UsageRecord } from "vxasr";
 import type { ConfigurationSelector } from "./asr.ts";
 import { createIdleWatchdog, type IdleWatchdog } from "./idleWatchdog.ts";
 import { normalizeTranscriptText } from "./transcript.ts";
+import { isStopMessage, readAudioFrame } from "./wsFrame.ts";
 
 /**
  * The eval replay socket: transcription with no message log behind it.
@@ -139,28 +140,16 @@ export function createEvalSocketHandler(options: EvalSocketOptions): EvalSocketH
     },
 
     onMessage(evt: MessageEvent<WSMessageReceive>) {
-      const { data } = evt;
-      if (data instanceof ArrayBuffer) {
+      const audio = readAudioFrame(evt.data);
+      if (audio !== null) {
         idle?.poke();
-        session?.sendAudio(Buffer.from(data));
-      } else if (ArrayBuffer.isView(data)) {
-        idle?.poke();
-        session?.sendAudio(
-          Buffer.from(data.buffer as ArrayBuffer, data.byteOffset, data.byteLength),
-        );
-      } else if (typeof data === "string") {
-        try {
-          const message = JSON.parse(data) as { type?: string };
-          if (message.type === "stop" && !finished) {
-            finished = true;
-            // The client is done sending; the vendor now owns the clock while it
-            // finalises, so stop watching for client silence.
-            idle?.stop();
-            session?.finish();
-          }
-        } catch {
-          // ignore invalid messages
-        }
+        session?.sendAudio(audio);
+      } else if (isStopMessage(evt.data) && !finished) {
+        finished = true;
+        // The client is done sending; the vendor now owns the clock while it
+        // finalises, so stop watching for client silence.
+        idle?.stop();
+        session?.finish();
       }
     },
 

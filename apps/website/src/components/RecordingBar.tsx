@@ -10,6 +10,7 @@ import {
   setActiveRecordingReferenceId,
 } from "../store.ts";
 import { type AudioSource, createMicrophoneSource } from "../audio.ts";
+import { buildBackendSocketUrl } from "../backendSocket.ts";
 import { type RecordingRetainer, retainRecording } from "../recordedAudio.ts";
 import { SettingsIcon } from "./SettingsIcon.tsx";
 
@@ -143,14 +144,12 @@ export function RecordingBar({
         }
       });
 
-      const wsUrl = new URL(backendUrl);
-      wsUrl.protocol = wsUrl.protocol === "https:" ? "wss:" : "ws:";
-      wsUrl.pathname = "/ws";
-      wsUrl.search = "";
-      wsUrl.searchParams.set("access_token", authToken);
-      wsUrl.searchParams.set("reference_id", referenceId);
+      const wsUrl = buildBackendSocketUrl(backendUrl, "/ws", {
+        access_token: authToken,
+        reference_id: referenceId,
+      });
 
-      const ws = new WebSocket(wsUrl.toString());
+      const ws = new WebSocket(wsUrl);
       ws.binaryType = "arraybuffer";
       wsRef.current = ws;
       ws.addEventListener("close", () => {

@@ -6,7 +6,9 @@ import {
   type ASRProvider,
 } from "../src/index.ts";
 
-const fakeProvider: ASRProvider = { createSession: () => ({ sendAudio() {}, finish() {} }) };
+const fakeProvider: ASRProvider = {
+  createSession: () => ({ sendAudio() {}, finish() {}, close() {} }),
+};
 
 /** A provider whose config is deliberately not `{ apiKey }`. */
 function defineRegionProvider(seen: { config?: unknown; model?: string }) {

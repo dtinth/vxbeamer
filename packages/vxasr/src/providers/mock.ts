@@ -26,6 +26,9 @@ export function createMockProvider(): ASRProvider {
           callbacks.onFinal?.(MOCK_TRANSCRIPT);
           callbacks.onEnd?.();
         },
+        close(): void {
+          // No vendor socket behind the mock, so nothing to reclaim.
+        },
       };
     },
   };

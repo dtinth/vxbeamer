@@ -174,6 +174,7 @@ export function createQwenOmniProvider(config: QwenOmniProviderConfig): ASRProvi
       let buffer = Buffer.alloc(0);
       let ready = false;
       let finishing = false;
+      let closed = false;
       let transcript = "";
 
       function flushBuffer() {
@@ -243,6 +244,7 @@ export function createQwenOmniProvider(config: QwenOmniProviderConfig): ASRProvi
       });
 
       ws.on("message", (raw: Buffer) => {
+        if (closed) return;
         const data = JSON.parse(raw.toString());
 
         if (data.type === "response.text.delta") {
@@ -267,7 +269,13 @@ export function createQwenOmniProvider(config: QwenOmniProviderConfig): ASRProvi
         }
       });
 
-      ws.on("error", (err: Error) => callbacks.onError?.(err));
+      ws.on("error", (err: Error) => {
+        if (closed) return;
+        callbacks.onError?.(err);
+        // A transport error leaves the socket half-open; close it so its slot in
+        // the vendor's connection pool is released rather than lingering.
+        ws.close();
+      });
 
       return {
         sendAudio(chunk: Buffer) {
@@ -281,6 +289,16 @@ export function createQwenOmniProvider(config: QwenOmniProviderConfig): ASRProvi
           finishing = true;
           if (ready) doFinish();
           // else: the `open` handler calls doFinish() once the session is set up.
+        },
+
+        close() {
+          if (closed) return;
+          closed = true;
+          // Stop feeding and finishing; from here the socket is being torn down,
+          // not wound down. `terminate` releases the connection immediately in
+          // any state (CONNECTING included), which `close()` cannot promise.
+          finishing = true;
+          ws.terminate();
         },
       };
     },

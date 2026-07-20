@@ -1,4 +1,4 @@
-import { expect, test, vi } from "vite-plus/test";
+import { afterEach, expect, test, vi } from "vite-plus/test";
 import type { WSContext, WSMessageReceive } from "hono/ws";
 import type { ASRProvider, ASRSessionCallbacks } from "vxasr";
 import type { EvalServerEvent, EvalSocketOptions } from "./evalSocket.ts";
@@ -22,12 +22,14 @@ function createControllableProvider() {
   const audio: Buffer[] = [];
   let callbacks: ASRSessionCallbacks | undefined;
   let finishes = 0;
+  let closes = 0;
   const provider: ASRProvider = {
     createSession(cb) {
       callbacks = cb;
       return {
         sendAudio: (chunk) => void audio.push(chunk),
         finish: () => void finishes++,
+        close: () => void closes++,
       };
     },
   };
@@ -36,6 +38,9 @@ function createControllableProvider() {
     audio,
     get finishes() {
       return finishes;
+    },
+    get closes() {
+      return closes;
     },
     emit: () => callbacks!,
   };
@@ -47,6 +52,9 @@ function createOptions(
   const provider = overrides.provider ?? createControllableProvider().provider;
   return {
     configuration: CONFIGURATION_ID,
+    // Off by default so behavioural tests do not leave a real timer armed; the
+    // idle tests below opt in with an explicit value under fake timers.
+    idleTimeoutMs: 0,
     selector: {
       select: () => ({ ok: true, selection: { provider, configurationId: CONFIGURATION_ID } }),
     },
@@ -254,4 +262,96 @@ test("the configuration named by the client is the one selected", () => {
     type: "ready",
     configurationId: "qwen/qwen3-asr-flash-realtime+groq",
   });
+});
+
+// --- Kicking an idle session ---
+//
+// Each open session holds one vendor connection, and the vendors cap those per
+// account ("connections too much max_connections 100"). A client that opens a
+// socket and then falls silent — never sending `stop`, never hanging up — would
+// otherwise pin its connection until the vendor reaps it, so the watchdog
+// reclaims it. The eval fan-out makes this sharper: it opens one socket per
+// configuration, so a single stalled run can hold several slots at once.
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+test("kicks a session that goes silent, aborting the vendor connection", () => {
+  vi.useFakeTimers();
+  const controllable = createControllableProvider();
+  const handler = createEvalSocketHandler(
+    createOptions({ provider: controllable.provider, idleTimeoutMs: 60_000 }),
+  );
+  const { ws, sent, closes } = createFakeWs();
+
+  handler.onOpen(new Event("open"), ws);
+  vi.advanceTimersByTime(60_000);
+
+  // `close()`, not `finish()`: an abandoned session must be aborted, since the
+  // graceful finish waits for a terminal event silence will never produce.
+  expect(controllable.closes).toBe(1);
+  expect(controllable.finishes).toBe(0);
+  expect(sent.at(-1)).toEqual({
+    type: "error",
+    message: "Idle timeout: no audio received for 60s",
+  });
+  expect(closes).toEqual([{ code: 1008, reason: "idle timeout" }]);
+});
+
+test("audio frames defer the idle deadline", () => {
+  vi.useFakeTimers();
+  const controllable = createControllableProvider();
+  const handler = createEvalSocketHandler(
+    createOptions({ provider: controllable.provider, idleTimeoutMs: 60_000 }),
+  );
+  const { ws, closes } = createFakeWs();
+
+  handler.onOpen(new Event("open"), ws);
+  // Audio just under the deadline, repeatedly: the session must survive as long
+  // as it keeps sending.
+  for (let i = 0; i < 5; i++) {
+    vi.advanceTimersByTime(59_000);
+    handler.onMessage(binaryFrame(new Uint8Array([1]).buffer), ws);
+  }
+  expect(closes).toEqual([]);
+  expect(controllable.closes).toBe(0);
+
+  // Then let it fall silent past the deadline.
+  vi.advanceTimersByTime(60_000);
+  expect(closes).toEqual([{ code: 1008, reason: "idle timeout" }]);
+});
+
+test("a session that has stopped is not later kicked as idle", () => {
+  vi.useFakeTimers();
+  const controllable = createControllableProvider();
+  const handler = createEvalSocketHandler(
+    createOptions({ provider: controllable.provider, idleTimeoutMs: 60_000 }),
+  );
+  const { ws, closes } = createFakeWs();
+
+  handler.onOpen(new Event("open"), ws);
+  handler.onMessage(textFrame({ type: "stop" }), ws);
+  // The vendor may take longer than the idle window to finalise; that wait is
+  // the vendor's, not the client's, so the watchdog is disarmed on `stop`.
+  vi.advanceTimersByTime(600_000);
+
+  expect(controllable.finishes).toBe(1);
+  expect(controllable.closes).toBe(0);
+  expect(closes).toEqual([]);
+});
+
+test("idle-kicking is disabled by a non-positive timeout", () => {
+  vi.useFakeTimers();
+  const controllable = createControllableProvider();
+  const handler = createEvalSocketHandler(
+    createOptions({ provider: controllable.provider, idleTimeoutMs: 0 }),
+  );
+  const { ws, closes } = createFakeWs();
+
+  handler.onOpen(new Event("open"), ws);
+  vi.advanceTimersByTime(600_000);
+
+  expect(closes).toEqual([]);
+  expect(controllable.closes).toBe(0);
 });

@@ -1,7 +1,8 @@
 import { atom, computed, type ReadableAtom } from "nanostores";
 import type { UsageRecord } from "vxasr";
 import { BYTES_PER_SECOND } from "vxasr/audio";
-import { RETAINED_AUDIO_FORMAT } from "./recordedAudio.ts";
+import { buildBackendSocketUrl } from "./backendSocket.ts";
+import { RETAINED_AUDIO_FORMAT, concatChunks } from "./recordedAudio.ts";
 
 /**
  * An eval run: one retained recording, replayed against every configuration at
@@ -146,15 +147,8 @@ export function toPacedFrames(
   chunks: readonly ArrayBuffer[],
   frameBytes: number = EVAL_FRAME_BYTES,
 ): ArrayBuffer[] {
-  let total = 0;
-  for (const chunk of chunks) total += chunk.byteLength;
-
-  const joined = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    joined.set(new Uint8Array(chunk), offset);
-    offset += chunk.byteLength;
-  }
+  const joined = concatChunks(chunks);
+  const total = joined.byteLength;
 
   const frames: ArrayBuffer[] = [];
   for (let start = 0; start < total; start += frameBytes) {
@@ -175,27 +169,16 @@ export function evalRowCost(row: EvalRow): number {
   return row.usage.reduce((sum, record) => sum + record.unitPrice * record.quantity, 0);
 }
 
-/**
- * Builds the URL for one configuration's eval socket.
- *
- * `URLSearchParams` is not a convenience here, it is the requirement: a
- * configuration id may contain `+` (`qwen/qwen3-asr-flash-realtime+groq`), and
- * a hand-concatenated query string would send that `+` literally, which the
- * server decodes back as a space and then fails to recognise. `set`
- * percent-encodes it.
- */
+/** Builds the URL for one configuration's eval socket. */
 export function buildEvalSocketUrl(options: {
   backendUrl: string;
   accessToken: string;
   configurationId: string;
 }): string {
-  const url = new URL(options.backendUrl);
-  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-  url.pathname = "/asr/eval";
-  url.search = "";
-  url.searchParams.set("access_token", options.accessToken);
-  url.searchParams.set("configuration", options.configurationId);
-  return url.toString();
+  return buildBackendSocketUrl(options.backendUrl, "/asr/eval", {
+    access_token: options.accessToken,
+    configuration: options.configurationId,
+  });
 }
 
 /** The real transport: one WebSocket per configuration. */

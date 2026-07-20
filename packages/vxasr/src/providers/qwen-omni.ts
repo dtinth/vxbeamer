@@ -1,5 +1,6 @@
 import WebSocket from "ws";
 import type { ASRProvider, ASRSession, ASRSessionCallbacks, UsageRecord } from "../asr.ts";
+import { createBufferedSocketSession } from "./bufferedSocketSession.ts";
 
 /**
  * The Qwen **Omni Realtime** models, which are not ASR models at all: they are
@@ -171,21 +172,9 @@ export function createQwenOmniProvider(config: QwenOmniProviderConfig): ASRProvi
         },
       });
 
-      let buffer = Buffer.alloc(0);
-      let ready = false;
-      let finishing = false;
-      let closed = false;
       let transcript = "";
 
-      function flushBuffer() {
-        while (buffer.length >= CHUNK_SIZE) {
-          const chunk = buffer.subarray(0, CHUNK_SIZE);
-          buffer = buffer.subarray(CHUNK_SIZE);
-          append(chunk);
-        }
-      }
-
-      function append(audio: Buffer) {
+      const append = (audio: Buffer) =>
         ws.send(
           JSON.stringify({
             event_id: `event_${Date.now()}`,
@@ -193,114 +182,78 @@ export function createQwenOmniProvider(config: QwenOmniProviderConfig): ASRProvi
             audio: audio.toString("base64"),
           }),
         );
-      }
 
-      /**
-       * Ends the turn. Unlike the ASR protocol, committing the buffer only
-       * closes the *input*: the model does nothing until `response.create` asks
-       * it for one. There is no `session.finish` here.
-       */
-      function doFinish() {
-        if (buffer.length > 0) {
-          append(buffer);
-          buffer = Buffer.alloc(0);
-        }
-        ws.send(JSON.stringify({ event_id: "event_commit", type: "input_audio_buffer.commit" }));
-        ws.send(JSON.stringify({ event_id: "event_response", type: "response.create" }));
-      }
-
-      ws.on("open", () => {
-        ws.send(
-          JSON.stringify({
-            event_id: "event_session",
-            type: "session.update",
-            session: {
-              modalities: ["text"],
-              // `pcm`, not the `pcm16` the OpenAI realtime protocol names.
-              input_audio_format: "pcm",
-              sample_rate: 16000,
-              // Manual turn-taking: the recording decides when the turn ends,
-              // not a silence detector.
-              turn_detection: null,
-              instructions: QWEN_OMNI_TRANSCRIPTION_INSTRUCTIONS,
-              // Silences the transcription sub-service. This field names a
-              // *separate* ASR model that runs alongside and transcribes our
-              // audio independently — it is not this model, and its output
-              // differs (it renders `project` in Latin where the omni model
-              // renders `โปรเจกต์` in Thai). Naming no model turns it off
-              // entirely: with the field omitted the vendor picks one and
-              // streams events we would only ignore, for a second model's worth
-              // of audio we never asked to be heard by. Verified: `{}` yields
-              // zero `conversation.item.input_audio_transcription.*` events.
-              input_audio_transcription: {},
-            },
-          }),
-        );
-        ready = true;
-        flushBuffer();
-        // A clip short enough to finish before the socket opened still has to
-        // be sent, or no response is ever requested and the session hangs.
-        if (finishing) doFinish();
-      });
-
-      ws.on("message", (raw: Buffer) => {
-        if (closed) return;
-        const data = JSON.parse(raw.toString());
-
-        if (data.type === "response.text.delta") {
-          // Deltas are incremental, so the running text is what a partial is.
-          transcript += data.delta ?? "";
-          callbacks.onPartial?.(transcript);
-        } else if (data.type === "response.text.done") {
-          transcript = data.text ?? transcript;
-          callbacks.onFinal?.(transcript);
-        } else if (data.type === "response.done") {
-          // Usage lands here, after the text — so this, not `response.text.done`,
-          // is where a session ends.
-          callbacks.onUsage?.(buildUsageRecords(model, pricing, data.response?.usage));
-          callbacks.onEnd?.();
-          ws.close(1000, "done");
-        } else if (data.type === "error") {
-          callbacks.onError?.(new Error(JSON.stringify(data)));
-          // The turn is over and will produce nothing, so hang up rather than
-          // hold the socket open. A session that has errored still counts
-          // against the vendor's 120-minute session cap until it closes.
-          ws.close();
-        }
-      });
-
-      ws.on("error", (err: Error) => {
-        if (closed) return;
-        callbacks.onError?.(err);
-        // A transport error leaves the socket half-open; close it so its slot in
-        // the vendor's connection pool is released rather than lingering.
-        ws.close();
-      });
-
-      return {
-        sendAudio(chunk: Buffer) {
-          if (finishing) return;
-          buffer = Buffer.concat([buffer, chunk]);
-          if (ready) flushBuffer();
+      return createBufferedSocketSession({
+        ws,
+        chunkSize: CHUNK_SIZE,
+        // Token-billed, so no byte accounting here — usage comes from the
+        // vendor's own `response.done` report.
+        sendChunk: append,
+        sendHandshake() {
+          ws.send(
+            JSON.stringify({
+              event_id: "event_session",
+              type: "session.update",
+              session: {
+                modalities: ["text"],
+                // `pcm`, not the `pcm16` the OpenAI realtime protocol names.
+                input_audio_format: "pcm",
+                sample_rate: 16000,
+                // Manual turn-taking: the recording decides when the turn ends,
+                // not a silence detector.
+                turn_detection: null,
+                instructions: QWEN_OMNI_TRANSCRIPTION_INSTRUCTIONS,
+                // Silences the transcription sub-service. This field names a
+                // *separate* ASR model that runs alongside and transcribes our
+                // audio independently — it is not this model, and its output
+                // differs (it renders `project` in Latin where the omni model
+                // renders `โปรเจกต์` in Thai). Naming no model turns it off
+                // entirely: with the field omitted the vendor picks one and
+                // streams events we would only ignore, for a second model's
+                // worth of audio we never asked to be heard by. Verified: `{}`
+                // yields zero `conversation.item.input_audio_transcription.*`
+                // events.
+                input_audio_transcription: {},
+              },
+            }),
+          );
         },
-
-        finish() {
-          if (finishing) return;
-          finishing = true;
-          if (ready) doFinish();
-          // else: the `open` handler calls doFinish() once the session is set up.
+        // Ends the turn. Unlike the ASR protocol, committing the buffer only
+        // closes the *input*: the model does nothing until `response.create`
+        // asks it for one. There is no `session.finish` here.
+        endTurn(remaining) {
+          if (remaining.length > 0) append(remaining);
+          ws.send(JSON.stringify({ event_id: "event_commit", type: "input_audio_buffer.commit" }));
+          ws.send(JSON.stringify({ event_id: "event_response", type: "response.create" }));
         },
+        handleMessage(raw) {
+          const data = JSON.parse(raw.toString());
 
-        close() {
-          if (closed) return;
-          closed = true;
-          // Stop feeding and finishing; from here the socket is being torn down,
-          // not wound down. `terminate` releases the connection immediately in
-          // any state (CONNECTING included), which `close()` cannot promise.
-          finishing = true;
-          ws.terminate();
+          if (data.type === "response.text.delta") {
+            // Deltas are incremental, so the running text is what a partial is.
+            transcript += data.delta ?? "";
+            callbacks.onPartial?.(transcript);
+          } else if (data.type === "response.text.done") {
+            transcript = data.text ?? transcript;
+            callbacks.onFinal?.(transcript);
+          } else if (data.type === "response.done") {
+            // Usage lands here, after the text — so this, not
+            // `response.text.done`, is where a session ends.
+            callbacks.onUsage?.(buildUsageRecords(model, pricing, data.response?.usage));
+            callbacks.onEnd?.();
+            ws.close(1000, "done");
+          } else if (data.type === "error") {
+            callbacks.onError?.(new Error(JSON.stringify(data)));
+            // The turn is over and will produce nothing, so hang up rather than
+            // hold the socket open. A session that has errored still counts
+            // against the vendor's 120-minute session cap until it closes.
+            ws.close();
+          }
         },
-      };
+        onError(err) {
+          callbacks.onError?.(err);
+        },
+      });
     },
   };
 }

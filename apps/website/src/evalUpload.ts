@@ -2,6 +2,7 @@ import type { UsageRecord } from "vxasr";
 import { writeWav } from "vxasr/audio";
 import {
   RETAINED_AUDIO_FORMAT,
+  concatChunks,
   getRetainedRecording,
   retainedDurationSeconds,
   type RetainedRecording,
@@ -173,17 +174,6 @@ export function buildVotePayload(pick: WinnerPick, context: PayloadContext): Vot
     ...(audio ? { audio } : {}),
     savedForEval: pick.saveForEval,
   };
-}
-
-/** Flattens the retained chunks into the contiguous PCM a WAV body needs. */
-function concatChunks(chunks: readonly ArrayBuffer[], byteLength: number): Uint8Array {
-  const pcm = new Uint8Array(byteLength);
-  let offset = 0;
-  for (const chunk of chunks) {
-    pcm.set(new Uint8Array(chunk), offset);
-    offset += chunk.byteLength;
-  }
-  return pcm;
 }
 
 /**

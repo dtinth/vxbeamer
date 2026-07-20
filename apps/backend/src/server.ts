@@ -8,6 +8,7 @@ import type { WSContext, WSMessageReceive } from "hono/ws";
 import type { ASRSession } from "vxasr";
 import { createConfigurationSelector } from "./asr.ts";
 import { createIdleWatchdog, type IdleWatchdog } from "./idleWatchdog.ts";
+import { isStopMessage, readAudioFrame } from "./wsFrame.ts";
 import {
   type AccessTokenPayload,
   createAccessToken,
@@ -501,28 +502,16 @@ app.get(
       },
 
       onMessage(evt: MessageEvent<WSMessageReceive>) {
-        const { data } = evt;
-        if (data instanceof ArrayBuffer) {
+        const audio = readAudioFrame(evt.data);
+        if (audio !== null) {
           idle?.poke();
-          asrSession?.sendAudio(Buffer.from(data));
-        } else if (ArrayBuffer.isView(data)) {
-          idle?.poke();
-          asrSession?.sendAudio(
-            Buffer.from(data.buffer as ArrayBuffer, data.byteOffset, data.byteLength),
-          );
-        } else if (typeof data === "string") {
-          try {
-            const msg = JSON.parse(data) as { type?: string };
-            if (msg.type === "stop" && !finished) {
-              finished = true;
-              // The client is done sending; the vendor now owns the clock while
-              // it finalises, so stop watching for client silence.
-              idle?.stop();
-              asrSession?.finish();
-            }
-          } catch {
-            // ignore invalid messages
-          }
+          asrSession?.sendAudio(audio);
+        } else if (isStopMessage(evt.data) && !finished) {
+          finished = true;
+          // The client is done sending; the vendor now owns the clock while it
+          // finalises, so stop watching for client silence.
+          idle?.stop();
+          asrSession?.finish();
         }
       },
 

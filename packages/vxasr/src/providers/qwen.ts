@@ -1,6 +1,7 @@
 import WebSocket from "ws";
 import type { ASRProvider, ASRSession, ASRSessionCallbacks } from "../asr.ts";
 import { BYTES_PER_SECOND } from "../audio.ts";
+import { createBufferedSocketSession } from "./bufferedSocketSession.ts";
 
 const QWEN_PRICE_PER_SECOND = 0.000035;
 
@@ -23,124 +24,79 @@ export function createQwenProvider(config: QwenProviderConfig): ASRProvider {
         },
       });
 
-      let buffer = Buffer.alloc(0);
-      let ready = false;
-      let finishing = false;
-      let closed = false;
       let totalBytesSent = 0;
 
-      function flushBuffer() {
-        while (buffer.length >= CHUNK_SIZE) {
-          const chunk = buffer.subarray(0, CHUNK_SIZE);
-          buffer = buffer.subarray(CHUNK_SIZE);
-          totalBytesSent += chunk.length;
-          ws.send(
-            JSON.stringify({
-              event_id: `event_${Date.now()}`,
-              type: "input_audio_buffer.append",
-              audio: chunk.toString("base64"),
-            }),
-          );
-        }
-      }
-
-      function doFinish() {
-        if (buffer.length > 0) {
-          totalBytesSent += buffer.length;
-          ws.send(
-            JSON.stringify({
-              event_id: `event_${Date.now()}`,
-              type: "input_audio_buffer.append",
-              audio: buffer.toString("base64"),
-            }),
-          );
-          buffer = Buffer.alloc(0);
-        }
-        ws.send(JSON.stringify({ event_id: "event_commit", type: "input_audio_buffer.commit" }));
-        ws.send(JSON.stringify({ event_id: "event_finish", type: "session.finish" }));
-      }
-
-      ws.on("open", () => {
+      const appendFrame = (audio: Buffer) =>
         ws.send(
           JSON.stringify({
-            event_id: "event_session",
-            type: "session.update",
-            session: {
-              modalities: ["text"],
-              input_audio_format: "pcm",
-              sample_rate: 16000,
-              input_audio_transcription: {},
-              turn_detection: null,
-            },
+            event_id: `event_${Date.now()}`,
+            type: "input_audio_buffer.append",
+            audio: audio.toString("base64"),
           }),
         );
-        ready = true;
-        flushBuffer();
-        if (finishing) doFinish();
-      });
 
-      ws.on("message", (raw: Buffer) => {
-        if (closed) return;
-        const data = JSON.parse(raw.toString());
-
-        if (data.type === "conversation.item.input_audio_transcription.text") {
-          callbacks.onPartial?.(data.text ?? "");
-        } else if (data.type === "conversation.item.input_audio_transcription.completed") {
-          callbacks.onFinal?.(data.transcript ?? "");
-        } else if (data.type === "session.finished") {
-          const seconds = Math.ceil(totalBytesSent / BYTES_PER_SECOND);
-          callbacks.onUsage?.([
-            {
-              sku: "dashscope:qwen3-asr-flash:seconds",
-              unitPrice: QWEN_PRICE_PER_SECOND,
-              quantity: seconds,
-            },
-          ]);
-          callbacks.onEnd?.();
-          ws.close(1000, "done");
-        } else if (data.type === "error") {
-          callbacks.onError?.(new Error(JSON.stringify(data)));
-          // The turn is over and will produce nothing, so hang up rather than
-          // hold the socket open. An errored session still counts against the
-          // vendor's connection cap until it closes — and "connections too much"
-          // is itself one of these error frames, so leaking here compounds the
-          // very condition it reports.
-          ws.close();
-        }
-      });
-
-      ws.on("error", (err: Error) => {
-        if (closed) return;
-        callbacks.onError?.(err);
-        // A transport error leaves the socket half-open; close it so its slot in
-        // the vendor's connection pool is released rather than lingering.
-        ws.close();
-      });
-
-      return {
-        sendAudio(chunk: Buffer) {
-          if (finishing) return;
-          buffer = Buffer.concat([buffer, chunk]);
-          if (ready) flushBuffer();
+      return createBufferedSocketSession({
+        ws,
+        chunkSize: CHUNK_SIZE,
+        sendChunk(chunk) {
+          totalBytesSent += chunk.length;
+          appendFrame(chunk);
         },
-
-        finish() {
-          if (finishing) return;
-          finishing = true;
-          if (ready) doFinish();
-          // else: doFinish() will be called from the 'open' handler
+        sendHandshake() {
+          ws.send(
+            JSON.stringify({
+              event_id: "event_session",
+              type: "session.update",
+              session: {
+                modalities: ["text"],
+                input_audio_format: "pcm",
+                sample_rate: 16000,
+                input_audio_transcription: {},
+                turn_detection: null,
+              },
+            }),
+          );
         },
-
-        close() {
-          if (closed) return;
-          closed = true;
-          // Stop feeding and finishing; from here the socket is being torn down,
-          // not wound down. `terminate` releases the connection immediately in
-          // any state (CONNECTING included), which `close()` cannot promise.
-          finishing = true;
-          ws.terminate();
+        endTurn(remaining) {
+          if (remaining.length > 0) {
+            totalBytesSent += remaining.length;
+            appendFrame(remaining);
+          }
+          ws.send(JSON.stringify({ event_id: "event_commit", type: "input_audio_buffer.commit" }));
+          ws.send(JSON.stringify({ event_id: "event_finish", type: "session.finish" }));
         },
-      };
+        handleMessage(raw) {
+          const data = JSON.parse(raw.toString());
+
+          if (data.type === "conversation.item.input_audio_transcription.text") {
+            callbacks.onPartial?.(data.text ?? "");
+          } else if (data.type === "conversation.item.input_audio_transcription.completed") {
+            callbacks.onFinal?.(data.transcript ?? "");
+          } else if (data.type === "session.finished") {
+            const seconds = Math.ceil(totalBytesSent / BYTES_PER_SECOND);
+            callbacks.onUsage?.([
+              {
+                sku: "dashscope:qwen3-asr-flash:seconds",
+                unitPrice: QWEN_PRICE_PER_SECOND,
+                quantity: seconds,
+              },
+            ]);
+            callbacks.onEnd?.();
+            ws.close(1000, "done");
+          } else if (data.type === "error") {
+            callbacks.onError?.(new Error(JSON.stringify(data)));
+            // The turn is over and will produce nothing, so hang up rather than
+            // hold the socket open. An errored session still counts against the
+            // vendor's connection cap until it closes — and "connections too
+            // much" is itself one of these error frames, so leaking here
+            // compounds the very condition it reports.
+            ws.close();
+          }
+        },
+        onError(err) {
+          callbacks.onError?.(err);
+        },
+      });
     },
   };
 }

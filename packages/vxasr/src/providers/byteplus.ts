@@ -2,6 +2,7 @@ import WebSocket from "ws";
 import { randomUUID } from "crypto";
 import type { ASRProvider, ASRSession, ASRSessionCallbacks } from "../asr.ts";
 import { BYTES_PER_SECOND } from "../audio.ts";
+import { createBufferedSocketSession } from "./bufferedSocketSession.ts";
 
 const BYTEPLUS_PRICE_PER_SECOND = 0.15 / 3600;
 
@@ -133,118 +134,75 @@ export function createBytePlusProvider(config: BytePlusProviderConfig): ASRProvi
         },
       });
 
-      let buffer = Buffer.alloc(0);
-      let ready = false;
-      let finishing = false;
-      let closed = false;
       let totalBytesSent = 0;
 
-      function flushBuffer() {
-        while (buffer.length >= CHUNK_SIZE) {
-          const chunk = buffer.subarray(0, CHUNK_SIZE);
-          buffer = buffer.subarray(CHUNK_SIZE);
+      return createBufferedSocketSession({
+        ws,
+        chunkSize: CHUNK_SIZE,
+        sendChunk(chunk) {
           totalBytesSent += chunk.length;
           ws.send(buildAudioPacket(chunk, false));
-        }
-      }
-
-      /** Sends whatever is left as the last packet, which ends the turn. */
-      function sendLastPacket() {
-        totalBytesSent += buffer.length;
-        ws.send(buildAudioPacket(buffer, true));
-        buffer = Buffer.alloc(0);
-      }
-
-      ws.on("open", () => {
-        ws.send(
-          buildFullClientRequest({
-            user: { uid: "cli-user" },
-            audio: {
-              format: "pcm",
-              codec: "raw",
-              rate: 16000,
-              bits: 16,
-              channel: 1,
-              // `language` belongs to the audio object, not the request object,
-              // and only where the mode declares it — the vendor documents it as
-              // unsupported on bi-directional streaming.
-              ...(mode.supportsLanguage && config.language ? { language: config.language } : {}),
-            },
-            request: {
-              model_name: mode.modelName,
-              enable_itn: true,
-              enable_punc: true,
-            },
-          }),
-        );
-        ready = true;
-        flushBuffer();
-        // A clip short enough to finish before the socket opened still has to be
-        // sent; otherwise the turn never ends and the session hangs.
-        if (finishing) sendLastPacket();
-      });
-
-      ws.on("message", (raw: Buffer) => {
-        if (closed) return;
-        const { isLast, text, error } = parseServerMessage(raw as Buffer);
-
-        if (error) {
-          callbacks.onError?.(new Error(error));
-          ws.close();
-          return;
-        }
-
-        if (isLast) {
-          if (text.trim()) callbacks.onFinal?.(text);
-          const seconds = Math.ceil(totalBytesSent / BYTES_PER_SECOND);
-          callbacks.onUsage?.([
-            {
-              sku: "byteplus:seedasr:seconds",
-              unitPrice: BYTEPLUS_PRICE_PER_SECOND,
-              quantity: seconds,
-            },
-          ]);
-          callbacks.onEnd?.();
-          ws.close(1000, "done");
-        } else if (text) {
-          callbacks.onPartial?.(text);
-        }
-      });
-
-      ws.on("error", (err: Error) => {
-        if (closed) return;
-        callbacks.onError?.(err);
-        // A transport error leaves the socket half-open; close it so its slot in
-        // the vendor's connection pool is released rather than lingering.
-        ws.close();
-      });
-
-      return {
-        sendAudio(chunk: Buffer) {
-          if (finishing) return;
-          buffer = Buffer.concat([buffer, chunk]);
-          if (ready) flushBuffer();
         },
-
-        finish() {
-          if (finishing) return;
-          finishing = true;
-          // Not open yet: the `open` handler sends the last packet instead, once
-          // the handshake it must follow has gone out.
-          if (!ready || ws.readyState !== WebSocket.OPEN) return;
-          sendLastPacket();
+        sendHandshake() {
+          ws.send(
+            buildFullClientRequest({
+              user: { uid: "cli-user" },
+              audio: {
+                format: "pcm",
+                codec: "raw",
+                rate: 16000,
+                bits: 16,
+                channel: 1,
+                // `language` belongs to the audio object, not the request
+                // object, and only where the mode declares it — the vendor
+                // documents it as unsupported on bi-directional streaming.
+                ...(mode.supportsLanguage && config.language
+                  ? { language: config.language }
+                  : {}),
+              },
+              request: {
+                model_name: mode.modelName,
+                enable_itn: true,
+                enable_punc: true,
+              },
+            }),
+          );
         },
-
-        close() {
-          if (closed) return;
-          closed = true;
-          // Stop feeding and finishing; from here the socket is being torn down,
-          // not wound down. `terminate` releases the connection immediately in
-          // any state (CONNECTING included), which `close()` cannot promise.
-          finishing = true;
-          ws.terminate();
+        // BytePlus ends the turn with a final audio packet, so this is sent even
+        // when `remaining` is empty: the `isLast` flag is what closes the turn.
+        endTurn(remaining) {
+          totalBytesSent += remaining.length;
+          ws.send(buildAudioPacket(remaining, true));
         },
-      };
+        handleMessage(raw) {
+          const { isLast, text, error } = parseServerMessage(raw);
+
+          if (error) {
+            callbacks.onError?.(new Error(error));
+            ws.close();
+            return;
+          }
+
+          if (isLast) {
+            if (text.trim()) callbacks.onFinal?.(text);
+            const seconds = Math.ceil(totalBytesSent / BYTES_PER_SECOND);
+            callbacks.onUsage?.([
+              {
+                sku: "byteplus:seedasr:seconds",
+                unitPrice: BYTEPLUS_PRICE_PER_SECOND,
+                quantity: seconds,
+              },
+            ]);
+            callbacks.onEnd?.();
+            ws.close(1000, "done");
+          } else if (text) {
+            callbacks.onPartial?.(text);
+          }
+        },
+        onError(err) {
+          callbacks.onError?.(err);
+        },
+      });
     },
   };
 }

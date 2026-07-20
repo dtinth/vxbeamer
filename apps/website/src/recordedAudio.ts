@@ -90,6 +90,23 @@ export function retainedDurationSeconds(recording: RetainedRecording): number {
   return recording.capturedByteLength / RETAINED_AUDIO_FORMAT.bytesPerSecond;
 }
 
+/**
+ * Flattens retained chunks into one contiguous PCM buffer — what both a WAV
+ * body and an eval replay's frame re-cutting start from. Pass `byteLength` when
+ * it is already known (a `RetainedRecording` carries it); otherwise it is summed
+ * from the chunks.
+ */
+export function concatChunks(chunks: readonly ArrayBuffer[], byteLength?: number): Uint8Array {
+  const total = byteLength ?? chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
+  const pcm = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    pcm.set(new Uint8Array(chunk), offset);
+    offset += chunk.byteLength;
+  }
+  return pcm;
+}
+
 /** Total bytes currently held across all retained recordings. */
 export function retainedBytesTotal(): number {
   let total = 0;

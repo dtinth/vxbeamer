@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useStore } from "@nanostores/react";
 import {
+  $activeRecordingReferenceId,
   $audioProcessingMode,
   $recordingButtonSize,
   $sessionToken,
@@ -35,7 +36,6 @@ export function RecordingBar({
   const [isRecording, setIsRecording] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const referenceIdRef = useRef<string | null>(null);
   const audioSourceRef = useRef<AudioSource | null>(null);
   const retainerRef = useRef<RecordingRetainer | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -94,9 +94,9 @@ export function RecordingBar({
   }, []);
 
   const stopRecording = useCallback(() => {
+    const referenceId = $activeRecordingReferenceId.get();
     setActiveRecordingReferenceId(null);
-    if (referenceIdRef.current) endRecordingConnection(referenceIdRef.current);
-    referenceIdRef.current = null;
+    if (referenceId) endRecordingConnection(referenceId);
 
     audioSourceRef.current?.stop();
     audioSourceRef.current = null;
@@ -151,8 +151,10 @@ export function RecordingBar({
     // Mic capture is live. The connection to /ws is independent of it from
     // here on: a slow or failed connect no longer blocks or aborts the
     // recording. See recordingConnection.ts.
-    referenceIdRef.current = referenceId;
     beginRecordingConnection(referenceId, authToken, backendUrl);
+    setActiveRecordingReferenceId(referenceId);
+    setIsRecording(true);
+    startVisualizer();
 
     if (wakeLockMode === "recording" || wakeLockMode === "always") {
       try {
@@ -162,10 +164,6 @@ export function RecordingBar({
         // wake lock not available or denied — non-fatal
       }
     }
-
-    setActiveRecordingReferenceId(referenceId);
-    setIsRecording(true);
-    startVisualizer();
   }, [
     authToken,
     backendUrl,

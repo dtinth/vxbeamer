@@ -30,6 +30,8 @@ interface ConnectionState {
   connectTimeout: ReturnType<typeof setTimeout> | null;
   /** Once the socket has opened once, mid-stream drops are out of scope. */
   opened: boolean;
+  /** The user pressed stop before this ever opened — finish up once it does. */
+  stopped: boolean;
 }
 
 const connections = new Map<string, ConnectionState>();
@@ -68,6 +70,12 @@ function openSocket(state: ConnectionState): void {
     state.buffer = [];
     for (const chunk of buffered) ws.send(chunk);
     clearLocalConnectionError(state.referenceId);
+    // Stop was already requested while this was still connecting — the
+    // original stop message never went out, so send it now and finish up.
+    if (state.stopped) {
+      ws.send(JSON.stringify({ type: "stop" }));
+      connections.delete(state.referenceId);
+    }
   });
 
   ws.addEventListener("error", () => failConnect(state, "Connection failed"));
@@ -91,18 +99,22 @@ export function beginRecordingConnection(
     buffer: [],
     connectTimeout: null,
     opened: false,
+    stopped: false,
   };
   connections.set(referenceId, state);
   openSocket(state);
 }
 
-/** Deliver (or, while not connected, buffer) one captured PCM chunk. */
+/** Deliver (or, while still connecting, buffer) one captured PCM chunk. */
 export function sendRecordingAudio(referenceId: string, chunk: ArrayBuffer): void {
   const state = connections.get(referenceId);
   if (!state) return;
   if (state.ws?.readyState === WebSocket.OPEN) {
     state.ws.send(chunk);
-  } else {
+  } else if (!state.opened) {
+    // Once opened, a drop is a mid-stream problem this module doesn't
+    // attempt to solve (see the module doc comment) — nothing left to buffer
+    // for.
     state.buffer.push(chunk);
   }
 }
@@ -118,7 +130,11 @@ export function endRecordingConnection(referenceId: string): void {
   if (state.ws?.readyState === WebSocket.OPEN) {
     state.ws.send(JSON.stringify({ type: "stop" }));
   }
-  if (state.opened) connections.delete(referenceId);
+  if (state.opened) {
+    connections.delete(referenceId);
+  } else {
+    state.stopped = true;
+  }
 }
 
 /** Re-open the socket and stream whatever was never delivered, from the start. */

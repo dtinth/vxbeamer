@@ -1,4 +1,5 @@
 import { beforeEach, expect, test, vi } from "vite-plus/test";
+import { createStorage } from "./testStorage.ts";
 
 class FakeWebSocket {
   static OPEN = 1;
@@ -37,16 +38,6 @@ class FakeWebSocket {
   triggerError(): void {
     this.listeners.error?.forEach((cb) => cb());
   }
-}
-
-function createStorage() {
-  const values = new Map<string, string>();
-  return {
-    getItem: (key: string) => values.get(key) ?? null,
-    setItem: (key: string, value: string) => void values.set(key, value),
-    removeItem: (key: string) => void values.delete(key),
-    clear: () => values.clear(),
-  };
 }
 
 beforeEach(() => {
@@ -176,6 +167,27 @@ test("stopping while still failed keeps the connection retryable", async () => {
   endRecordingConnection("ref-1");
   retryRecordingConnection("ref-1");
 
+  expect(FakeWebSocket.instances).toHaveLength(2);
+});
+
+test("a retry that succeeds after stop sends the deferred stop and cleans up", async () => {
+  const { beginRecordingConnection, endRecordingConnection, retryRecordingConnection } =
+    await import("./recordingConnection.ts");
+
+  beginRecordingConnection("ref-1", "token", "https://backend.example");
+  FakeWebSocket.instances[0]!.triggerError();
+  endRecordingConnection("ref-1");
+
+  retryRecordingConnection("ref-1");
+  const retried = FakeWebSocket.instances[1]!;
+  retried.open();
+
+  // endRecordingConnection's original stop send was skipped (nothing was open
+  // yet), so it must go out once the retry actually connects.
+  expect(retried.sent).toContain(JSON.stringify({ type: "stop" }));
+
+  // Fully resolved — nothing left to retry, no lingering state.
+  retryRecordingConnection("ref-1");
   expect(FakeWebSocket.instances).toHaveLength(2);
 });
 

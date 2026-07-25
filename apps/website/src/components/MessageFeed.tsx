@@ -54,7 +54,8 @@ function MessageCard({
   canEval: boolean;
   onEval: () => void;
 }) {
-  const canRetryConnection = message.connectionError && !!message.referenceId;
+  // Only ever true alongside a referenceId — see `setLocalConnectionError`.
+  const canRetryConnection = !!message.connectionError;
   const [copied, setCopied] = useState(false);
   const [swipeGlowing, setSwipeGlowing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -80,7 +81,9 @@ function MessageCard({
     minute: "2-digit",
   });
 
-  const copyable = message.status !== "recording" && !!text;
+  // A connect-error placeholder has an error string, not a transcript — swipe
+  // (to delete the placeholder) still works, but there's nothing to copy.
+  const copyable = message.status !== "recording" && !message.connectionError && !!text;
   const swipeable = message.status !== "recording";
 
   const scheduleClickSuppression = () => {

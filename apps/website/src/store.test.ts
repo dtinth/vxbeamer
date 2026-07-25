@@ -1,4 +1,5 @@
 import { beforeEach, expect, test, vi } from "vite-plus/test";
+import { createStorage } from "./testStorage.ts";
 
 const handleDesktopSwipeBehavior = vi.fn();
 
@@ -12,16 +13,6 @@ function encodeToken(payload: Record<string, unknown>): string {
     .replace(/\//g, "_")
     .replace(/=+$/g, "");
   return `header.${base64}.signature`;
-}
-
-function createStorage() {
-  const values = new Map<string, string>();
-  return {
-    getItem: (key: string) => values.get(key) ?? null,
-    setItem: (key: string, value: string) => void values.set(key, value),
-    removeItem: (key: string) => void values.delete(key),
-    clear: () => values.clear(),
-  };
 }
 
 beforeEach(() => {

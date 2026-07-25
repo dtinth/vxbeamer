@@ -7,7 +7,6 @@ import {
   $messages,
   $sessionToken,
   $transcriptListMode,
-  clearLocalConnectionError,
   markPendingLocalSwipe,
   TRANSCRIPT_LIST_LIMIT,
   type Message,
@@ -16,6 +15,7 @@ import { $retainedRecordings } from "../recordedAudio.ts";
 import { forgetRecordingConnection, retryRecordingConnection } from "../recordingConnection.ts";
 import { EvalDialog } from "./EvalDialog.tsx";
 import {
+  canEvalMessage,
   getMessageCardInitialScrollLeft,
   getMessageCardSnapAction,
   getMessageFeedScrollBehavior,
@@ -116,11 +116,10 @@ function MessageCard({
   };
 
   const triggerDelete = () => {
-    if (message.connectionError && message.referenceId) {
+    if (canRetryConnection) {
       // A local placeholder bubble — nothing server-side to delete. Drop the
       // buffered audio and connection state along with it.
-      forgetRecordingConnection(message.referenceId);
-      clearLocalConnectionError(message.referenceId);
+      forgetRecordingConnection(message.referenceId!);
       return;
     }
     void fetch(new URL(`/messages/${message.id}`, backendUrl).toString(), {
@@ -614,9 +613,10 @@ export function MessageFeed({ onOpenSettings }: MessageFeedProps = {}) {
   const evalMessage = evalMessageId ? messagesMap.get(evalMessageId) : undefined;
 
   const canEval = (message: Message): boolean =>
-    message.status !== "recording" &&
-    !!message.referenceId &&
-    !!retainedRecordings.get(message.referenceId)?.chunks.length;
+    canEvalMessage(
+      message,
+      !!message.referenceId && !!retainedRecordings.get(message.referenceId)?.chunks.length,
+    );
 
   useEffect(() => {
     prevDisplayedRef.current = messages.map((m) => m.id);

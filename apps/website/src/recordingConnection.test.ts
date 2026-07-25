@@ -182,14 +182,23 @@ test("stopping while still failed keeps the connection retryable", async () => {
 test("forgetting a connection closes the socket and drops its retry state", async () => {
   const { beginRecordingConnection, forgetRecordingConnection, retryRecordingConnection } =
     await import("./recordingConnection.ts");
+  const { $messages } = await import("./store.ts");
 
   beginRecordingConnection("ref-1", "token", "https://backend.example");
   const ws = FakeWebSocket.instances[0]!;
   ws.triggerError();
+  expect($messages.get().has("local:ref-1")).toBe(true);
 
   forgetRecordingConnection("ref-1");
   expect(ws.readyState).toBe(3);
+  expect($messages.get().has("local:ref-1")).toBe(false);
 
   retryRecordingConnection("ref-1");
   expect(FakeWebSocket.instances).toHaveLength(1);
+});
+
+test("forgetting a connection with no error bubble showing is a no-op, not a crash", async () => {
+  const { forgetRecordingConnection } = await import("./recordingConnection.ts");
+
+  expect(() => forgetRecordingConnection("never-started")).not.toThrow();
 });

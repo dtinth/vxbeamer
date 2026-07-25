@@ -1,5 +1,7 @@
 import { describe, expect, test } from "vite-plus/test";
+import type { Message } from "../store.ts";
 import {
+  canEvalMessage,
   getMessageCardInitialScrollLeft,
   getMessageCardSnapAction,
   getMessageFeedScrollBehavior,
@@ -7,6 +9,37 @@ import {
   MESSAGE_CARD_SNAP_TOLERANCE,
   selectVisibleMessages,
 } from "./messageFeedScroll.ts";
+
+function message(overrides: Partial<Message> = {}): Message {
+  return {
+    id: "message-1",
+    referenceId: "ref-1",
+    status: "done",
+    createdAt: 1,
+    updatedAt: 1,
+    ...overrides,
+  };
+}
+
+describe("canEvalMessage", () => {
+  test("allows eval on a finished message with retained audio", () => {
+    expect(canEvalMessage(message(), true)).toBe(true);
+  });
+
+  test("refuses eval on a connect-error placeholder, even with retained audio", () => {
+    // A `local:<referenceId>` placeholder has no server-side message to
+    // submit a winner against — see recordingConnection.ts.
+    expect(canEvalMessage(message({ connectionError: true }), true)).toBe(false);
+  });
+
+  test("refuses eval while still recording", () => {
+    expect(canEvalMessage(message({ status: "recording" }), true)).toBe(false);
+  });
+
+  test("refuses eval without retained audio", () => {
+    expect(canEvalMessage(message(), false)).toBe(false);
+  });
+});
 
 test("uses instant scrolling for the initial message load", () => {
   expect(getMessageFeedScrollBehavior(false)).toBe("auto");

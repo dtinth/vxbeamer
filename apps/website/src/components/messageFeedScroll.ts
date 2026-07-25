@@ -1,5 +1,17 @@
+import type { Message } from "../store.ts";
+
 export function getMessageFeedScrollBehavior(hasScrolledInitially: boolean): ScrollBehavior {
   return hasScrolledInitially ? "smooth" : "auto";
+}
+
+/**
+ * Eval is opt-in per message (privacy) and only offered where it's possible at
+ * all — the audio outlives its message only in this tab's memory, and a
+ * client-only connect-error placeholder (`message.connectionError`) has no
+ * server-side message to submit a winner against in the first place.
+ */
+export function canEvalMessage(message: Message, hasRetainedAudio: boolean): boolean {
+  return message.status !== "recording" && !message.connectionError && hasRetainedAudio;
 }
 
 /** Fallback delay for pruning trimmed bubbles when `scrollend` never fires

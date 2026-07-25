@@ -17,6 +17,13 @@ export interface Message {
   updatedAt: number;
   /** The model configuration that authored `final` — the recording's own, or an eval winner's. */
   configurationId?: string;
+  /**
+   * Client-synthesized placeholder for a recording whose `/ws` connect failed
+   * or timed out (see `recordingConnection.ts`) — never set by the server.
+   * Marks the bubble as retryable and is reconciled away once the real
+   * message for the same `referenceId` arrives over SSE.
+   */
+  connectionError?: boolean;
 }
 
 const BACKEND_URL_KEY = "vxbeamer_backend_url";
@@ -235,6 +242,41 @@ export function setActiveRecordingReferenceId(referenceId: string | null): void 
   $activeRecordingReferenceId.set(referenceId);
 }
 
+function localConnectionErrorId(referenceId: string): string {
+  return `local:${referenceId}`;
+}
+
+/**
+ * Show (or update) a client-only error bubble for a recording whose `/ws`
+ * connect failed or timed out — there is no server-side message to attach an
+ * error to yet, since the backend only creates one once the socket opens.
+ */
+export function setLocalConnectionError(referenceId: string, error: string): void {
+  const id = localConnectionErrorId(referenceId);
+  const map = new Map($messages.get());
+  const existing = map.get(id);
+  const now = Date.now();
+  map.set(id, {
+    id,
+    referenceId,
+    status: "error",
+    error,
+    connectionError: true,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+  });
+  $messages.set(map);
+}
+
+/** Remove a recording's local connect-error bubble, e.g. once retried successfully. */
+export function clearLocalConnectionError(referenceId: string): void {
+  const id = localConnectionErrorId(referenceId);
+  if (!$messages.get().has(id)) return;
+  const map = new Map($messages.get());
+  map.delete(id);
+  $messages.set(map);
+}
+
 export function markPendingLocalSwipe(messageId: string): void {
   pendingLocalSwipes.add(messageId);
   setTimeout(() => pendingLocalSwipes.delete(messageId), PENDING_LOCAL_SWIPE_TIMEOUT_MS);
@@ -350,6 +392,11 @@ export function applySSEEvent(raw: unknown, sseEventId?: string): void {
   } else if (event.type === "created") {
     const map = new Map($messages.get());
     map.set(event.message.id, event.message);
+    // A retried (or now-succeeded) connection's real message has arrived —
+    // the local placeholder bubble for it is no longer needed.
+    if (event.message.referenceId) {
+      map.delete(localConnectionErrorId(event.message.referenceId));
+    }
     $messages.set(map);
   } else if (event.type === "updated") {
     const map = new Map($messages.get());

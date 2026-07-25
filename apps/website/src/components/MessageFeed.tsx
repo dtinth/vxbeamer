@@ -7,11 +7,13 @@ import {
   $messages,
   $sessionToken,
   $transcriptListMode,
+  clearLocalConnectionError,
   markPendingLocalSwipe,
   TRANSCRIPT_LIST_LIMIT,
   type Message,
 } from "../store.ts";
 import { $retainedRecordings } from "../recordedAudio.ts";
+import { forgetRecordingConnection, retryRecordingConnection } from "../recordingConnection.ts";
 import { EvalDialog } from "./EvalDialog.tsx";
 import {
   getMessageCardInitialScrollLeft,
@@ -52,6 +54,7 @@ function MessageCard({
   canEval: boolean;
   onEval: () => void;
 }) {
+  const canRetryConnection = message.connectionError && !!message.referenceId;
   const [copied, setCopied] = useState(false);
   const [swipeGlowing, setSwipeGlowing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -102,6 +105,8 @@ function MessageCard({
   };
 
   const triggerBeam = () => {
+    // A local placeholder has no server-side counterpart to beam.
+    if (message.connectionError) return;
     markPendingLocalSwipe(message.id);
     void fetch(new URL(`/messages/${message.id}/swipe`, backendUrl).toString(), {
       method: "POST",
@@ -111,6 +116,13 @@ function MessageCard({
   };
 
   const triggerDelete = () => {
+    if (message.connectionError && message.referenceId) {
+      // A local placeholder bubble — nothing server-side to delete. Drop the
+      // buffered audio and connection state along with it.
+      forgetRecordingConnection(message.referenceId);
+      clearLocalConnectionError(message.referenceId);
+      return;
+    }
     void fetch(new URL(`/messages/${message.id}`, backendUrl).toString(), {
       method: "DELETE",
       headers: { Authorization: `Bearer ${authToken}` },
@@ -439,6 +451,37 @@ function MessageCard({
             {message.status === "error" && <span className="text-xs text-(--m3-error)">Error</span>}
             <span className="ml-auto flex items-center gap-3">
               {copied && <span className="text-xs text-green-400">Copied</span>}
+              {/* Only the recording's own connect ever failed — the buffered
+                  audio is still sitting in recordingConnection.ts waiting for
+                  another attempt. */}
+              {canRetryConnection && (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    retryRecordingConnection(message.referenceId!);
+                  }}
+                  className="-my-1 rounded-full p-1 text-(--m3-error) transition-colors hover:bg-(--m3-surface-container-highest)"
+                  aria-label="Retry connecting this recording"
+                  title="Retry"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M3 12a9 9 0 1 0 3-6.7" />
+                    <path d="M3 4v5h5" />
+                  </svg>
+                </button>
+              )}
               {/* Eval is opt-in per message (privacy), and only offered where it
                   is possible at all: the audio outlives its message only in this
                   tab's memory, and the size cap may already have let it go. */}

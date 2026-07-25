@@ -144,6 +144,56 @@ test("releases retained audio when the session is cleared", async () => {
   expect(getRetainedRecording("ref-1")).toBeUndefined();
 });
 
+test("shows and clears a local connection-error placeholder", async () => {
+  const { $messages, setLocalConnectionError, clearLocalConnectionError } =
+    await import("./store.ts");
+
+  setLocalConnectionError("ref-1", "Connection failed");
+  const placeholder = $messages.get().get("local:ref-1");
+  expect(placeholder).toMatchObject({
+    referenceId: "ref-1",
+    status: "error",
+    error: "Connection failed",
+    connectionError: true,
+  });
+
+  clearLocalConnectionError("ref-1");
+  expect($messages.get().has("local:ref-1")).toBe(false);
+});
+
+test("preserves the placeholder's createdAt across repeated failures", async () => {
+  const { $messages, setLocalConnectionError } = await import("./store.ts");
+
+  setLocalConnectionError("ref-1", "Connection failed");
+  const firstCreatedAt = $messages.get().get("local:ref-1")?.createdAt;
+
+  setLocalConnectionError("ref-1", "Connection timed out");
+  const placeholder = $messages.get().get("local:ref-1");
+  expect(placeholder?.error).toBe("Connection timed out");
+  expect(placeholder?.createdAt).toBe(firstCreatedAt);
+});
+
+test("reconciles away a local connection-error placeholder once the real message arrives", async () => {
+  const { $messages, applySSEEvent, setLocalConnectionError } = await import("./store.ts");
+
+  setLocalConnectionError("ref-1", "Connection failed");
+  expect($messages.get().has("local:ref-1")).toBe(true);
+
+  applySSEEvent({
+    type: "created",
+    message: {
+      id: "message-1",
+      referenceId: "ref-1",
+      status: "recording" as const,
+      createdAt: 1,
+      updatedAt: 1,
+    },
+  });
+
+  expect($messages.get().has("local:ref-1")).toBe(false);
+  expect($messages.get().has("message-1")).toBe(true);
+});
+
 test("deduplicates swiped SSE events that reuse the same event id", async () => {
   const { applySSEEvent, setDesktopSwipeBehavior } = await import("./store.ts");
 

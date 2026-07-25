@@ -10,8 +10,12 @@ import {
   setActiveRecordingReferenceId,
 } from "../store.ts";
 import { type AudioSource, createMicrophoneSource } from "../audio.ts";
-import { buildBackendSocketUrl } from "../backendSocket.ts";
 import { type RecordingRetainer, retainRecording } from "../recordedAudio.ts";
+import {
+  beginRecordingConnection,
+  endRecordingConnection,
+  sendRecordingAudio,
+} from "../recordingConnection.ts";
 import { SettingsIcon } from "./SettingsIcon.tsx";
 
 export interface RecordingBarProps {
@@ -31,7 +35,7 @@ export function RecordingBar({
   const [isRecording, setIsRecording] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const wsRef = useRef<WebSocket | null>(null);
+  const referenceIdRef = useRef<string | null>(null);
   const audioSourceRef = useRef<AudioSource | null>(null);
   const retainerRef = useRef<RecordingRetainer | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -91,14 +95,11 @@ export function RecordingBar({
 
   const stopRecording = useCallback(() => {
     setActiveRecordingReferenceId(null);
-    const ws = wsRef.current;
-    if (ws?.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: "stop" }));
-    }
+    if (referenceIdRef.current) endRecordingConnection(referenceIdRef.current);
+    referenceIdRef.current = null;
 
     audioSourceRef.current?.stop();
     audioSourceRef.current = null;
-    wsRef.current = null;
 
     // The recording is complete — keep its PCM around for replay.
     retainerRef.current?.commit();
@@ -119,78 +120,52 @@ export function RecordingBar({
     }
     setError(null);
 
+    const audioSource = createAudioSource
+      ? createAudioSource()
+      : createMicrophoneSource(audioProcessingMode);
+    audioSourceRef.current = audioSource;
+
+    const referenceId = crypto.randomUUID();
+
+    // Retain the whole recording in memory (this tab only) so it can be
+    // replayed against other models after the fact.
+    const retainer = retainRecording(referenceId);
+    retainerRef.current = retainer;
+
     try {
-      const audioSource = createAudioSource
-        ? createAudioSource()
-        : createMicrophoneSource(audioProcessingMode);
-      audioSourceRef.current = audioSource;
-
-      const referenceId = crypto.randomUUID();
-
-      // Retain the whole recording in memory (this tab only) so it can be
-      // replayed against other models after the fact.
-      const retainer = retainRecording(referenceId);
-      retainerRef.current = retainer;
-
-      // Buffer audio while WS is connecting
-      const buffer: ArrayBuffer[] = [];
       await audioSource.start((chunk) => {
         retainer.append(chunk);
-        const ws = wsRef.current;
-        if (ws?.readyState === WebSocket.OPEN) {
-          ws.send(chunk);
-        } else {
-          buffer.push(chunk);
-        }
+        sendRecordingAudio(referenceId, chunk);
       });
-
-      const wsUrl = buildBackendSocketUrl(backendUrl, "/ws", {
-        access_token: authToken,
-        reference_id: referenceId,
-      });
-
-      const ws = new WebSocket(wsUrl);
-      ws.binaryType = "arraybuffer";
-      wsRef.current = ws;
-      ws.addEventListener("close", () => {
-        wsRef.current = null;
-        setActiveRecordingReferenceId(null);
-      });
-      ws.addEventListener("error", () => {
-        setActiveRecordingReferenceId(null);
-      });
-
-      await new Promise<void>((resolve, reject) => {
-        ws.onopen = () => resolve();
-        ws.onerror = () => reject(new Error("WebSocket connection failed"));
-      });
-
-      // Flush buffered audio
-      for (const chunk of buffer) ws.send(chunk);
-
-      if (wakeLockMode === "recording" || wakeLockMode === "always") {
-        try {
-          wakeLockRef.current = await navigator.wakeLock.request("screen");
-          $wakeLockActive.set(true);
-        } catch {
-          // wake lock not available or denied — non-fatal
-        }
-      }
-
-      setActiveRecordingReferenceId(referenceId);
-      setIsRecording(true);
-      startVisualizer();
     } catch (err) {
-      setActiveRecordingReferenceId(null);
-      setError(err instanceof Error ? err.message : "Failed to start");
-      wsRef.current?.close();
-      wsRef.current = null;
-      audioSourceRef.current?.stop();
+      // The microphone itself never started — there is nothing to retain, and
+      // no connection has been opened, so there is nothing on the backend to
+      // clean up either.
       audioSourceRef.current = null;
-      // The recording never happened — nothing worth retaining.
       retainerRef.current?.discard();
       retainerRef.current = null;
+      setError(err instanceof Error ? err.message : "Failed to start");
+      return;
     }
+
+    // Mic capture is live. The connection to /ws is independent of it from
+    // here on: a slow or failed connect no longer blocks or aborts the
+    // recording. See recordingConnection.ts.
+    referenceIdRef.current = referenceId;
+    beginRecordingConnection(referenceId, authToken, backendUrl);
+
+    if (wakeLockMode === "recording" || wakeLockMode === "always") {
+      try {
+        wakeLockRef.current = await navigator.wakeLock.request("screen");
+        $wakeLockActive.set(true);
+      } catch {
+        // wake lock not available or denied — non-fatal
+      }
+    }
+
+    setActiveRecordingReferenceId(referenceId);
+    setIsRecording(true);
+    startVisualizer();
   }, [
     authToken,
     backendUrl,

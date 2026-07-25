@@ -16,12 +16,18 @@ import { RETAINED_AUDIO_FORMAT, concatChunks } from "./recordedAudio.ts";
  *    them. A 9 s clip evaluates in ~9.5 s whether the set holds two
  *    configurations or six. That is why the dialog can show a clip-length
  *    progress bar instead of an indeterminate multi-minute spinner.
- * 2. **Realtime pacing is a correctness requirement, not a slider.** Each
- *    socket gets one 3200-byte frame every 100 ms. This is not an optimisation
- *    target: BytePlus hangs outright on a fast dump and never returns a final,
- *    and vendors document a 100–200 ms send interval. Billing is per
- *    audio-second rather than connection-second, so pacing is also free. The
- *    obvious "speed-up" — dumping the buffer — breaks the feature.
+ * 2. **Pacing is per provider, not a single global rate.** Realtime (one
+ *    3200-byte frame every 100 ms) is the safe default — vendors document a
+ *    100–200 ms send interval, and BytePlus's bi-directional `bigmodel` mode
+ *    hangs outright on a fast dump. But that turned out not to be universal:
+ *    every provider actually declared in the catalogue was fast-dump tested
+ *    against the same fixture (`testdata/OBSERVATIONS.md`, "fast dump vs
+ *    realtime") and returned a transcript in ~1–2 s with no hang, so
+ *    {@link FAST_DUMP_PROVIDERS} lets those skip the wait. A provider earns
+ *    that entry by being tested, the same discipline `builtin.ts` applies to
+ *    pinned model ids — an untested provider defaults to realtime. Billing is
+ *    per audio-second rather than connection-second either way, so pacing is
+ *    free to vary.
  *
  * Privacy: the PCM this replays never leaves memory. It goes into these sockets
  * and nowhere else. Nothing here writes to disk, localStorage or IndexedDB.
@@ -30,8 +36,26 @@ import { RETAINED_AUDIO_FORMAT, concatChunks } from "./recordedAudio.ts";
 /** One 100 ms frame, derived from the format rather than restated as a literal. */
 export const EVAL_FRAME_BYTES = BYTES_PER_SECOND / 10;
 
-/** See the note above. Do not tune this down. */
+/** Realtime pacing, for a provider not in {@link FAST_DUMP_PROVIDERS}. Do not tune this down. */
 export const EVAL_FRAME_INTERVAL_MS = 100;
+
+/**
+ * Providers confirmed (`testdata/OBSERVATIONS.md`) to accept a fast dump —
+ * every frame sent back-to-back rather than paced at realtime — without
+ * hanging or losing accuracy. See the module doc above for what disqualifies
+ * a provider from this set.
+ */
+export const FAST_DUMP_PROVIDERS: ReadonlySet<string> = new Set([
+  "qwen",
+  "qwen-omni",
+  "byteplus",
+  "mock",
+]);
+
+/** How long between frames for one provider's socket. */
+export function evalFrameIntervalMs(providerId: string): number {
+  return FAST_DUMP_PROVIDERS.has(providerId) ? 0 : EVAL_FRAME_INTERVAL_MS;
+}
 
 /**
  * What `/asr/eval` sends as JSON is a `UsageRecord`; use the real type rather
@@ -52,6 +76,8 @@ export type EvalServerEvent =
 export interface EvalConfiguration {
   id: string;
   label: string;
+  /** Which entry in {@link FAST_DUMP_PROVIDERS} governs this row's pacing. */
+  providerId: string;
   configured: boolean;
 }
 
@@ -277,6 +303,7 @@ export function startEvalRun(options: EvalRunOptions): EvalRun {
     let timer: number | null = null;
     let framesSent = 0;
     let stopped = false;
+    const frameInterval = evalFrameIntervalMs(configuration.providerId);
 
     const stopPump = (): void => {
       if (timer === null) return;
@@ -285,10 +312,11 @@ export function startEvalRun(options: EvalRunOptions): EvalRun {
     };
 
     /**
-     * One frame per tick. Each socket paces from its own `ready` rather than
-     * from a clock shared across the run: a socket that connects late must
-     * still hear its audio at 1x, and catching it up in a burst would be the
-     * fast dump this whole module exists to avoid.
+     * One frame per tick, at this row's own provider's pace. Each socket paces
+     * from its own `ready` rather than from a clock shared across the run: a
+     * socket that connects late must still hear its audio at its provider's
+     * rate, and catching it up in a burst would be the fast dump a realtime-only
+     * provider cannot tolerate.
      */
     const pump = (): void => {
       if (cancelled || stopped) return;
@@ -303,7 +331,7 @@ export function startEvalRun(options: EvalRunOptions): EvalRun {
       socket?.send(frames[framesSent]!);
       framesSent += 1;
       patch(index, { framesSent });
-      timer = timers.setTimeout(pump, EVAL_FRAME_INTERVAL_MS);
+      timer = timers.setTimeout(pump, frameInterval);
       pumpTimers.push(timer);
     };
 

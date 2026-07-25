@@ -3,6 +3,7 @@ import {
   buildEvalSocketUrl,
   canWinEval,
   evalDurationSeconds,
+  evalFrameIntervalMs,
   evalRowCost,
   EVAL_FRAME_BYTES,
   EVAL_FRAME_INTERVAL_MS,
@@ -18,6 +19,10 @@ import {
 const QWEN = "qwen/qwen3-asr-flash-realtime";
 const QWEN_GROQ = "qwen/qwen3-asr-flash-realtime+groq";
 const BYTEPLUS = "byteplus/bigmodel";
+// Stands in for a provider that has never been fast-dump tested — the tests
+// that exist to prove realtime pacing doesn't burst need one of these, since
+// every provider actually in the catalogue is now confirmed fast-dump safe.
+const SLOW_VENDOR = "future-vendor/model-v1";
 
 // The two transcripts below are real output from a 9 s Thai clip. They are the
 // point of the feature: same audio, same second, wildly different answers.
@@ -28,7 +33,10 @@ const BYTEPLUS_TRANSCRIPT =
   "project Niagara typescript Chai framework Chai do deploy material way 来自 Chai MongoDB Atlassian common。";
 
 function configuration(id: string, overrides: Partial<EvalConfiguration> = {}): EvalConfiguration {
-  return { id, label: id, configured: true, ...overrides };
+  // Splitting the id for a providerId default is a test-fixture shortcut only
+  // — production code must not do this (see `ConfigurationDescriptor` in
+  // apps/backend/src/asr.ts): the real providerId always comes from the server.
+  return { id, label: id, providerId: id.split("/")[0]!, configured: true, ...overrides };
 }
 
 /** PCM stand-in: `seconds` of silence, cut into 256-byte worklet chunks. */
@@ -49,9 +57,11 @@ function createHarness(
   primaryConfigurationId?: string,
 ) {
   const pending = new Map<number, () => void>();
+  const scheduledIntervals: number[] = [];
   let nextHandle = 1;
   const timers: EvalTimers = {
-    setTimeout(callback) {
+    setTimeout(callback, ms) {
+      scheduledIntervals.push(ms);
       const handle = nextHandle++;
       pending.set(handle, callback);
       return handle;
@@ -88,6 +98,7 @@ function createHarness(
   return {
     run,
     sockets,
+    scheduledIntervals,
     emit(configurationId: string, event: EvalServerEvent) {
       sockets.get(configurationId)!.handlers.onEvent(event);
     },
@@ -177,20 +188,48 @@ test("upgrades the backend's scheme to a websocket one", () => {
   expect(insecure.startsWith("ws://localhost:8787/asr/eval?")).toBe(true);
 });
 
-// --- Realtime pacing ---
+// --- Per-provider pacing ---
 
-test("replays one frame per 100 ms tick and never dumps the buffer", () => {
+test("a provider not confirmed fast-dump-safe defaults to realtime", () => {
+  expect(evalFrameIntervalMs("future-vendor")).toBe(EVAL_FRAME_INTERVAL_MS);
+});
+
+test("providers confirmed by testdata/OBSERVATIONS.md skip the pacing delay", () => {
+  expect(evalFrameIntervalMs("qwen")).toBe(0);
+  expect(evalFrameIntervalMs("qwen-omni")).toBe(0);
+  expect(evalFrameIntervalMs("byteplus")).toBe(0);
+  expect(evalFrameIntervalMs("mock")).toBe(0);
+});
+
+test("replays one frame per tick and never dumps the buffer", () => {
+  const harness = createHarness([configuration(SLOW_VENDOR)], recordedChunks(1));
+
+  harness.emit(SLOW_VENDOR, { type: "ready", configurationId: SLOW_VENDOR });
+  // `ready` sends the first frame; nothing more until the clock moves.
+  expect(harness.audioFrames(SLOW_VENDOR)).toHaveLength(1);
+
+  harness.tick();
+  expect(harness.audioFrames(SLOW_VENDOR)).toHaveLength(2);
+
+  harness.tick();
+  expect(harness.audioFrames(SLOW_VENDOR)).toHaveLength(3);
+
+  // Every frame sent schedules its follow-up at the untested provider's default.
+  expect(harness.scheduledIntervals).toEqual([
+    EVAL_FRAME_INTERVAL_MS,
+    EVAL_FRAME_INTERVAL_MS,
+    EVAL_FRAME_INTERVAL_MS,
+  ]);
+});
+
+test("a row on a fast-dump-confirmed provider is paced with no delay", () => {
   const harness = createHarness([configuration(QWEN)], recordedChunks(1));
 
   harness.emit(QWEN, { type: "ready", configurationId: QWEN });
-  // `ready` sends the first frame; nothing more until the clock moves.
-  expect(harness.audioFrames(QWEN)).toHaveLength(1);
-
   harness.tick();
+
   expect(harness.audioFrames(QWEN)).toHaveLength(2);
-
-  harness.tick();
-  expect(harness.audioFrames(QWEN)).toHaveLength(3);
+  expect(harness.scheduledIntervals).toEqual([0, 0]);
 });
 
 test("sends no audio before the server says it is ready", () => {
@@ -214,33 +253,39 @@ test("stops after the last frame and asks the vendor to finish", () => {
   expect(harness.row(QWEN).status).toBe("finishing");
 });
 
-test("a late connection still hears its audio at 1x rather than catching up", () => {
-  const harness = createHarness([configuration(QWEN), configuration(BYTEPLUS)], recordedChunks(1));
+test("a late connection still hears its audio at its own pace rather than catching up", () => {
+  const harness = createHarness(
+    [configuration(QWEN), configuration(SLOW_VENDOR)],
+    recordedChunks(1),
+  );
 
   harness.emit(QWEN, { type: "ready", configurationId: QWEN });
   harness.tick();
   harness.tick();
-  // BytePlus only gets going three frames in.
-  harness.emit(BYTEPLUS, { type: "ready", configurationId: BYTEPLUS });
+  // The slow vendor only gets going three frames in.
+  harness.emit(SLOW_VENDOR, { type: "ready", configurationId: SLOW_VENDOR });
 
   expect(harness.audioFrames(QWEN)).toHaveLength(3);
-  // Not 3 — pacing is per socket, from its own ready. A burst is the dump that
-  // makes BytePlus hang.
-  expect(harness.audioFrames(BYTEPLUS)).toHaveLength(1);
+  // Not 3 — pacing is per socket, from its own ready. A burst is the dump a
+  // realtime-only provider cannot tolerate.
+  expect(harness.audioFrames(SLOW_VENDOR)).toHaveLength(1);
 
   harness.tick();
   expect(harness.audioFrames(QWEN)).toHaveLength(4);
-  expect(harness.audioFrames(BYTEPLUS)).toHaveLength(2);
+  expect(harness.audioFrames(SLOW_VENDOR)).toHaveLength(2);
 });
 
 test("progress tracks the clip rather than the number of rows", () => {
-  const harness = createHarness([configuration(QWEN), configuration(BYTEPLUS)], recordedChunks(1));
+  const harness = createHarness(
+    [configuration(QWEN), configuration(SLOW_VENDOR)],
+    recordedChunks(1),
+  );
 
   expect(harness.run.frameCount).toBe(10);
   expect(harness.run.$progress.get()).toBe(0);
 
   harness.emit(QWEN, { type: "ready", configurationId: QWEN });
-  harness.emit(BYTEPLUS, { type: "ready", configurationId: BYTEPLUS });
+  harness.emit(SLOW_VENDOR, { type: "ready", configurationId: SLOW_VENDOR });
   for (let i = 0; i < 4; i++) harness.tick();
 
   expect(harness.run.$progress.get()).toBeCloseTo(0.5);

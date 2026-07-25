@@ -40,7 +40,7 @@ function clearConnectTimeout(state: ConnectionState): void {
   state.connectTimeout = null;
 }
 
-function fail(state: ConnectionState, message: string): void {
+function failConnect(state: ConnectionState, message: string): void {
   if (state.opened) return;
   clearConnectTimeout(state);
   setLocalConnectionError(state.referenceId, message);
@@ -58,7 +58,7 @@ function openSocket(state: ConnectionState): void {
   state.connectTimeout = setTimeout(() => {
     if (state.opened) return;
     ws.close();
-    fail(state, "Connection timed out");
+    failConnect(state, "Connection timed out");
   }, CONNECT_TIMEOUT_MS);
 
   ws.addEventListener("open", () => {
@@ -70,7 +70,7 @@ function openSocket(state: ConnectionState): void {
     clearLocalConnectionError(state.referenceId);
   });
 
-  ws.addEventListener("error", () => fail(state, "Connection failed"));
+  ws.addEventListener("error", () => failConnect(state, "Connection failed"));
 
   ws.addEventListener("close", () => {
     if (state.ws === ws) state.ws = null;
@@ -133,8 +133,10 @@ export function retryRecordingConnection(referenceId: string): void {
 /** Drop everything for a recording whose error bubble was dismissed. */
 export function forgetRecordingConnection(referenceId: string): void {
   const state = connections.get(referenceId);
-  if (!state) return;
-  clearConnectTimeout(state);
-  state.ws?.close();
-  connections.delete(referenceId);
+  if (state) {
+    clearConnectTimeout(state);
+    state.ws?.close();
+    connections.delete(referenceId);
+  }
+  clearLocalConnectionError(referenceId);
 }

@@ -177,11 +177,43 @@ independent samples (2/5 vs 4/5, then 11/15 vs 13/15), and `--fast` produced two
 renderings realtime never did, but neither observation is significant at this n.
 Distinguishing 65% from 85% needs roughly 70 runs per condition.
 
-Contrast BytePlus, which **hangs outright** under a fast dump (see its section).
-This model has no VAD in this configuration (`turn_detection: null`), so there is
-no wall-clock endpointing to disturb.
+Contrast BytePlus's bi-directional `bigmodel` mode, which **hangs outright**
+under a fast dump (see its section) — but see below: that is not the mode this
+app ships.
 
 Cost is unaffected by pacing: this model bills per token, not per second.
+
+### BytePlus `bigmodel_nostream` (the shipped mode), fast dump vs realtime
+
+The "BytePlus hangs on a fast dump" finding above is about the bi-directional
+`bigmodel` mode, which the catalogue deliberately does not declare (no
+`language` support — see its section). The mode actually shipped,
+`bigmodel_nostream`, had never been fast-dump tested. Run 2026-07-26, same
+fixture, through the `vxasr` CLI:
+
+| condition                           | wall clock | outcome                                                                                         |
+| ----------------------------------- | ---------- | ----------------------------------------------------------------------------------------------- |
+| `--fast`, `language` omitted, n=3   | 1.4–2.2 s  | all 3 completed; no hang. Transcripts match the realtime row's shape (English/Chinese nonsense) |
+| `--fast`, `BYTEPLUS_LANGUAGE=th-TH` | 1.7 s      | correct Thai, byte-for-byte the same rendering as the realtime `th-TH` row above                |
+| realtime (100 ms/chunk)             | ~9.2 s+    | (existing row above)                                                                            |
+
+**`bigmodel_nostream` does not hang on a fast dump.** Billing unaffected (still
+`byteplus:seedasr:seconds` quantity 10). This mode is also documented to
+withhold partials until 15 s of audio or the final packet regardless of
+pacing, so a fast dump costs it nothing it wasn't already giving up.
+
+Also reconfirmed on this run: `qwen/qwen3-asr-flash-realtime-2025-10-27`
+(raw and `+groq`) and `qwen-omni/qwen3.5-omni-flash-realtime-2026-03-15` all
+complete a `--fast` dump in under 1.5 s with no hangs, consistent with the
+existing rows above.
+
+**Net: every configuration currently in `builtinConfigurations` (Qwen ASR,
+Qwen Omni, BytePlus `bigmodel_nostream`, each raw or `+groq`) tolerates a fast
+dump.** The only "hangs on fast dump" case ever observed is the BytePlus mode
+the app does not use. The eval fan-out's fixed 100 ms/frame pacing
+(`apps/website/src/evalRun.ts`) is accordingly a real speed-up opportunity —
+its comment's justification ("BytePlus hangs outright on a fast dump") turns
+out to describe an undeployed mode, not the shipped one.
 
 ### `gummy-realtime-v1`
 

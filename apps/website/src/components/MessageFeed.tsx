@@ -26,7 +26,6 @@ import {
 } from "./messageFeedScroll.ts";
 
 const SWIPE_GLOW_DURATION_MS = 900;
-const COPY_BOUNCE_DURATION_MS = 300;
 const DRAG_CLICK_SUPPRESSION_MS = 250;
 const DRAG_FREEZE_DELAY_MS = 50;
 /** How long the charge tint takes to fill — sized to the OS long-press lift the
@@ -58,9 +57,7 @@ function MessageCard({
   // Only ever true alongside a referenceId — see `setLocalConnectionError`.
   const canRetryConnection = !!message.connectionError;
   const [copied, setCopied] = useState(false);
-  const [copyBouncing, setCopyBouncing] = useState(false);
-  const copyBounceResetRef = useRef<number | null>(null);
-  const copyBounceFrameRef = useRef<number | null>(null);
+  const bubbleRef = useRef<HTMLDivElement>(null);
   const [swipeGlowing, setSwipeGlowing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -181,22 +178,17 @@ function MessageCard({
     }
   };
 
-  // Restart the bounce even on rapid repeat taps: drop the class, then re-add
-  // it a frame later so the browser sees a fresh animation rather than a no-op
-  // re-application of a class it already had.
+  // Driven imperatively (like the charge sweep below) rather than through
+  // React state: remove-then-reflow-then-add forces the browser to restart
+  // the animation even on rapid repeat taps, and the class is dropped again
+  // by onAnimationEnd once it finishes, so no per-tap render or timer is
+  // needed at all.
   const triggerCopyBounce = () => {
-    setCopyBouncing(false);
-    if (copyBounceFrameRef.current !== null)
-      window.cancelAnimationFrame(copyBounceFrameRef.current);
-    copyBounceFrameRef.current = window.requestAnimationFrame(() => {
-      setCopyBouncing(true);
-      copyBounceFrameRef.current = null;
-    });
-    if (copyBounceResetRef.current !== null) window.clearTimeout(copyBounceResetRef.current);
-    copyBounceResetRef.current = window.setTimeout(() => {
-      setCopyBouncing(false);
-      copyBounceResetRef.current = null;
-    }, COPY_BOUNCE_DURATION_MS);
+    const el = bubbleRef.current;
+    if (!el) return;
+    el.classList.remove("message-bubble-copy-bounce");
+    void el.offsetWidth;
+    el.classList.add("message-bubble-copy-bounce");
   };
 
   const handleClick = () => {
@@ -368,12 +360,6 @@ function MessageCard({
       if (sweepResetTimeoutRef.current !== null) {
         window.clearTimeout(sweepResetTimeoutRef.current);
       }
-      if (copyBounceResetRef.current !== null) {
-        window.clearTimeout(copyBounceResetRef.current);
-      }
-      if (copyBounceFrameRef.current !== null) {
-        window.cancelAnimationFrame(copyBounceFrameRef.current);
-      }
       // If the component unmounts mid-drag, dragend never fires to clean up.
       dragImageRef.current?.remove();
     };
@@ -456,6 +442,7 @@ function MessageCard({
           </div>
         </div>
         <div
+          ref={bubbleRef}
           draggable={copyable}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
@@ -464,10 +451,14 @@ function MessageCard({
           onTouchMove={handleChargeTouchMove}
           onTouchEnd={abortCharge}
           onTouchCancel={abortCharge}
+          onAnimationEnd={(event) => {
+            if (event.animationName === "message-bubble-copy-bounce") {
+              event.currentTarget.classList.remove("message-bubble-copy-bounce");
+            }
+          }}
           className={[
             "relative snap-center flex-none bg-(--m3-surface-container-high) px-4 py-3",
             copyable ? "cursor-pointer active:bg-(--m3-surface-container-highest)" : "",
-            copyBouncing ? "message-bubble-copy-bounce" : "",
           ].join(" ")}
           style={{ width: "100%" }}
         >

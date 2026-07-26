@@ -26,6 +26,7 @@ import {
 } from "./messageFeedScroll.ts";
 
 const SWIPE_GLOW_DURATION_MS = 900;
+const COPY_BOUNCE_DURATION_MS = 300;
 const DRAG_CLICK_SUPPRESSION_MS = 250;
 const DRAG_FREEZE_DELAY_MS = 50;
 /** How long the charge tint takes to fill — sized to the OS long-press lift the
@@ -57,6 +58,9 @@ function MessageCard({
   // Only ever true alongside a referenceId — see `setLocalConnectionError`.
   const canRetryConnection = !!message.connectionError;
   const [copied, setCopied] = useState(false);
+  const [copyBouncing, setCopyBouncing] = useState(false);
+  const copyBounceResetRef = useRef<number | null>(null);
+  const copyBounceFrameRef = useRef<number | null>(null);
   const [swipeGlowing, setSwipeGlowing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -177,6 +181,24 @@ function MessageCard({
     }
   };
 
+  // Restart the bounce even on rapid repeat taps: drop the class, then re-add
+  // it a frame later so the browser sees a fresh animation rather than a no-op
+  // re-application of a class it already had.
+  const triggerCopyBounce = () => {
+    setCopyBouncing(false);
+    if (copyBounceFrameRef.current !== null)
+      window.cancelAnimationFrame(copyBounceFrameRef.current);
+    copyBounceFrameRef.current = window.requestAnimationFrame(() => {
+      setCopyBouncing(true);
+      copyBounceFrameRef.current = null;
+    });
+    if (copyBounceResetRef.current !== null) window.clearTimeout(copyBounceResetRef.current);
+    copyBounceResetRef.current = window.setTimeout(() => {
+      setCopyBouncing(false);
+      copyBounceResetRef.current = null;
+    }, COPY_BOUNCE_DURATION_MS);
+  };
+
   const handleClick = () => {
     if (suppressClickRef.current) return;
     if (!copyable) return;
@@ -188,6 +210,7 @@ function MessageCard({
     void navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
+      triggerCopyBounce();
     });
   };
 
@@ -345,6 +368,12 @@ function MessageCard({
       if (sweepResetTimeoutRef.current !== null) {
         window.clearTimeout(sweepResetTimeoutRef.current);
       }
+      if (copyBounceResetRef.current !== null) {
+        window.clearTimeout(copyBounceResetRef.current);
+      }
+      if (copyBounceFrameRef.current !== null) {
+        window.cancelAnimationFrame(copyBounceFrameRef.current);
+      }
       // If the component unmounts mid-drag, dragend never fires to clean up.
       dragImageRef.current?.remove();
     };
@@ -438,6 +467,7 @@ function MessageCard({
           className={[
             "relative snap-center flex-none bg-(--m3-surface-container-high) px-4 py-3",
             copyable ? "cursor-pointer active:bg-(--m3-surface-container-highest)" : "",
+            copyBouncing ? "message-bubble-copy-bounce" : "",
           ].join(" ")}
           style={{ width: "100%" }}
         >

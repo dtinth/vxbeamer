@@ -29,6 +29,30 @@ body {
   animation: message-card-swipe-glow 900ms ease-out;
 }
 
+/* Tap-to-copy feedback: a quick squash-and-settle on the bubble itself, so the
+   tap reads as "acknowledged" even before the "Copied" label catches up. */
+@keyframes message-bubble-copy-bounce {
+  0% {
+    transform: scale(1);
+  }
+
+  35% {
+    transform: scale(0.95);
+  }
+
+  65% {
+    transform: scale(1.03);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+.message-bubble-copy-bounce {
+  animation: message-bubble-copy-bounce 300ms ease-out;
+}
+
 /* An eval row that never streams shows only this for the whole clip — a
    buffering batch adapter has nothing to say until the audio stops. It has to
    read as "working", not "stalled". */
@@ -96,6 +120,10 @@ body {
 
   .eval-progress {
     transition: none;
+  }
+
+  .message-bubble-copy-bounce {
+    animation: none;
   }
 }
 

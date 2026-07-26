@@ -1,5 +1,44 @@
 # website
 
+## 0.1.0-next.5
+
+### Patch Changes
+
+- 8048d13: Extract the shared streaming-WebSocket plumbing from the three providers
+
+  Qwen, Qwen-Omni and BytePlus each carried ~35 lines of identical session
+  plumbing — buffer/ready/finishing state, the chunk-flush loop, the
+  pre-open-finish race, the error handler, and (since the connection-cleanup
+  work) `close()` — and the three copies had already drifted (dtinth/vxbeamer#72).
+  That plumbing now lives once in `createBufferedSocketSession`; each provider
+  supplies only what is genuinely per-vendor: the handshake, frame encoding,
+  turn-end, and message parsing. Byte accounting stays with the provider, so a
+  token-billed vendor (Qwen-Omni) is never forced into the per-audio-second
+  assumption the other two make.
+
+  This also settles the `finish()` drift the duplication had produced: BytePlus
+  guarded the turn-end with a socket-open check that Qwen and Qwen-Omni lacked, so
+  finishing those two after a post-open socket error fired a spurious `onError`.
+  The guard now lives in the shared helper and applies to all three.
+
+  Alongside, three smaller copies collapse (no behaviour change):
+
+  - `readAudioFrame` / `isStopMessage` — the binary-frame decode (including the
+    `byteOffset`/`byteLength` care) and the `stop`-message parse shared by the
+    recording and eval sockets. The decoder reaches nothing in the message log, so
+    the eval socket's isolation from the store is preserved.
+  - `buildBackendSocketUrl` — the `http(s)`→`ws(s)` URL build shared by the
+    recording bar and the eval fan-out.
+  - `concatChunks` — the retained-chunk flatten shared by the WAV writer and the
+    eval frame re-cutter.
+
+- c04dd8a: Speed up the eval dialog by pacing each configuration's audio replay at its own provider's confirmed rate instead of one shared realtime rate. Every provider currently in the catalogue (Qwen ASR, Qwen Omni, BytePlus) was fast-dump tested and tolerates the whole clip sent back-to-back, so an eval now finishes in ~1-2s instead of waiting out the clip's full length. An untested provider still defaults to realtime pacing.
+- e5959bd: Add more settings and make the settings sheet scrollable: a "Transcript history" option to show all transcripts or trim the feed to the latest 10 (waiting for the auto-scroll to settle before pruning old bubbles so nothing pops out mid-animation), a "Recording button" size option (default / small / hidden), and a "Refresh app" button that reloads the page.
+- 1920562: Tighten the recording bar's vertical padding when the recording button is set to small, so the bar takes less vertical space and leaves more room for the transcript feed.
+- Updated dependencies [8048d13]
+- Updated dependencies [0431692]
+  - vxasr@0.1.0-next.5
+
 ## 0.1.0-next.4
 
 ### Patch Changes

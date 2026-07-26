@@ -4,9 +4,9 @@ import {
   $activeRecordingReferenceId,
   $backendUrl,
   $lastSwipedMessage,
-  $messages,
   $sessionToken,
   $transcriptListMode,
+  $visibleMessages,
   markPendingLocalSwipe,
   TRANSCRIPT_LIST_LIMIT,
   type Message,
@@ -16,6 +16,7 @@ import { forgetRecordingConnection, retryRecordingConnection } from "../recordin
 import { EvalDialog } from "./EvalDialog.tsx";
 import {
   canEvalMessage,
+  compareMessagesForDisplay,
   getMessageCardInitialScrollLeft,
   getMessageCardSnapAction,
   getMessageFeedScrollBehavior,
@@ -593,7 +594,7 @@ export interface MessageFeedProps {
 export function MessageFeed({ onOpenSettings }: MessageFeedProps = {}) {
   const activeRecordingReferenceId = useStore($activeRecordingReferenceId);
   const lastSwipedMessage = useStore($lastSwipedMessage);
-  const messagesMap = useStore($messages);
+  const messagesMap = useStore($visibleMessages);
   const retainedRecordings = useStore($retainedRecordings);
   const authToken = useStore($sessionToken);
   const backendUrl = useStore($backendUrl);
@@ -607,7 +608,7 @@ export function MessageFeed({ onOpenSettings }: MessageFeedProps = {}) {
   const prevDisplayedRef = useRef<string[]>([]);
   const retainedIdsRef = useRef<string[]>([]);
 
-  const sorted = Array.from(messagesMap.values()).sort((a, b) => a.createdAt - b.createdAt);
+  const sorted = Array.from(messagesMap.values()).sort(compareMessagesForDisplay);
   const limit = transcriptListMode === "latest" ? TRANSCRIPT_LIST_LIMIT : null;
   const target = selectVisibleMessages(sorted, limit);
 

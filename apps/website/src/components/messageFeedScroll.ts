@@ -14,6 +14,16 @@ export function canEvalMessage(message: Message, hasRetainedAudio: boolean): boo
   return message.status !== "recording" && !message.connectionError && hasRetainedAudio;
 }
 
+/**
+ * A connect-error placeholder has no server-assigned position in the
+ * conversation — it always sorts after every real message, regardless of
+ * when the recording was attempted.
+ */
+export function compareMessagesForDisplay(a: Message, b: Message): number {
+  if (!!a.connectionError !== !!b.connectionError) return a.connectionError ? 1 : -1;
+  return a.createdAt - b.createdAt;
+}
+
 /** Fallback delay for pruning trimmed bubbles when `scrollend` never fires
  *  (e.g. the feed was already at the bottom, so no scroll animation runs). */
 export const MESSAGE_FEED_PRUNE_FALLBACK_MS = 700;

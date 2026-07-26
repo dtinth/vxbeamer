@@ -2,6 +2,7 @@ import { describe, expect, test } from "vite-plus/test";
 import type { Message } from "../store.ts";
 import {
   canEvalMessage,
+  compareMessagesForDisplay,
   getMessageCardInitialScrollLeft,
   getMessageCardSnapAction,
   getMessageFeedScrollBehavior,
@@ -90,6 +91,29 @@ describe("message card snap helpers", () => {
     expect(getMessageCardSnapAction(189, 100, 10)).toBeNull();
     expect(getMessageCardSnapAction(190, 100, 10)).toBe("swipe-left");
     expect(getMessageCardInitialScrollLeft(100)).toBe(100);
+  });
+});
+
+describe("compareMessagesForDisplay", () => {
+  test("sorts real messages by createdAt", () => {
+    const older = message({ id: "a", createdAt: 1 });
+    const newer = message({ id: "b", createdAt: 2 });
+    expect([newer, older].sort(compareMessagesForDisplay)).toEqual([older, newer]);
+  });
+
+  test("always sorts a connect-error placeholder after every real message", () => {
+    const placeholder = message({ id: "local:ref-1", createdAt: 1, connectionError: true });
+    const laterReal = message({ id: "b", createdAt: 999 });
+    expect([laterReal, placeholder].sort(compareMessagesForDisplay)).toEqual([
+      laterReal,
+      placeholder,
+    ]);
+  });
+
+  test("sorts multiple placeholders among themselves by createdAt", () => {
+    const older = message({ id: "local:ref-1", createdAt: 1, connectionError: true });
+    const newer = message({ id: "local:ref-2", createdAt: 2, connectionError: true });
+    expect([newer, older].sort(compareMessagesForDisplay)).toEqual([older, newer]);
   });
 });
 

@@ -78,24 +78,22 @@ test("sends audio immediately once the socket is already open", async () => {
 });
 
 test("surfaces a local connection error on connect failure, without losing buffered audio", async () => {
-  const [{ beginRecordingConnection, sendRecordingAudio }, { $messages }] = await Promise.all([
-    import("./recordingConnection.ts"),
-    import("./store.ts"),
-  ]);
+  const [{ beginRecordingConnection, sendRecordingAudio }, { $visibleMessages }] =
+    await Promise.all([import("./recordingConnection.ts"), import("./store.ts")]);
 
   beginRecordingConnection("ref-1", "token", "https://backend.example");
   const chunk = new ArrayBuffer(4);
   sendRecordingAudio("ref-1", chunk);
   FakeWebSocket.instances[0]!.triggerError();
 
-  const placeholder = $messages.get().get("local:ref-1");
+  const placeholder = $visibleMessages.get().get("local:ref-1");
   expect(placeholder).toMatchObject({ status: "error", connectionError: true });
 });
 
 test("retrying replays every buffered chunk into a fresh socket, from the start", async () => {
   const [
     { beginRecordingConnection, sendRecordingAudio, retryRecordingConnection },
-    { $messages },
+    { $visibleMessages },
   ] = await Promise.all([import("./recordingConnection.ts"), import("./store.ts")]);
 
   beginRecordingConnection("ref-1", "token", "https://backend.example");
@@ -113,11 +111,11 @@ test("retrying replays every buffered chunk into a fresh socket, from the start"
   const retried = FakeWebSocket.instances[1]!;
   retried.open();
   expect(retried.sent).toEqual([chunkA, chunkB]);
-  expect($messages.get().has("local:ref-1")).toBe(false);
+  expect($visibleMessages.get().has("local:ref-1")).toBe(false);
 });
 
 test("treats a hung connect as a failure once the timeout elapses", async () => {
-  const [{ beginRecordingConnection }, { $messages }] = await Promise.all([
+  const [{ beginRecordingConnection }, { $visibleMessages }] = await Promise.all([
     import("./recordingConnection.ts"),
     import("./store.ts"),
   ]);
@@ -128,7 +126,7 @@ test("treats a hung connect as a failure once the timeout elapses", async () => 
   vi.advanceTimersByTime(8000);
 
   expect(ws.readyState).toBe(3);
-  expect($messages.get().get("local:ref-1")?.error).toBe("Connection timed out");
+  expect($visibleMessages.get().get("local:ref-1")?.error).toBe("Connection timed out");
 });
 
 test("a socket that opens before the timeout is not later closed by it", async () => {
@@ -194,16 +192,16 @@ test("a retry that succeeds after stop sends the deferred stop and cleans up", a
 test("forgetting a connection closes the socket and drops its retry state", async () => {
   const { beginRecordingConnection, forgetRecordingConnection, retryRecordingConnection } =
     await import("./recordingConnection.ts");
-  const { $messages } = await import("./store.ts");
+  const { $visibleMessages } = await import("./store.ts");
 
   beginRecordingConnection("ref-1", "token", "https://backend.example");
   const ws = FakeWebSocket.instances[0]!;
   ws.triggerError();
-  expect($messages.get().has("local:ref-1")).toBe(true);
+  expect($visibleMessages.get().has("local:ref-1")).toBe(true);
 
   forgetRecordingConnection("ref-1");
   expect(ws.readyState).toBe(3);
-  expect($messages.get().has("local:ref-1")).toBe(false);
+  expect($visibleMessages.get().has("local:ref-1")).toBe(false);
 
   retryRecordingConnection("ref-1");
   expect(FakeWebSocket.instances).toHaveLength(1);

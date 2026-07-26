@@ -402,6 +402,12 @@ function MessageCard({
 
   return (
     <div
+      ref={bubbleRef}
+      onAnimationEnd={(event) => {
+        if (event.animationName === "message-bubble-copy-bounce") {
+          event.currentTarget.classList.remove("message-bubble-copy-bounce");
+        }
+      }}
       className={[
         "message-card relative mx-3 my-2 overflow-hidden rounded-2xl transition-shadow duration-200",
         swipeGlowing ? "message-card-swipe-glow" : "",
@@ -442,7 +448,6 @@ function MessageCard({
           </div>
         </div>
         <div
-          ref={bubbleRef}
           draggable={copyable}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
@@ -451,11 +456,6 @@ function MessageCard({
           onTouchMove={handleChargeTouchMove}
           onTouchEnd={abortCharge}
           onTouchCancel={abortCharge}
-          onAnimationEnd={(event) => {
-            if (event.animationName === "message-bubble-copy-bounce") {
-              event.currentTarget.classList.remove("message-bubble-copy-bounce");
-            }
-          }}
           className={[
             "relative snap-center flex-none bg-(--m3-surface-container-high) px-4 py-3",
             copyable ? "cursor-pointer active:bg-(--m3-surface-container-highest)" : "",

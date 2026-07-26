@@ -168,6 +168,18 @@ export const $messages = atom<Map<string, Message>>(new Map());
 // back in for display).
 export const $localConnectionErrors = atom<Map<string, Message>>(new Map());
 
+function localConnectionErrorId(referenceId: string): string {
+  return `local:${referenceId}`;
+}
+
+function collectReferenceIds(messages: Map<string, Message>): Set<string> {
+  const referenceIds = new Set<string>();
+  for (const message of messages.values()) {
+    if (message.referenceId) referenceIds.add(message.referenceId);
+  }
+  return referenceIds;
+}
+
 // What the feed actually renders: every server message, plus any placeholder
 // whose recording hasn't produced a real server message yet. A placeholder
 // reconciles away the instant a real message for its `referenceId` exists in
@@ -178,13 +190,12 @@ export const $visibleMessages = computed(
   [$messages, $localConnectionErrors],
   (messages, localConnectionErrors) => {
     if (localConnectionErrors.size === 0) return messages;
-    const liveReferenceIds = new Set<string>();
-    for (const message of messages.values()) {
-      if (message.referenceId) liveReferenceIds.add(message.referenceId);
-    }
+    const liveReferenceIds = collectReferenceIds(messages);
     const merged = new Map(messages);
     for (const [referenceId, placeholder] of localConnectionErrors) {
-      if (!liveReferenceIds.has(referenceId)) merged.set(placeholder.id, placeholder);
+      if (!liveReferenceIds.has(referenceId)) {
+        merged.set(localConnectionErrorId(referenceId), placeholder);
+      }
     }
     return merged;
   },
@@ -247,10 +258,7 @@ function releaseRetainedAudioForGoneMessages(messages: Map<string, Message>): vo
     return;
   }
 
-  const liveReferenceIds = new Set<string>();
-  for (const message of messages.values()) {
-    if (message.referenceId) liveReferenceIds.add(message.referenceId);
-  }
+  const liveReferenceIds = collectReferenceIds(messages);
 
   for (const referenceId of retained.keys()) {
     if (liveReferenceIds.has(referenceId)) {
@@ -271,10 +279,6 @@ $visibleMessages.subscribe(releaseRetainedAudioForGoneMessages);
 
 export function setActiveRecordingReferenceId(referenceId: string | null): void {
   $activeRecordingReferenceId.set(referenceId);
-}
-
-function localConnectionErrorId(referenceId: string): string {
-  return `local:${referenceId}`;
 }
 
 /**

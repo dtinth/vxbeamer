@@ -12,7 +12,7 @@ I speak into my phone. The voice message is instantly transcribed. Then I can sw
 
 For most of my transcription needs, I use [Google Gemini](https://ai.google.dev/gemini-api/docs/audio) (through the [@lsnr](https://dt.in.th/Lsnr) LINE bot) as it provides the highest accuracy. However, it comes with high latency, which makes it somewhat frustrating to use for voice typing scenarios. _(It has very high throughput though, e.g., 15 minutes of audio content can be transcribed in less than 20 seconds.)_
 
-vxbeamer uses a different workflow: Qwen Omni Realtime (via Alibaba Cloud DashScope) handles real-time speech recognition directly, with no separate post-processing pass — its output is already well-formatted (product names rendered in Latin script, everything else in the spoken language), which used to be the whole point of running it through [gpt-oss-120b](https://openai.com/index/introducing-gpt-oss/) on [Groq](https://groq.com) first. This trades some accuracy for significantly faster feedback.
+vxbeamer uses a different workflow: It uses [Qwen3.5 Omni](https://qwen.ai/blog?id=qwen3.5-omni) [Realtime](https://www.alibabacloud.com/help/en/model-studio/realtime) (via [Alibaba Cloud Model Studio](https://modelstudio.alibabacloud.com/)) to transcribe speech in real-time. This trades some accuracy for significantly faster feedback.
 
 The frontend is a PWA that can be added to the home screen. Tap the record button to transcribe, swipe right to broadcast a transcription as an event (for custom integrations), and swipe left to delete it.
 
@@ -31,8 +31,6 @@ This project is primarily for personal use and is not designed to be particularl
 ## Costs & Stats
 
 ![Cost per hour of audio — $0.1448, 47,996 words per dollar](./stats.svg)
-
-About 5.5% cheaper per hour of audio than the previous Qwen3-ASR-Flash + gpt-oss-120b/Groq setup ($0.1532/hr) — and it's a single model call instead of two, so it's faster too.
 
 ## Architecture
 

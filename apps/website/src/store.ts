@@ -161,6 +161,46 @@ export const $userInfo = computed($sessionToken, (token) => {
 
 export const $messages = atom<Map<string, Message>>(new Map());
 
+// Client-only connect-error placeholders, kept entirely separate from the
+// server-synced `$messages` — an SSE snapshot resync only ever describes
+// server state, so a placeholder living inside `$messages` would vanish the
+// moment one arrived (see `$visibleMessages` below for how they're merged
+// back in for display).
+export const $localConnectionErrors = atom<Map<string, Message>>(new Map());
+
+function localConnectionErrorId(referenceId: string): string {
+  return `local:${referenceId}`;
+}
+
+function collectReferenceIds(messages: Map<string, Message>): Set<string> {
+  const referenceIds = new Set<string>();
+  for (const message of messages.values()) {
+    if (message.referenceId) referenceIds.add(message.referenceId);
+  }
+  return referenceIds;
+}
+
+// What the feed actually renders: every server message, plus any placeholder
+// whose recording hasn't produced a real server message yet. A placeholder
+// reconciles away the instant a real message for its `referenceId` exists in
+// `$messages` — for any reason it got there, not just the `"created"` event
+// that originally created it — so there is no separate cleanup step to keep
+// in sync with `$messages`'s own event handling.
+export const $visibleMessages = computed(
+  [$messages, $localConnectionErrors],
+  (messages, localConnectionErrors) => {
+    if (localConnectionErrors.size === 0) return messages;
+    const liveReferenceIds = collectReferenceIds(messages);
+    const merged = new Map(messages);
+    for (const [referenceId, placeholder] of localConnectionErrors) {
+      if (!liveReferenceIds.has(referenceId)) {
+        merged.set(localConnectionErrorId(referenceId), placeholder);
+      }
+    }
+    return merged;
+  },
+);
+
 export const $activeRecordingReferenceId = atom<string | null>(null);
 
 export const $lastSwipedMessage = atom<{ messageId: string; key: number } | null>(null);
@@ -200,9 +240,11 @@ export function clearSessionToken(): void {
   clearRetainedRecordings();
 }
 
-// Reference ids whose message we have already seen in `$messages`. A retained
-// recording is published before its message arrives over SSE, so absence only
-// means "released" after the message has shown up at least once.
+// Reference ids whose message we have already seen in `$visibleMessages`. A
+// retained recording is published before its message arrives over SSE, so
+// absence only means "released" after the message has shown up at least once
+// — a connect-error placeholder counts too, so dismissing one (rather than it
+// ever getting a real server message) still releases its retained audio.
 const claimedRecordingReferenceIds = new Set<string>();
 
 /**
@@ -216,10 +258,7 @@ function releaseRetainedAudioForGoneMessages(messages: Map<string, Message>): vo
     return;
   }
 
-  const liveReferenceIds = new Set<string>();
-  for (const message of messages.values()) {
-    if (message.referenceId) liveReferenceIds.add(message.referenceId);
-  }
+  const liveReferenceIds = collectReferenceIds(messages);
 
   for (const referenceId of retained.keys()) {
     if (liveReferenceIds.has(referenceId)) {
@@ -236,14 +275,10 @@ function releaseRetainedAudioForGoneMessages(messages: Map<string, Message>): vo
   }
 }
 
-$messages.subscribe(releaseRetainedAudioForGoneMessages);
+$visibleMessages.subscribe(releaseRetainedAudioForGoneMessages);
 
 export function setActiveRecordingReferenceId(referenceId: string | null): void {
   $activeRecordingReferenceId.set(referenceId);
-}
-
-function localConnectionErrorId(referenceId: string): string {
-  return `local:${referenceId}`;
 }
 
 /**
@@ -252,12 +287,11 @@ function localConnectionErrorId(referenceId: string): string {
  * error to yet, since the backend only creates one once the socket opens.
  */
 export function setLocalConnectionError(referenceId: string, error: string): void {
-  const id = localConnectionErrorId(referenceId);
-  const map = new Map($messages.get());
-  const existing = map.get(id);
+  const map = new Map($localConnectionErrors.get());
+  const existing = map.get(referenceId);
   const now = Date.now();
-  map.set(id, {
-    id,
+  map.set(referenceId, {
+    id: localConnectionErrorId(referenceId),
     referenceId,
     status: "error",
     error,
@@ -265,16 +299,15 @@ export function setLocalConnectionError(referenceId: string, error: string): voi
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   });
-  $messages.set(map);
+  $localConnectionErrors.set(map);
 }
 
 /** Remove a recording's local connect-error bubble, e.g. once retried successfully. */
 export function clearLocalConnectionError(referenceId: string): void {
-  const id = localConnectionErrorId(referenceId);
-  if (!$messages.get().has(id)) return;
-  const map = new Map($messages.get());
-  map.delete(id);
-  $messages.set(map);
+  if (!$localConnectionErrors.get().has(referenceId)) return;
+  const map = new Map($localConnectionErrors.get());
+  map.delete(referenceId);
+  $localConnectionErrors.set(map);
 }
 
 export function markPendingLocalSwipe(messageId: string): void {
@@ -392,11 +425,6 @@ export function applySSEEvent(raw: unknown, sseEventId?: string): void {
   } else if (event.type === "created") {
     const map = new Map($messages.get());
     map.set(event.message.id, event.message);
-    // A retried (or now-succeeded) connection's real message has arrived —
-    // the local placeholder bubble for it is no longer needed.
-    if (event.message.referenceId) {
-      map.delete(localConnectionErrorId(event.message.referenceId));
-    }
     $messages.set(map);
   } else if (event.type === "updated") {
     const map = new Map($messages.get());

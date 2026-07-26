@@ -120,6 +120,27 @@ test("keeps retained audio while its message has not arrived yet", async () => {
   expect(getRetainedRecording("ref-1")).toBeDefined();
 });
 
+test("releases retained audio once its connect-error placeholder is dismissed", async () => {
+  // Every recording retains eval audio, including ones whose /ws never
+  // opened. That audio is claimed the moment the placeholder appears in
+  // $visibleMessages, so dismissing the placeholder (nothing left to retry)
+  // must release it too, rather than leaving it to the size-cap eviction.
+  const [
+    { setLocalConnectionError, clearLocalConnectionError },
+    { getRetainedRecording, retainRecording },
+  ] = await Promise.all([import("./store.ts"), import("./recordedAudio.ts")]);
+
+  const retainer = retainRecording("ref-1");
+  retainer.append(new ArrayBuffer(4));
+  retainer.commit();
+
+  setLocalConnectionError("ref-1", "Connection failed");
+  expect(getRetainedRecording("ref-1")).toBeDefined();
+
+  clearLocalConnectionError("ref-1");
+  expect(getRetainedRecording("ref-1")).toBeUndefined();
+});
+
 test("releases retained audio when the session is cleared", async () => {
   const [{ clearSessionToken }, { getRetainedRecording, retainRecording }] = await Promise.all([
     import("./store.ts"),
@@ -136,39 +157,46 @@ test("releases retained audio when the session is cleared", async () => {
 });
 
 test("shows and clears a local connection-error placeholder", async () => {
-  const { $messages, setLocalConnectionError, clearLocalConnectionError } =
-    await import("./store.ts");
+  const {
+    $localConnectionErrors,
+    $visibleMessages,
+    setLocalConnectionError,
+    clearLocalConnectionError,
+  } = await import("./store.ts");
 
   setLocalConnectionError("ref-1", "Connection failed");
-  const placeholder = $messages.get().get("local:ref-1");
+  const placeholder = $localConnectionErrors.get().get("ref-1");
   expect(placeholder).toMatchObject({
+    id: "local:ref-1",
     referenceId: "ref-1",
     status: "error",
     error: "Connection failed",
     connectionError: true,
   });
+  expect($visibleMessages.get().has("local:ref-1")).toBe(true);
 
   clearLocalConnectionError("ref-1");
-  expect($messages.get().has("local:ref-1")).toBe(false);
+  expect($localConnectionErrors.get().has("ref-1")).toBe(false);
+  expect($visibleMessages.get().has("local:ref-1")).toBe(false);
 });
 
 test("preserves the placeholder's createdAt across repeated failures", async () => {
-  const { $messages, setLocalConnectionError } = await import("./store.ts");
+  const { $localConnectionErrors, setLocalConnectionError } = await import("./store.ts");
 
   setLocalConnectionError("ref-1", "Connection failed");
-  const firstCreatedAt = $messages.get().get("local:ref-1")?.createdAt;
+  const firstCreatedAt = $localConnectionErrors.get().get("ref-1")?.createdAt;
 
   setLocalConnectionError("ref-1", "Connection timed out");
-  const placeholder = $messages.get().get("local:ref-1");
+  const placeholder = $localConnectionErrors.get().get("ref-1");
   expect(placeholder?.error).toBe("Connection timed out");
   expect(placeholder?.createdAt).toBe(firstCreatedAt);
 });
 
 test("reconciles away a local connection-error placeholder once the real message arrives", async () => {
-  const { $messages, applySSEEvent, setLocalConnectionError } = await import("./store.ts");
+  const { $visibleMessages, applySSEEvent, setLocalConnectionError } = await import("./store.ts");
 
   setLocalConnectionError("ref-1", "Connection failed");
-  expect($messages.get().has("local:ref-1")).toBe(true);
+  expect($visibleMessages.get().has("local:ref-1")).toBe(true);
 
   applySSEEvent({
     type: "created",
@@ -181,8 +209,50 @@ test("reconciles away a local connection-error placeholder once the real message
     },
   });
 
-  expect($messages.get().has("local:ref-1")).toBe(false);
-  expect($messages.get().has("message-1")).toBe(true);
+  expect($visibleMessages.get().has("local:ref-1")).toBe(false);
+  expect($visibleMessages.get().has("message-1")).toBe(true);
+});
+
+test("a local connection-error placeholder survives an unrelated SSE snapshot resync", async () => {
+  // This is the bug reported on #83: an SSE reconnect sends a full snapshot
+  // of server state, which doesn't (and can't) know about a recording whose
+  // /ws never opened. That snapshot must not wipe the placeholder out.
+  const { $visibleMessages, applySSEEvent, setLocalConnectionError } = await import("./store.ts");
+
+  setLocalConnectionError("ref-1", "Connection failed");
+
+  applySSEEvent({
+    type: "snapshot",
+    messages: [
+      { id: "message-1", status: "done" as const, final: "Hi", createdAt: 1, updatedAt: 1 },
+    ],
+  });
+
+  expect($visibleMessages.get().has("local:ref-1")).toBe(true);
+  expect($visibleMessages.get().has("message-1")).toBe(true);
+});
+
+test("a snapshot that legitimately includes the recording's message still reconciles the placeholder away", async () => {
+  const { $visibleMessages, applySSEEvent, setLocalConnectionError } = await import("./store.ts");
+
+  setLocalConnectionError("ref-1", "Connection failed");
+
+  applySSEEvent({
+    type: "snapshot",
+    messages: [
+      {
+        id: "message-1",
+        referenceId: "ref-1",
+        status: "done" as const,
+        final: "Hi",
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ],
+  });
+
+  expect($visibleMessages.get().has("local:ref-1")).toBe(false);
+  expect($visibleMessages.get().has("message-1")).toBe(true);
 });
 
 test("deduplicates swiped SSE events that reuse the same event id", async () => {

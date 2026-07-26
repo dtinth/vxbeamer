@@ -12,7 +12,7 @@ I speak into my phone. The voice message is instantly transcribed. Then I can sw
 
 For most of my transcription needs, I use [Google Gemini](https://ai.google.dev/gemini-api/docs/audio) (through the [@lsnr](https://dt.in.th/Lsnr) LINE bot) as it provides the highest accuracy. However, it comes with high latency, which makes it somewhat frustrating to use for voice typing scenarios. _(It has very high throughput though, e.g., 15 minutes of audio content can be transcribed in less than 20 seconds.)_
 
-vxbeamer uses a different workflow: [Qwen3-ASR-Flash](https://modelstudio.console.alibabacloud.com/ap-southeast-1?tab=doc#/doc/?type=model&url=2840914_2&modelId=qwen3-asr-flash) handles real-time speech recognition, and [gpt-oss-120b](https://openai.com/index/introducing-gpt-oss/) (an open-source model by OpenAI, served on [Groq](https://groq.com) for fast inference) does post-processing. This trades some accuracy for significantly faster feedback.
+vxbeamer uses a different workflow: Qwen Omni Realtime (via Alibaba Cloud DashScope) handles real-time speech recognition directly, with no separate post-processing pass — its output is already well-formatted (product names rendered in Latin script, everything else in the spoken language), which used to be the whole point of running it through [gpt-oss-120b](https://openai.com/index/introducing-gpt-oss/) on [Groq](https://groq.com) first. This trades some accuracy for significantly faster feedback.
 
 The frontend is a PWA that can be added to the home screen. Tap the record button to transcribe, swipe right to broadcast a transcription as an event (for custom integrations), and swipe left to delete it.
 
@@ -39,8 +39,8 @@ This project is primarily for personal use and is not designed to be particularl
 - **Frontend** — React PWA (`apps/website`), deployed statically (hosted on Vercel)
 - **Backend** — Node.js/Hono server (`apps/backend`), deployed via Docker (self-hosted)
 - **Desktop app** — Tauri desktop client (`apps/desktop`) that receives backend events and integrates with the local machine (basically, it’s the frontend web app with extra desktop integrations)
-- **ASR** — Qwen3-ASR-Flash via DashScope (Alibaba Cloud)
-- **Post-processing** — gpt-oss-120b via Groq
+- **ASR** — Qwen Omni Realtime via DashScope (Alibaba Cloud)
+- **Post-processing** — optional; gpt-oss-120b via Groq, for configurations whose output needs formatting cleanup (not needed for Qwen Omni Realtime, and not used by default)
 
 ## Authentication
 
@@ -112,12 +112,12 @@ services:
 
 | Variable               | Required | Description                                                                                       |
 | ---------------------- | -------- | ------------------------------------------------------------------------------------------------- |
-| `DASHSCOPE_API_KEY`    | Yes      | Alibaba Cloud DashScope key for Qwen3-ASR-Flash                                                   |
+| `DASHSCOPE_API_KEY`    | Yes      | Alibaba Cloud DashScope key for Qwen3-ASR-Flash and Qwen Omni Realtime                            |
 | `API_KEYS`             | No       | Comma-separated `sub:secret` pairs for API key exchange                                           |
 | `GROQ_API_KEY`         | No       | Groq API key for gpt-oss-120b post-processing; enables the `+groq` configurations                 |
 | `ASR_CONFIGURATION`    | No       | Default configuration id (default: derived from `ASR_PROVIDER`/`ASR_MODEL`/`GROQ_API_KEY`)        |
 | `ASR_CONFIGURATIONS`   | No       | Comma-separated configurations clients may select (default: every configuration with credentials) |
-| `ASR_PROVIDER`         | No       | Provider for the derived default: `qwen` (default), `byteplus`, or `mock`                         |
+| `ASR_PROVIDER`         | No       | Provider for the derived default: `qwen` (default), `qwen-omni`, `byteplus`, or `mock`            |
 | `ASR_MODEL`            | No       | Model for the derived default (default: the provider's own default model)                         |
 | `BYTEPLUS_API_KEY`     | No       | BytePlus key; enables the `byteplus` configurations                                               |
 | `BYTEPLUS_LANGUAGE`    | No       | BytePlus language hint, e.g. `th-TH` (default: unset — Mandarin/English only)                     |
@@ -199,13 +199,20 @@ Optionally add `?configuration=<id>` to transcribe with a specific **model confi
 
 A configuration is a provider, a model, and the post-processing chain applied to it. Post-processing is part of a configuration's identity rather than a request flag, so a model raw and the same model with Groq formatting are two separately selectable configurations that can be compared on equal terms:
 
-| Configuration id                     | Needs                               |
-| ------------------------------------ | ----------------------------------- |
-| `qwen/qwen3-asr-flash-realtime`      | `DASHSCOPE_API_KEY`                 |
-| `qwen/qwen3-asr-flash-realtime+groq` | `DASHSCOPE_API_KEY`, `GROQ_API_KEY` |
-| `byteplus/bigmodel_nostream`         | `BYTEPLUS_API_KEY`                  |
-| `byteplus/bigmodel_nostream+groq`    | `BYTEPLUS_API_KEY`, `GROQ_API_KEY`  |
-| `mock/mock`                          | nothing                             |
+| Configuration id                                   | Needs                               |
+| -------------------------------------------------- | ----------------------------------- |
+| `qwen/qwen3-asr-flash-realtime-2025-10-27`         | `DASHSCOPE_API_KEY`                 |
+| `qwen/qwen3-asr-flash-realtime-2025-10-27+groq`    | `DASHSCOPE_API_KEY`, `GROQ_API_KEY` |
+| `qwen/qwen3-asr-flash-realtime-2026-02-10`         | `DASHSCOPE_API_KEY`                 |
+| `qwen/qwen3-asr-flash-realtime-2026-02-10+groq`    | `DASHSCOPE_API_KEY`, `GROQ_API_KEY` |
+| `qwen-omni/qwen3.5-omni-flash-realtime-2026-03-15` | `DASHSCOPE_API_KEY`                 |
+| `qwen-omni/qwen3.5-omni-plus-realtime-2026-03-15`  | `DASHSCOPE_API_KEY`                 |
+| `qwen-omni/qwen3-omni-flash-realtime-2025-12-01`   | `DASHSCOPE_API_KEY`                 |
+| `byteplus/bigmodel_nostream`                       | `BYTEPLUS_API_KEY`                  |
+| `byteplus/bigmodel_nostream+groq`                  | `BYTEPLUS_API_KEY`, `GROQ_API_KEY`  |
+| `mock/mock`                                        | nothing                             |
+
+Every Qwen model id is a dated snapshot, not a floating one — the vendor repoints undated ids without notice, which would make a vote name a moving target. The Qwen Omni models need no `+groq` variant: their output is already well-formatted (Thai words in Thai, product names in Latin), which is what Groq formatting was tidying up for the plain ASR models — running it on top of Omni's output measurably added nothing.
 
 BytePlus exposes two modes at two endpoints, and only `bigmodel_nostream` accepts a language — the bi-directional `bigmodel` mode covers Mandarin, English and a few Chinese dialects and nothing else, so on any other language it returns confident nonsense. Only `bigmodel_nostream` is offered as a configuration for that reason; the provider still serves `bigmodel` for deployments in those languages. Set `BYTEPLUS_LANGUAGE` (e.g. `th-TH`) or BytePlus falls back to that same Chinese/English default set. Note that `bigmodel_nostream` returns results only after 15 s of audio or the final packet, so it emits few or no partials — it is accuracy-tuned rather than low-latency.
 
@@ -219,14 +226,14 @@ By default a configuration is selectable once the environment carries every cred
 
 ```json
 {
-  "primaryConfigurationId": "qwen/qwen3-asr-flash-realtime+groq",
+  "primaryConfigurationId": "qwen-omni/qwen3.5-omni-flash-realtime-2026-03-15",
   "configurations": [
     {
-      "id": "qwen/qwen3-asr-flash-realtime+groq",
-      "label": "Qwen3-ASR-Flash + Groq formatting",
-      "providerId": "qwen",
-      "model": "qwen3-asr-flash-realtime",
-      "postProcessing": ["groq"],
+      "id": "qwen-omni/qwen3.5-omni-flash-realtime-2026-03-15",
+      "label": "Qwen3.5-Omni-Flash Realtime (2026-03-15, raw)",
+      "providerId": "qwen-omni",
+      "model": "qwen3.5-omni-flash-realtime-2026-03-15",
+      "postProcessing": [],
       "configured": true
     }
   ]

@@ -1,5 +1,69 @@
 # backend
 
+## 0.1.0-next.5
+
+### Patch Changes
+
+- 8048d13: Extract the shared streaming-WebSocket plumbing from the three providers
+
+  Qwen, Qwen-Omni and BytePlus each carried ~35 lines of identical session
+  plumbing — buffer/ready/finishing state, the chunk-flush loop, the
+  pre-open-finish race, the error handler, and (since the connection-cleanup
+  work) `close()` — and the three copies had already drifted (dtinth/vxbeamer#72).
+  That plumbing now lives once in `createBufferedSocketSession`; each provider
+  supplies only what is genuinely per-vendor: the handshake, frame encoding,
+  turn-end, and message parsing. Byte accounting stays with the provider, so a
+  token-billed vendor (Qwen-Omni) is never forced into the per-audio-second
+  assumption the other two make.
+
+  This also settles the `finish()` drift the duplication had produced: BytePlus
+  guarded the turn-end with a socket-open check that Qwen and Qwen-Omni lacked, so
+  finishing those two after a post-open socket error fired a spurious `onError`.
+  The guard now lives in the shared helper and applies to all three.
+
+  Alongside, three smaller copies collapse (no behaviour change):
+
+  - `readAudioFrame` / `isStopMessage` — the binary-frame decode (including the
+    `byteOffset`/`byteLength` care) and the `stop`-message parse shared by the
+    recording and eval sockets. The decoder reaches nothing in the message log, so
+    the eval socket's isolation from the store is preserved.
+  - `buildBackendSocketUrl` — the `http(s)`→`ws(s)` URL build shared by the
+    recording bar and the eval fan-out.
+  - `concatChunks` — the retained-chunk flatten shared by the WAV writer and the
+    eval frame re-cutter.
+
+- 0431692: Reclaim upstream vendor connections: kick idle sockets and always tear down on error
+
+  The realtime vendors cap concurrent connections per account ("connections too
+  much max_connections 100"), and each `/ws` (and `/asr/eval`) socket holds one of
+  those open for its whole life. Two gaps let those connections leak until the cap
+  was hit:
+
+  - **No way to hang up an abandoned session.** `ASRSession` only exposed
+    `sendAudio()` and `finish()`, and `finish()` is _graceful_ — it waits for the
+    vendor's terminal event, which never comes for a socket that has simply gone
+    silent. `ASRSession.close()` is new: an immediate, idempotent teardown that
+    `terminate()`s the vendor socket and emits no further callbacks, so a session
+    that can no longer produce a transcript releases its slot rather than holding
+    it until the vendor reaps it.
+
+  - **Error paths left the socket open.** Every provider's `ws.on("error")` now
+    closes the socket, and Qwen now hangs up on a vendor `error` frame the way
+    BytePlus and Qwen-Omni already did — previously it did not, so a
+    "max_connections" error frame itself leaked another connection, compounding the
+    very condition it reported.
+
+  Idle-kicking is now enforced at the socket layer: a watchdog, armed when the
+  vendor session opens and deferred on every audio frame, closes the client and
+  aborts the vendor session after `WS_IDLE_TIMEOUT_MS` of silence (default 60s; a
+  non-positive value disables it). It watches _audio_, not liveness, so a client
+  that keeps the socket open but stops speaking is still reclaimed. The watchdog is
+  disarmed on `stop`, since finalisation is the vendor's clock, not the client's.
+
+- Updated dependencies [8048d13]
+- Updated dependencies [0431692]
+  - vxasr@0.1.0-next.5
+
 ## 0.1.0-next.4
 
 ### Patch Changes

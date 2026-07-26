@@ -10,16 +10,21 @@
   "changesets": [
     "asr-cli",
     "baked-drag-tint",
+    "buffered-socket-session",
     "byteplus-language",
     "drag-charge-feedback",
     "drag-image-preview",
     "eval-configuration-discovery",
     "eval-dialog-prototype",
+    "eval-per-provider-pacing",
     "eval-vote-and-eval-set-upload",
     "lazy-eels-repeat",
     "qwen-dated-snapshots",
     "qwen-omni-realtime",
     "review-fixes",
-    "soft-pans-shake"
+    "settings-ui-improvements",
+    "small-recording-bar-padding",
+    "soft-pans-shake",
+    "websocket-idle-cleanup"
   ]
 }

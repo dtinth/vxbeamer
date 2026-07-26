@@ -1,31 +1,45 @@
 #!/usr/bin/env node
-// Generates stats.svg — cost & stats infographic for README
+// Generates stats.svg — cost & throughput infographic for README
 
-const QWEN_PER_SEC = 0.000035;
-const GROQ_INPUT_TOKENS_PER_HOUR = 37814;
-const GROQ_OUTPUT_TOKENS_PER_HOUR = 35944;
-const GROQ_INPUT_PRICE_PER_1M = 0.15; // gpt-oss-120b on Groq
-const GROQ_OUTPUT_PRICE_PER_1M = 0.6;
+// Qwen3.5-Omni-Flash Realtime: a single model does ASR and formatting in one
+// pass, so there is no separate post-processing cost to break out — just
+// audio-in tokens and the text those tokens produce.
+const OMNI_AUDIO_TOKENS_PER_SEC = 7;
+const OMNI_AUDIO_PRICE_PER_1M = 4.5;
+// Empirical, from an analytics DB of actual usage (4.74 hours of audio,
+// 32,947 transcribed words): text tokens and words don't derive from a fixed
+// rate, they're however much the model chose to say — 55,494 input text
+// tokens + 35,884 output text tokens over that sample.
+const SAMPLE_HOURS = 4.74;
+const SAMPLE_WORDS = 32947;
+const OMNI_TEXT_INPUT_TOKENS_PER_HOUR = 11708;
+const OMNI_TEXT_OUTPUT_TOKENS_PER_HOUR = 7570;
+const OMNI_TEXT_INPUT_PRICE_PER_1M = 0.55;
+const OMNI_TEXT_OUTPUT_PRICE_PER_1M = 3.3;
 
 const SECS_PER_HOUR = 3600;
+const WORDS_PER_HOUR = SAMPLE_WORDS / SAMPLE_HOURS;
 
-const qwenCost = QWEN_PER_SEC * SECS_PER_HOUR;
-const groqCost =
-  (GROQ_INPUT_TOKENS_PER_HOUR / 1_000_000) * GROQ_INPUT_PRICE_PER_1M +
-  (GROQ_OUTPUT_TOKENS_PER_HOUR / 1_000_000) * GROQ_OUTPUT_PRICE_PER_1M;
-const totalCost = qwenCost + groqCost;
+const audioCost =
+  ((OMNI_AUDIO_TOKENS_PER_SEC * SECS_PER_HOUR) / 1_000_000) * OMNI_AUDIO_PRICE_PER_1M;
+const textCost =
+  (OMNI_TEXT_INPUT_TOKENS_PER_HOUR / 1_000_000) * OMNI_TEXT_INPUT_PRICE_PER_1M +
+  (OMNI_TEXT_OUTPUT_TOKENS_PER_HOUR / 1_000_000) * OMNI_TEXT_OUTPUT_PRICE_PER_1M;
+const totalCostPerHour = audioCost + textCost;
+const wordsPerDollar = WORDS_PER_HOUR / totalCostPerHour;
 
-const fmt = (n) => `$${n.toFixed(4)}`;
+const fmtCost = (n) => `$${n.toFixed(4)}`;
+const fmtWords = (n) => Math.round(n).toLocaleString("en-US");
 
 // Layout
 const W = 640;
 const H = 140;
 const PAD = 32;
-const COL = (W - PAD * 2) / 3;
+const GAP = 16;
+const COL = (W - PAD * 2 - GAP) / 2;
 
 const ACCENT = "#6366f1";
 const ACCENT2 = "#22d3ee";
-const ACCENT3 = "#f59e0b";
 const BG = "#353433";
 const CARD = "#252423";
 const TEXT = "#e9e8e7";
@@ -49,17 +63,15 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" 
   <rect width="${W}" height="${H}" rx="14" fill="${BG}" />
 
   <!-- Title -->
-  <text x="${PAD}" y="30" font-size="13" font-weight="600" fill="${TEXT}" font-family="system-ui,sans-serif">Cost per hour of audio</text>
-  <text x="${W - PAD}" y="30" text-anchor="end" font-size="11" fill="${MUTED}" font-family="system-ui,sans-serif">Qwen3-ASR-Flash + gpt-oss-120b on Groq</text>
+  <text x="${PAD}" y="30" font-size="13" font-weight="600" fill="${TEXT}" font-family="system-ui,sans-serif">Cost &amp; throughput</text>
+  <text x="${W - PAD}" y="30" text-anchor="end" font-size="11" fill="${MUTED}" font-family="system-ui,sans-serif">Qwen3.5-Omni-Flash Realtime</text>
 
   <!-- Stat cards -->
-  ${card(PAD, CARD_Y, COL - 8, CARD_H)}
-  ${card(PAD + COL, CARD_Y, COL - 8, CARD_H)}
-  ${card(PAD + COL * 2, CARD_Y, COL - 8, CARD_H)}
+  ${card(PAD, CARD_Y, COL, CARD_H)}
+  ${card(PAD + COL + GAP, CARD_Y, COL, CARD_H)}
 
-  ${stat(PAD + (COL - 8) / 2, ROW_Y, fmt(qwenCost), "Qwen3-ASR-Flash (ASR)", ACCENT)}
-  ${stat(PAD + COL + (COL - 8) / 2, ROW_Y, fmt(groqCost), "gpt-oss-120b / Groq (LLM)", ACCENT2)}
-  ${stat(PAD + COL * 2 + (COL - 8) / 2, ROW_Y, fmt(totalCost), "Total", ACCENT3)}
+  ${stat(PAD + COL / 2, ROW_Y, fmtCost(totalCostPerHour), "per hour of audio", ACCENT)}
+  ${stat(PAD + COL + GAP + COL / 2, ROW_Y, fmtWords(wordsPerDollar), "words per $1", ACCENT2)}
 </svg>`;
 
 import { writeFileSync } from "fs";
@@ -70,9 +82,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const outPath = resolve(__dirname, "..", "stats.svg");
 writeFileSync(outPath, svg.trim());
 console.log(`Written: ${outPath}`);
-console.log(`ASR:   ${fmt(qwenCost)}/hr`);
-console.log(`LLM:   ${fmt(groqCost)}/hr`);
-console.log(`Total: ${fmt(totalCost)}/hr`);
+console.log(`Cost:  ${fmtCost(totalCostPerHour)}/hr`);
+console.log(`Words: ${fmtWords(wordsPerDollar)}/$1`);
 console.log(
-  `\nPlease update the alt text in README.md to:\n  ![Cost per hour of audio — ${fmt(totalCost)}](./stats.svg)`,
+  `\nPlease update the alt text in README.md to:\n  ![Cost per hour of audio — ${fmtCost(totalCostPerHour)}, ${fmtWords(wordsPerDollar)} words per dollar](./stats.svg)`,
 );

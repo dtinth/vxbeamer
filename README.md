@@ -30,7 +30,9 @@ This project is primarily for personal use and is not designed to be particularl
 
 ## Costs & Stats
 
-![Cost per hour of audio — $0.1532](./stats.svg)
+![Cost per hour of audio — $0.1448, 47,996 words per dollar](./stats.svg)
+
+About 5.5% cheaper per hour of audio than the previous Qwen3-ASR-Flash + gpt-oss-120b/Groq setup ($0.1532/hr) — and it's a single model call instead of two, so it's faster too.
 
 ## Architecture
 

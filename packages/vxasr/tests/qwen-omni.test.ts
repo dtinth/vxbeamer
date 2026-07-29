@@ -1,15 +1,15 @@
 import { createServer, type Server } from "node:http";
 import { AddressInfo } from "node:net";
 import { WebSocketServer, type WebSocket } from "ws";
-import { afterEach, expect, test } from "vite-plus/test";
+import { expect, test } from "vite-plus/test";
 import {
   QWEN_OMNI_PRICING,
   QWEN_OMNI_TRANSCRIPTION_INSTRUCTIONS,
   createQwenOmniProvider,
   createDefaultConfigurationCatalogue,
   createDefaultProviderRegistry,
-  type UsageRecord,
 } from "../src/index.ts";
+import { run, trackVendors, type RunOutcome } from "./streamingSessionHarness.ts";
 
 /**
  * A local stand-in for DashScope. It speaks just enough of the Omni realtime
@@ -113,46 +113,10 @@ async function startFakeVendor(
   };
 }
 
-const vendors: FakeVendor[] = [];
-
-afterEach(async () => {
-  await Promise.all(vendors.splice(0).map((vendor) => vendor.close()));
-});
+const { withVendor: track } = trackVendors<FakeVendor>();
 
 async function withVendor(options: Parameters<typeof startFakeVendor>[0] = {}) {
-  const vendor = await startFakeVendor(options);
-  vendors.push(vendor);
-  return vendor;
-}
-
-interface RunOutcome {
-  text: string;
-  partials: string[];
-  usage: UsageRecord[];
-  error?: Error;
-}
-
-/** Drives one session to completion, as the CLI and the eval do. */
-function run(
-  provider: ReturnType<typeof createQwenOmniProvider>,
-  audio: Buffer,
-): Promise<RunOutcome> {
-  return new Promise((resolve) => {
-    const partials: string[] = [];
-    let usage: UsageRecord[] = [];
-    let text = "";
-    const session = provider.createSession({
-      onPartial: (partial) => partials.push(partial),
-      onFinal: (final) => (text = final),
-      onUsage: (records) => (usage = [...usage, ...records]),
-      onEnd: () => resolve({ text, partials, usage }),
-      onError: (error) => resolve({ text, partials, usage, error }),
-    });
-    for (let offset = 0; offset < audio.length; offset += 3200) {
-      session.sendAudio(audio.subarray(offset, offset + 3200));
-    }
-    session.finish();
-  });
+  return track(() => startFakeVendor(options));
 }
 
 const FLASH = "qwen3.5-omni-flash-realtime-2026-03-15";

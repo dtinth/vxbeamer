@@ -9,6 +9,7 @@ export {
   writeWav,
 } from "./audio.ts";
 export type { PcmAudio } from "./audio.ts";
+export { LinearResampler } from "./resample.ts";
 export { createQwenProvider } from "./providers/qwen.ts";
 export type { QwenProviderConfig } from "./providers/qwen.ts";
 export {
@@ -20,6 +21,8 @@ export {
 export type { QwenOmniProviderConfig, QwenOmniTokenPricing } from "./providers/qwen-omni.ts";
 export { createBytePlusProvider } from "./providers/byteplus.ts";
 export type { BytePlusProviderConfig } from "./providers/byteplus.ts";
+export { createOpenAIProvider, OPENAI_DEFAULT_MODEL } from "./providers/openai.ts";
+export type { OpenAIProviderConfig } from "./providers/openai.ts";
 export { withGroqEnhancement } from "./providers/groq-enhancement.ts";
 export type { GroqEnhancementConfig } from "./providers/groq-enhancement.ts";
 export { createMockProvider } from "./providers/mock.ts";
@@ -39,6 +42,7 @@ export {
   bytePlusProviderDefinition,
   createDefaultProviderRegistry,
   mockProviderDefinition,
+  openAIProviderDefinition,
   qwenOmniProviderDefinition,
   qwenProviderDefinition,
 } from "./providers/builtin.ts";

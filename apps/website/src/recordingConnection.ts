@@ -143,6 +143,10 @@ export function retryRecordingConnection(referenceId: string): void {
   if (!state || state.opened) return;
   clearConnectTimeout(state);
   state.ws?.close();
+  // Otherwise a retry that fails the same way leaves the bubble showing the
+  // exact same text it did before the tap — indistinguishable from the tap
+  // having done nothing at all.
+  setLocalConnectionError(referenceId, "Retrying…");
   openSocket(state);
 }
 

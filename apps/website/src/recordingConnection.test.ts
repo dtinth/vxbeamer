@@ -114,6 +114,26 @@ test("retrying replays every buffered chunk into a fresh socket, from the start"
   expect($visibleMessages.get().has("local:ref-1")).toBe(false);
 });
 
+test("retrying shows a distinct 'Retrying…' state, not the stale failure text", async () => {
+  // Otherwise a retry that fails the same way leaves the bubble showing
+  // exactly what it showed before the tap — indistinguishable from the tap
+  // having done nothing.
+  const [{ beginRecordingConnection, retryRecordingConnection }, { $visibleMessages }] =
+    await Promise.all([import("./recordingConnection.ts"), import("./store.ts")]);
+
+  beginRecordingConnection("ref-1", "token", "https://backend.example");
+  FakeWebSocket.instances[0]!.triggerError();
+  expect($visibleMessages.get().get("local:ref-1")?.error).toBe("Connection failed");
+
+  retryRecordingConnection("ref-1");
+  expect($visibleMessages.get().get("local:ref-1")?.error).toBe("Retrying…");
+
+  // Fails the same way again — the text changes once more, proving the retry
+  // actually ran rather than the bubble just sitting on "Retrying…" forever.
+  FakeWebSocket.instances[1]!.triggerError();
+  expect($visibleMessages.get().get("local:ref-1")?.error).toBe("Connection failed");
+});
+
 test("treats a hung connect as a failure once the timeout elapses", async () => {
   const [{ beginRecordingConnection }, { $visibleMessages }] = await Promise.all([
     import("./recordingConnection.ts"),

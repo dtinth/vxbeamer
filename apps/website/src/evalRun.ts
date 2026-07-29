@@ -2,7 +2,13 @@ import { atom, computed, type ReadableAtom } from "nanostores";
 import type { UsageRecord } from "vxasr";
 import { BYTES_PER_SECOND } from "vxasr/audio";
 import { buildBackendSocketUrl } from "./backendSocket.ts";
-import { RETAINED_AUDIO_FORMAT, concatChunks } from "./recordedAudio.ts";
+import { RETAINED_AUDIO_FORMAT } from "./recordedAudio.ts";
+import {
+  createPacedFrameEmitter,
+  toPacedFrames as toPacedFramesShared,
+  type PacedFrameEmitter,
+  type PacedReplayTimers,
+} from "./pacedReplay.ts";
 
 /**
  * An eval run: one retained recording, replayed against every configuration at
@@ -129,10 +135,8 @@ export interface EvalSocket {
 /** Opens one eval socket. Injected so a run can be driven without a network. */
 export type EvalConnect = (configurationId: string, handlers: EvalSocketHandlers) => EvalSocket;
 
-export interface EvalTimers {
-  setTimeout(callback: () => void, ms: number): number;
-  clearTimeout(handle: number): void;
-}
+/** Re-exported under this module's own name — see `./pacedReplay.ts`. */
+export type EvalTimers = PacedReplayTimers;
 
 export interface EvalRunOptions {
   configurations: readonly EvalConfiguration[];
@@ -155,32 +159,12 @@ export interface EvalRun {
   cancel(): void;
 }
 
-const defaultTimers: EvalTimers = {
-  setTimeout: (callback, ms) => setTimeout(callback, ms) as unknown as number,
-  clearTimeout: (handle) => clearTimeout(handle),
-};
-
-/**
- * Re-cuts captured PCM into the frames a vendor expects.
- *
- * The AudioWorklet hands over 128-sample chunks — 256 bytes, 8 ms each — which
- * is a render-quantum artefact, not a wire format. Replaying those one per
- * 100 ms would stretch a 9 s clip over 5 minutes, so the audio is concatenated
- * and re-cut into 100 ms frames. The last frame is short whenever the clip does
- * not divide evenly; a vendor takes it as the tail it is.
- */
+/** `toPacedFrames` with this module's own 100 ms default — see `./pacedReplay.ts`. */
 export function toPacedFrames(
   chunks: readonly ArrayBuffer[],
   frameBytes: number = EVAL_FRAME_BYTES,
 ): ArrayBuffer[] {
-  const joined = concatChunks(chunks);
-  const total = joined.byteLength;
-
-  const frames: ArrayBuffer[] = [];
-  for (let start = 0; start < total; start += frameBytes) {
-    frames.push(joined.slice(start, Math.min(start + frameBytes, total)).buffer);
-  }
-  return frames;
+  return toPacedFramesShared(chunks, frameBytes);
 }
 
 /** How long a run will take: the clip's own duration, however many rows there are. */
@@ -275,7 +259,6 @@ export function canWinEval(row: EvalRow): boolean {
 }
 
 export function startEvalRun(options: EvalRunOptions): EvalRun {
-  const timers = options.timers ?? defaultTimers;
   const frames = toPacedFrames(options.chunks);
   const $rows = atom<readonly EvalRow[]>(
     options.configurations.map((configuration) =>
@@ -285,7 +268,7 @@ export function startEvalRun(options: EvalRunOptions): EvalRun {
 
   let cancelled = false;
   const sockets: EvalSocket[] = [];
-  const pumpTimers: number[] = [];
+  const emitters: PacedFrameEmitter[] = [];
 
   const patch = (index: number, changes: Partial<EvalRow>): void => {
     const rows = $rows.get();
@@ -300,40 +283,30 @@ export function startEvalRun(options: EvalRunOptions): EvalRun {
     if (!configuration.configured) return;
 
     let socket: EvalSocket | null = null;
-    let timer: number | null = null;
-    let framesSent = 0;
-    let stopped = false;
     const frameInterval = evalFrameIntervalMs(configuration.providerId);
 
-    const stopPump = (): void => {
-      if (timer === null) return;
-      timers.clearTimeout(timer);
-      timer = null;
-    };
-
-    /**
-     * One frame per tick, at this row's own provider's pace. Each socket paces
-     * from its own `ready` rather than from a clock shared across the run: a
-     * socket that connects late must still hear its audio at its provider's
-     * rate, and catching it up in a burst would be the fast dump a realtime-only
-     * provider cannot tolerate.
-     */
-    const pump = (): void => {
-      if (cancelled || stopped) return;
-      if (framesSent >= frames.length) {
-        stopped = true;
+    // One frame per tick, at this row's own provider's pace — started only
+    // once `emitter.start()` is called below, from "ready". Each socket
+    // paces from its own readiness rather than from a clock shared across
+    // the run: a socket that connects late must still hear its audio at its
+    // provider's rate, and catching it up in a burst would be the fast dump
+    // a realtime-only provider cannot tolerate.
+    const emitter = createPacedFrameEmitter(
+      frames,
+      frameInterval,
+      (frame, frameIndex) => {
+        socket?.send(frame);
+        patch(index, { framesSent: frameIndex + 1 });
+      },
+      () => {
         socket?.send(JSON.stringify({ type: "stop" }));
         // The audio is all in. Whatever happens now is the vendor's own
         // latency — or, for a buffering adapter, its entire transcription.
         patch(index, { status: "finishing" });
-        return;
-      }
-      socket?.send(frames[framesSent]!);
-      framesSent += 1;
-      patch(index, { framesSent });
-      timer = timers.setTimeout(pump, frameInterval);
-      pumpTimers.push(timer);
-    };
+      },
+      options.timers,
+    );
+    emitters.push(emitter);
 
     socket = options.connect(configuration.id, {
       onEvent(event) {
@@ -341,7 +314,7 @@ export function startEvalRun(options: EvalRunOptions): EvalRun {
         switch (event.type) {
           case "ready":
             patch(index, { status: "listening" });
-            pump();
+            emitter.start();
             break;
           case "partial":
             patch(index, { partial: event.text });
@@ -353,21 +326,18 @@ export function startEvalRun(options: EvalRunOptions): EvalRun {
             patch(index, { usage: [...($rows.get()[index]?.usage ?? []), ...event.records] });
             break;
           case "end":
-            stopped = true;
-            stopPump();
+            emitter.stop();
             patch(index, { status: "done" });
             break;
           case "error":
-            stopped = true;
-            stopPump();
+            emitter.stop();
             patch(index, { status: "failed", error: event.message, partial: "" });
             break;
         }
       },
 
       onClose(info) {
-        stopped = true;
-        stopPump();
+        emitter.stop();
         if (cancelled) return;
         const row = $rows.get()[index];
         if (!row || isEvalRowSettled(row)) return;
@@ -402,7 +372,7 @@ export function startEvalRun(options: EvalRunOptions): EvalRun {
     cancel() {
       if (cancelled) return;
       cancelled = true;
-      for (const timer of pumpTimers) timers.clearTimeout(timer);
+      for (const emitter of emitters) emitter.stop();
       for (const socket of sockets) socket.close();
     },
   };

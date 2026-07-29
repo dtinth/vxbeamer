@@ -41,8 +41,8 @@ describe("createTestAudioSource", () => {
     await vi.advanceTimersByTimeAsync(0); // let the fetch() promise settle
     await started;
 
-    expect(chunks).toHaveLength(0);
-    await vi.advanceTimersByTimeAsync(100);
+    // The first frame goes out the moment replay starts, same as a live
+    // capture's first worklet chunk — only the ones after it are paced.
     expect(chunks).toHaveLength(1);
     expect(chunks[0]?.byteLength).toBe(3200);
     await vi.advanceTimersByTimeAsync(100);
@@ -74,12 +74,11 @@ describe("createTestAudioSource", () => {
 
     const chunks: ArrayBuffer[] = [];
     await source.start((chunk) => chunks.push(chunk));
-    await vi.advanceTimersByTimeAsync(100);
-    expect(chunks).toHaveLength(1);
+    expect(chunks).toHaveLength(1); // the first frame, sent immediately
 
     source.stop();
     await vi.advanceTimersByTimeAsync(1000);
-    expect(chunks).toHaveLength(1);
+    expect(chunks).toHaveLength(1); // stopped before the second frame's tick
   });
 
   test("throws if the file fails to load", async () => {

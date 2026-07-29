@@ -1,3 +1,4 @@
+import { createPacedFrameEmitter, toPacedFrames } from "./pacedReplay.ts";
 import type { AudioProcessingMode } from "./store.ts";
 
 const SAMPLE_RATE = 16000;
@@ -55,14 +56,7 @@ const TEST_AUDIO_CHUNK_MS = 100;
  * since this one has to reach the browser over `fetch`.
  */
 export function createTestAudioSource(url: string): AudioSource {
-  let cancelled = false;
-  let timer: ReturnType<typeof setInterval> | null = null;
-
-  const stopTicking = (): void => {
-    if (timer === null) return;
-    clearInterval(timer);
-    timer = null;
-  };
+  let emitter: ReturnType<typeof createPacedFrameEmitter> | null = null;
 
   return {
     async start(onChunk) {
@@ -71,22 +65,21 @@ export function createTestAudioSource(url: string): AudioSource {
         throw new Error(`Failed to load test audio "${url}": ${response.status}`);
       }
       const pcm = await response.arrayBuffer();
-      let offset = 0;
+      const frames = toPacedFrames([pcm], TEST_AUDIO_CHUNK_BYTES);
 
-      timer = setInterval(() => {
-        if (cancelled || offset >= pcm.byteLength) {
-          stopTicking();
-          return;
-        }
-        const end = Math.min(offset + TEST_AUDIO_CHUNK_BYTES, pcm.byteLength);
-        onChunk(pcm.slice(offset, end));
-        offset = end;
-      }, TEST_AUDIO_CHUNK_MS);
+      emitter = createPacedFrameEmitter(
+        frames,
+        TEST_AUDIO_CHUNK_MS,
+        (frame) => onChunk(frame),
+        () => {
+          /* clip exhausted — recording keeps running until the user stops it */
+        },
+      );
+      emitter.start();
     },
 
     stop() {
-      cancelled = true;
-      stopTicking();
+      emitter?.stop();
     },
 
     // No live signal to visualize — the bars just stay empty, which the

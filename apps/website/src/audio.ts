@@ -32,6 +32,71 @@ export interface AudioSource {
   getFrequencyData(): Uint8Array<ArrayBuffer> | null;
 }
 
+/**
+ * Set this to a URL (e.g. via devtools or `agent-browser storage local set`)
+ * to make recording replay that file instead of opening the microphone —
+ * `localStorage.setItem("vxbeamer_test_audio_url", "/test-audio-16k.pcm")`.
+ * Not exposed in Settings: it exists so a headless/sandboxed browser with no
+ * real (or fake) mic device can still exercise the record button end to end,
+ * not as a feature end users are meant to reach for.
+ */
+const TEST_AUDIO_URL_KEY = "vxbeamer_test_audio_url";
+
+/** 100ms at 16 kHz 16-bit mono, matching a live capture's own chunk pace. */
+const TEST_AUDIO_CHUNK_BYTES = 3200;
+const TEST_AUDIO_CHUNK_MS = 100;
+
+/**
+ * Replays a pre-recorded 16 kHz/16-bit/mono headerless PCM file as though it
+ * were live microphone input, paced like a real capture rather than dumped —
+ * see `testdata/README.md` on why pacing matters for the ASR vendors this
+ * feeds into. Same fixture shape as `testdata/test-audio.bin` (used by the
+ * vxasr CLI/tests), just served from `public/` instead of read via `fs`,
+ * since this one has to reach the browser over `fetch`.
+ */
+export function createTestAudioSource(url: string): AudioSource {
+  let cancelled = false;
+  let timer: ReturnType<typeof setInterval> | null = null;
+
+  const stopTicking = (): void => {
+    if (timer === null) return;
+    clearInterval(timer);
+    timer = null;
+  };
+
+  return {
+    async start(onChunk) {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Failed to load test audio "${url}": ${response.status}`);
+      }
+      const pcm = await response.arrayBuffer();
+      let offset = 0;
+
+      timer = setInterval(() => {
+        if (cancelled || offset >= pcm.byteLength) {
+          stopTicking();
+          return;
+        }
+        const end = Math.min(offset + TEST_AUDIO_CHUNK_BYTES, pcm.byteLength);
+        onChunk(pcm.slice(offset, end));
+        offset = end;
+      }, TEST_AUDIO_CHUNK_MS);
+    },
+
+    stop() {
+      cancelled = true;
+      stopTicking();
+    },
+
+    // No live signal to visualize — the bars just stay empty, which the
+    // visualizer already handles for "no data yet".
+    getFrequencyData() {
+      return null;
+    },
+  };
+}
+
 export function isMicrophoneCaptureSupported(): boolean {
   return (
     typeof navigator !== "undefined" && typeof navigator.mediaDevices?.getUserMedia === "function"
@@ -106,4 +171,11 @@ export function createMicrophoneSource(audioProcessing: AudioProcessingMode = "o
       return frequencyData;
     },
   };
+}
+
+/** The microphone, unless a test-audio URL is set — see {@link createTestAudioSource}. */
+export function createDefaultAudioSource(audioProcessing: AudioProcessingMode): AudioSource {
+  const testAudioUrl = localStorage.getItem(TEST_AUDIO_URL_KEY);
+  if (testAudioUrl) return createTestAudioSource(testAudioUrl);
+  return createMicrophoneSource(audioProcessing);
 }

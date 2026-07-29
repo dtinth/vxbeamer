@@ -10,7 +10,7 @@ import {
   $wakeLockActive,
   setActiveRecordingReferenceId,
 } from "../store.ts";
-import { type AudioSource, createMicrophoneSource } from "../audio.ts";
+import { type AudioSource, createDefaultAudioSource } from "../audio.ts";
 import { type RecordingRetainer, retainRecording } from "../recordedAudio.ts";
 import {
   beginRecordingConnection,
@@ -24,10 +24,7 @@ export interface RecordingBarProps {
   onOpenSettings?: () => void;
 }
 
-export function RecordingBar({
-  createAudioSource = createMicrophoneSource,
-  onOpenSettings,
-}: RecordingBarProps) {
+export function RecordingBar({ createAudioSource, onOpenSettings }: RecordingBarProps) {
   const authToken = useStore($sessionToken);
   const backendUrl = useStore($backendUrl);
   const audioProcessingMode = useStore($audioProcessingMode);
@@ -122,7 +119,7 @@ export function RecordingBar({
 
     const audioSource = createAudioSource
       ? createAudioSource()
-      : createMicrophoneSource(audioProcessingMode);
+      : createDefaultAudioSource(audioProcessingMode);
     audioSourceRef.current = audioSource;
 
     const referenceId = crypto.randomUUID();

@@ -7,6 +7,7 @@ import {
 import { createQwenProvider, type QwenProviderConfig } from "./qwen.ts";
 import { createQwenOmniProvider, type QwenOmniProviderConfig } from "./qwen-omni.ts";
 import { createBytePlusProvider, type BytePlusProviderConfig } from "./byteplus.ts";
+import { createOpenAIProvider, OPENAI_DEFAULT_MODEL, type OpenAIProviderConfig } from "./openai.ts";
 import { createMockProvider } from "./mock.ts";
 
 export const qwenProviderDefinition: ProviderDefinition = defineProvider<QwenProviderConfig>({
@@ -101,6 +102,25 @@ export const bytePlusProviderDefinition: ProviderDefinition =
     },
   });
 
+export const openAIProviderDefinition: ProviderDefinition = defineProvider<OpenAIProviderConfig>({
+  id: "openai",
+  label: "OpenAI (Realtime Transcription)",
+  // One model, tried live against the real endpoint (dtinth/vxbeamer#86):
+  // `gpt-live-transcribe` is what the vendor names for exactly this use case
+  // (low-latency streaming transcript deltas). `gpt-transcribe` exists too, but
+  // is a different, post-commit-only model this adapter has not spoken to —
+  // adding it here would be a claim this package cannot back up yet.
+  models: [OPENAI_DEFAULT_MODEL],
+  resolveConfig(env) {
+    const apiKey = env.OPENAI_API_KEY;
+    if (!apiKey) return { ok: false, missing: ["OPENAI_API_KEY"] };
+    return { ok: true, config: { apiKey } };
+  },
+  create(config, model) {
+    return createOpenAIProvider({ ...config, model });
+  },
+});
+
 export const mockProviderDefinition: ProviderDefinition = defineProvider<Record<string, never>>({
   id: "mock",
   label: "Mock (canned transcript, no network)",
@@ -117,6 +137,7 @@ export const builtinProviderDefinitions: readonly ProviderDefinition[] = [
   qwenProviderDefinition,
   qwenOmniProviderDefinition,
   bytePlusProviderDefinition,
+  openAIProviderDefinition,
   mockProviderDefinition,
 ];
 

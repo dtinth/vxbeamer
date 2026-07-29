@@ -110,6 +110,14 @@ export const builtinConfigurations: readonly ConfigurationSpec[] = [
   // dated snapshots to pin to, so there is no floating id to avoid here.
   { provider: "byteplus", label: "BytePlus Seed-ASR (raw)" },
   { provider: "byteplus", postProcessing: ["groq"], label: "BytePlus Seed-ASR + Groq formatting" },
+  // `gpt-live-transcribe`, tried live against the real endpoint
+  // (dtinth/vxbeamer#86). Declared **raw only**, same reasoning as Qwen Omni:
+  // on the test fixture it rendered every English loanword in Latin script and
+  // everything else in Thai, unprompted — the shape the Groq enhancement
+  // exists to reach. Unlike Qwen's models, this id is not a dated snapshot:
+  // OpenAI does not publish dated variants of it the way DashScope does, so
+  // there is nothing to pin to — same situation as BytePlus's mode ids.
+  { provider: "openai", label: "OpenAI gpt-live-transcribe (raw)" },
   { provider: "mock", label: "Mock (canned transcript, no network)" },
 ];
 

@@ -102,6 +102,7 @@ services:
       - DASHSCOPE_API_KEY
       - GROQ_API_KEY
       - BYTEPLUS_API_KEY
+      - OPENAI_API_KEY
       - OIDC_DISCOVERY_URL
       - OIDC_CLIENT_ID
       - OIDC_SECRET
@@ -117,12 +118,13 @@ services:
 | `GROQ_API_KEY`         | No       | Groq API key for gpt-oss-120b post-processing; enables the `+groq` configurations                 |
 | `ASR_CONFIGURATION`    | No       | Default configuration id (default: derived from `ASR_PROVIDER`/`ASR_MODEL`/`GROQ_API_KEY`)        |
 | `ASR_CONFIGURATIONS`   | No       | Comma-separated configurations clients may select (default: every configuration with credentials) |
-| `ASR_PROVIDER`         | No       | Provider for the derived default: `qwen` (default), `qwen-omni`, `byteplus`, or `mock`            |
+| `ASR_PROVIDER`         | No       | Provider for the derived default: `qwen` (default), `qwen-omni`, `byteplus`, `openai`, or `mock`  |
 | `ASR_MODEL`            | No       | Model for the derived default (default: the provider's own default model)                         |
 | `BYTEPLUS_API_KEY`     | No       | BytePlus key; enables the `byteplus` configurations                                               |
 | `BYTEPLUS_LANGUAGE`    | No       | BytePlus language hint, e.g. `th-TH` (default: unset — Mandarin/English only)                     |
 | `BYTEPLUS_RESOURCE_ID` | No       | BytePlus resource id (default: `volc.seedasr.sauc.duration`)                                      |
 | `BYTEPLUS_BASE_URL`    | No       | BytePlus endpoint base, without the mode path segment                                             |
+| `OPENAI_API_KEY`       | No       | OpenAI key; enables the `openai` (`gpt-live-transcribe`) configuration                            |
 | `OIDC_DISCOVERY_URL`   | No       | OIDC provider discovery URL (alternative to API keys)                                             |
 | `OIDC_CLIENT_ID`       | No       | OIDC client ID (default: `vxbeamer-mobile`)                                                       |
 | `OIDC_AUDIENCE`        | No       | Expected token audience (default: same as client ID)                                              |
@@ -210,6 +212,7 @@ A configuration is a provider, a model, and the post-processing chain applied to
 | `qwen-omni/qwen3-omni-flash-realtime-2025-12-01`   | `DASHSCOPE_API_KEY`                 |
 | `byteplus/bigmodel_nostream`                       | `BYTEPLUS_API_KEY`                  |
 | `byteplus/bigmodel_nostream+groq`                  | `BYTEPLUS_API_KEY`, `GROQ_API_KEY`  |
+| `openai/gpt-live-transcribe`                       | `OPENAI_API_KEY`                    |
 | `mock/mock`                                        | nothing                             |
 
 Every Qwen model id is a dated snapshot, not a floating one — the vendor repoints undated ids without notice, which would make a vote name a moving target. The Qwen Omni models need no `+groq` variant: their output is already well-formatted (Thai words in Thai, product names in Latin), which is what Groq formatting was tidying up for the plain ASR models — running it on top of Omni's output measurably added nothing.

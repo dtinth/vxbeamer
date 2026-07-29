@@ -200,6 +200,9 @@ test("the default catalogue offers each real model, enhanced only where that hel
     "qwen-omni/qwen3-omni-flash-realtime-2025-12-01",
     "byteplus/bigmodel_nostream",
     "byteplus/bigmodel_nostream+groq",
+    // Raw only, like the Qwen Omni models — tried live, and it renders
+    // loanwords in Latin unprompted, so a `+groq` sibling has nothing to add.
+    "openai/gpt-live-transcribe",
     "mock/mock",
   ]);
 });
@@ -220,6 +223,9 @@ test("no configuration names a floating model id", () => {
     // to pin to. The drift the rule guards against is real here too — there is
     // simply nothing to pin. Revisit if BytePlus ever versions its models.
     if (configuration.providerId === "byteplus") continue;
+    // Same situation for OpenAI: `gpt-live-transcribe` is the vendor's whole
+    // name for it, with no dated siblings published to pin to instead.
+    if (configuration.providerId === "openai") continue;
     expect(configuration.model).toMatch(/-\d{4}-\d{2}-\d{2}$/);
   }
 });

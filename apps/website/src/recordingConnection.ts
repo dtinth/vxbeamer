@@ -1,5 +1,5 @@
 import { buildBackendSocketUrl } from "./backendSocket.ts";
-import { clearLocalConnectionError, setLocalConnectionError } from "./store.ts";
+import { clearLocalConnectionError, obtainSessionToken, setLocalConnectionError } from "./store.ts";
 
 /**
  * Bridges a live recording's captured audio to the backend `/ws`, independent
@@ -32,6 +32,8 @@ interface ConnectionState {
   opened: boolean;
   /** The user pressed stop before this ever opened — finish up once it does. */
   stopped: boolean;
+  /** A retry's token refresh is in flight — guards against a double-tap. */
+  retrying: boolean;
 }
 
 const connections = new Map<string, ConnectionState>();
@@ -100,6 +102,7 @@ export function beginRecordingConnection(
     connectTimeout: null,
     opened: false,
     stopped: false,
+    retrying: false,
   };
   connections.set(referenceId, state);
   openSocket(state);
@@ -137,17 +140,43 @@ export function endRecordingConnection(referenceId: string): void {
   }
 }
 
-/** Re-open the socket and stream whatever was never delivered, from the start. */
+/**
+ * Re-open the socket and stream whatever was never delivered, from the start.
+ *
+ * Fetches a fresh access token before reconnecting rather than reusing the
+ * one captured at the original connect attempt: real time can pass between a
+ * failed connect and the user tapping retry — long enough, on an unstable
+ * connection, for that token to have expired. The backend rejects an expired
+ * token by failing the WebSocket upgrade immediately (an HTTP 401 before the
+ * socket ever opens), which reads to the user as the retry doing nothing at
+ * all — a new recording works fine in the meantime because it reads a
+ * current token fresh, not a stale, minutes-old snapshot (dtinth/vxbeamer#86).
+ */
 export function retryRecordingConnection(referenceId: string): void {
   const state = connections.get(referenceId);
-  if (!state || state.opened) return;
+  if (!state || state.opened || state.retrying) return;
+  state.retrying = true;
   clearConnectTimeout(state);
   state.ws?.close();
   // Otherwise a retry that fails the same way leaves the bubble showing the
   // exact same text it did before the tap — indistinguishable from the tap
   // having done nothing at all.
   setLocalConnectionError(referenceId, "Retrying…");
-  openSocket(state);
+
+  void obtainSessionToken()
+    .then((authToken) => {
+      // Forgotten, or the connection opened some other way, while the token
+      // refresh was in flight.
+      if (connections.get(referenceId) !== state || state.opened) return;
+      state.retrying = false;
+      state.authToken = authToken;
+      openSocket(state);
+    })
+    .catch((err) => {
+      if (connections.get(referenceId) !== state || state.opened) return;
+      state.retrying = false;
+      failConnect(state, err instanceof Error ? err.message : "Could not refresh session");
+    });
 }
 
 /** Drop everything for a recording whose error bubble was dismissed. */

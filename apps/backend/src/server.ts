@@ -412,8 +412,33 @@ app.get(
     // whichever of end / error / idle-timeout gets there first.
     let settled = false;
     let idle: IdleWatchdog | null = null;
+    // Armed only once the client itself disconnects — see `onClose` below.
+    let disconnectWatchdog: IdleWatchdog | null = null;
     const referenceId = c.req.query("reference_id");
     const configurationParam = nonEmptyQuery(c.req.query("configuration"));
+
+    function stopWatchdogs(): void {
+      idle?.stop();
+      disconnectWatchdog?.stop();
+    }
+
+    // The shared shape behind both watchdogs reclaiming a vendor connection
+    // the graceful finish() path won't bound on its own: mark the message
+    // errored and hard-close the session. Returns false (no-op) once the
+    // turn has already settled some other way.
+    function settleWithError(errorText: string): boolean {
+      if (settled) return false;
+      settled = true;
+      asrSession?.close();
+      if (message) {
+        message.status = "error";
+        message.error = errorText;
+        message.updatedAt = Date.now();
+        store.broadcast(subject, { type: "updated", message });
+        void sendWebhook(message);
+      }
+      return true;
+    }
 
     return {
       onOpen(_evt: Event, ws: WSContext) {
@@ -458,7 +483,7 @@ app.get(
           onEnd() {
             if (!message || settled) return;
             settled = true;
-            idle?.stop();
+            stopWatchdogs();
             message.status = "done";
             message.updatedAt = Date.now();
             store.broadcast(subject, { type: "updated", message });
@@ -468,7 +493,7 @@ app.get(
           onError(err) {
             if (!message || settled) return;
             settled = true;
-            idle?.stop();
+            stopWatchdogs();
             message.status = "error";
             message.error = err instanceof Error ? err.message : String(err);
             message.updatedAt = Date.now();
@@ -484,20 +509,11 @@ app.get(
         // itself. `close()` aborts the vendor socket outright — the graceful
         // `finish()` waits for a terminal event silence will never produce.
         idle = createIdleWatchdog(wsIdleTimeoutMs, () => {
-          if (settled) return;
-          settled = true;
-          finished = true;
-          asrSession?.close();
-          if (message) {
-            message.status = "error";
-            message.error = `Idle timeout: no audio received for ${Math.round(
-              wsIdleTimeoutMs / 1000,
-            )}s`;
-            message.updatedAt = Date.now();
-            store.broadcast(subject, { type: "updated", message });
-            void sendWebhook(message);
+          const text = `Idle timeout: no audio received for ${Math.round(wsIdleTimeoutMs / 1000)}s`;
+          if (settleWithError(text)) {
+            finished = true;
+            ws.close(1008, "idle timeout");
           }
-          ws.close(1008, "idle timeout");
         });
       },
 
@@ -516,10 +532,22 @@ app.get(
       },
 
       onClose() {
-        idle?.stop();
+        stopWatchdogs();
         if (!finished) {
           finished = true;
           asrSession?.finish();
+        }
+        // The client is gone either way — whether this `finish()` was just
+        // triggered above, or was already in flight from an earlier clean
+        // `stop` the client never stuck around to see the result of. Bound
+        // it the same way `idle` bounds client silence: give the vendor
+        // `wsIdleTimeoutMs` to respond before reclaiming the connection.
+        // Skipped once the turn has already settled, so a vendor that
+        // responds in time leaves no dangling timer behind.
+        if (!settled) {
+          disconnectWatchdog = createIdleWatchdog(wsIdleTimeoutMs, () => {
+            settleWithError("Client disconnected before the vendor responded");
+          });
         }
       },
     };

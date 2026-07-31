@@ -412,6 +412,8 @@ app.get(
     // whichever of end / error / idle-timeout gets there first.
     let settled = false;
     let idle: IdleWatchdog | null = null;
+    // Armed only once the client itself disconnects — see `onClose` below.
+    let disconnectWatchdog: IdleWatchdog | null = null;
     const referenceId = c.req.query("reference_id");
     const configurationParam = nonEmptyQuery(c.req.query("configuration"));
 
@@ -459,6 +461,7 @@ app.get(
             if (!message || settled) return;
             settled = true;
             idle?.stop();
+            disconnectWatchdog?.stop();
             message.status = "done";
             message.updatedAt = Date.now();
             store.broadcast(subject, { type: "updated", message });
@@ -469,6 +472,7 @@ app.get(
             if (!message || settled) return;
             settled = true;
             idle?.stop();
+            disconnectWatchdog?.stop();
             message.status = "error";
             message.error = err instanceof Error ? err.message : String(err);
             message.updatedAt = Date.now();
@@ -520,6 +524,30 @@ app.get(
         if (!finished) {
           finished = true;
           asrSession?.finish();
+        }
+        // The client is gone either way — whether this `finish()` was just
+        // triggered above, or was already in flight from an earlier clean
+        // `stop` the client never stuck around to see the result of. Either
+        // way it has the same open-ended wait the idle watchdog exists to
+        // bound (see idleWatchdog.ts): it waits for a terminal event the
+        // vendor is not guaranteed to ever send, e.g. for a clip too short to
+        // transcribe. A dropped client must not be able to pin a vendor
+        // connection open indefinitely just because the vendor never answers
+        // back. Skipped once the turn has already settled, so a vendor that
+        // responds in time never leaves a dangling timer behind.
+        if (!settled) {
+          disconnectWatchdog = createIdleWatchdog(wsIdleTimeoutMs, () => {
+            if (settled) return;
+            settled = true;
+            asrSession?.close();
+            if (message) {
+              message.status = "error";
+              message.error = "Client disconnected before the vendor responded";
+              message.updatedAt = Date.now();
+              store.broadcast(subject, { type: "updated", message });
+              void sendWebhook(message);
+            }
+          });
         }
       },
     };

@@ -71,7 +71,6 @@ export type EvalServerEvent =
 export interface EvalConfiguration {
   id: string;
   label: string;
-  providerId: string;
   /** Whether this row is replayed as a fast dump rather than paced at realtime. */
   supportsFastDump: boolean;
   configured: boolean;

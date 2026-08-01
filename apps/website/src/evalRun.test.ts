@@ -33,19 +33,9 @@ const BYTEPLUS_TRANSCRIPT =
   "project Niagara typescript Chai framework Chai do deploy material way 来自 Chai MongoDB Atlassian common。";
 
 function configuration(id: string, overrides: Partial<EvalConfiguration> = {}): EvalConfiguration {
-  // Splitting the id for a providerId default is a test-fixture shortcut only
-  // — production code must not do this (see `ConfigurationDescriptor` in
-  // apps/backend/src/asr.ts): the real providerId always comes from the server.
   // supportsFastDump defaults true since every fixture below except
   // SLOW_VENDOR stands in for an actually fast-dump-confirmed provider.
-  return {
-    id,
-    label: id,
-    providerId: id.split("/")[0]!,
-    supportsFastDump: true,
-    configured: true,
-    ...overrides,
-  };
+  return { id, label: id, supportsFastDump: true, configured: true, ...overrides };
 }
 
 /** PCM stand-in: `seconds` of silence, cut into 256-byte worklet chunks. */

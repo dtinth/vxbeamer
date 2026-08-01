@@ -42,6 +42,8 @@ export interface ConfigurationDescriptor {
   readonly model: string;
   /** Decorator ids, in application order. */
   readonly postProcessing: readonly string[];
+  /** Whether the provider is confirmed to accept a fast dump — see `ProviderSpec.supportsFastDump` in vxasr. */
+  readonly supportsFastDump: boolean;
   /**
    * Whether the server carries every credential this configuration needs.
    *
@@ -210,6 +212,7 @@ export function createConfigurationSelector(
             providerId: definition.providerId,
             model: definition.model,
             postProcessing: definition.postProcessing,
+            supportsFastDump: definition.supportsFastDump,
             configured: definition.isConfigured(env),
           },
         ]

@@ -99,6 +99,8 @@ export interface ConfigurationDefinition {
   readonly providerId: string;
   readonly model: string;
   readonly postProcessing: readonly string[];
+  /** Whether the underlying provider accepts a fast dump — see `ProviderSpec.supportsFastDump`. */
+  readonly supportsFastDump: boolean;
   /** True when the environment carries credentials for the provider and every decorator. */
   isConfigured(env: ProviderEnv): boolean;
   /** Every env var this configuration needs but the environment does not carry. */
@@ -169,6 +171,7 @@ export function createConfigurationCatalogue(options: {
       providerId: spec.provider,
       model,
       postProcessing,
+      supportsFastDump: providerDefinition.supportsFastDump,
       missingConfig,
       isConfigured: (env) => missingConfig(env).length === 0,
       resolve(env) {

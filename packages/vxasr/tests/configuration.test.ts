@@ -36,6 +36,7 @@ const providers = createProviderRegistry([
     id: "vendor",
     label: "Vendor",
     models: ["big", "small"],
+    supportsFastDump: false,
     resolveConfig(env) {
       if (!env.VENDOR_KEY) return { ok: false, missing: ["VENDOR_KEY"] };
       return { ok: true, config: { key: env.VENDOR_KEY } };
@@ -46,6 +47,7 @@ const providers = createProviderRegistry([
     id: "fake",
     label: "Fake",
     models: ["fake"],
+    supportsFastDump: false,
     resolveConfig: () => ({ ok: true, config: {} }),
     create: () => trackingProvider("fake"),
   }),

@@ -16,6 +16,7 @@ function defineRegionProvider(seen: { config?: unknown; model?: string }) {
     id: "region",
     label: "Region-scoped provider",
     models: ["big", "small"],
+    supportsFastDump: false,
     resolveConfig(env) {
       const missing = ["REGION_KEY", "REGION_LOCATION"].filter((name) => !env[name]);
       if (missing.length > 0) return { ok: false, missing };

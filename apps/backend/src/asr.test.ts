@@ -247,6 +247,7 @@ test("a described configuration carries its identity components and a label", ()
     providerId: "qwen",
     model: "qwen3-asr-flash-realtime-2025-10-27",
     postProcessing: ["groq"],
+    supportsFastDump: true,
     configured: true,
   });
 });

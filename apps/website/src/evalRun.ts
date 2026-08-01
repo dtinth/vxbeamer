@@ -28,12 +28,14 @@ import {
  *    hangs outright on a fast dump. But that turned out not to be universal:
  *    every provider actually declared in the catalogue was fast-dump tested
  *    against the same fixture (`testdata/OBSERVATIONS.md`, "fast dump vs
- *    realtime") and returned a transcript in ~1–2 s with no hang, so
- *    {@link FAST_DUMP_PROVIDERS} lets those skip the wait. A provider earns
- *    that entry by being tested, the same discipline `builtin.ts` applies to
- *    pinned model ids — an untested provider defaults to realtime. Billing is
- *    per audio-second rather than connection-second either way, so pacing is
- *    free to vary.
+ *    realtime") and returned a transcript in ~1–2 s with no hang, so a
+ *    configuration whose {@link EvalConfiguration.supportsFastDump} is true
+ *    skips the wait. That flag is vxasr's own `ProviderSpec.supportsFastDump`,
+ *    carried through `GET /asr/configurations` — a provider earns it by being
+ *    tested, the same discipline `builtin.ts` applies to pinned model ids, and
+ *    this module trusts the server's answer rather than re-declaring its own
+ *    list of which providers qualify. Billing is per audio-second rather than
+ *    connection-second either way, so pacing is free to vary.
  *
  * Privacy: the PCM this replays never leaves memory. It goes into these sockets
  * and nowhere else. Nothing here writes to disk, localStorage or IndexedDB.
@@ -42,25 +44,12 @@ import {
 /** One 100 ms frame, derived from the format rather than restated as a literal. */
 export const EVAL_FRAME_BYTES = BYTES_PER_SECOND / 10;
 
-/** Realtime pacing, for a provider not in {@link FAST_DUMP_PROVIDERS}. Do not tune this down. */
+/** Realtime pacing, for a configuration whose provider is not fast-dump confirmed. Do not tune this down. */
 export const EVAL_FRAME_INTERVAL_MS = 100;
 
-/**
- * Providers confirmed (`testdata/OBSERVATIONS.md`) to accept a fast dump —
- * every frame sent back-to-back rather than paced at realtime — without
- * hanging or losing accuracy. See the module doc above for what disqualifies
- * a provider from this set.
- */
-export const FAST_DUMP_PROVIDERS: ReadonlySet<string> = new Set([
-  "qwen",
-  "qwen-omni",
-  "byteplus",
-  "mock",
-]);
-
-/** How long between frames for one provider's socket. */
-export function evalFrameIntervalMs(providerId: string): number {
-  return FAST_DUMP_PROVIDERS.has(providerId) ? 0 : EVAL_FRAME_INTERVAL_MS;
+/** How long between frames for one configuration's socket. */
+export function evalFrameIntervalMs(supportsFastDump: boolean): number {
+  return supportsFastDump ? 0 : EVAL_FRAME_INTERVAL_MS;
 }
 
 /**
@@ -82,8 +71,9 @@ export type EvalServerEvent =
 export interface EvalConfiguration {
   id: string;
   label: string;
-  /** Which entry in {@link FAST_DUMP_PROVIDERS} governs this row's pacing. */
   providerId: string;
+  /** Whether this row is replayed as a fast dump rather than paced at realtime. */
+  supportsFastDump: boolean;
   configured: boolean;
 }
 
@@ -283,7 +273,7 @@ export function startEvalRun(options: EvalRunOptions): EvalRun {
     if (!configuration.configured) return;
 
     let socket: EvalSocket | null = null;
-    const frameInterval = evalFrameIntervalMs(configuration.providerId);
+    const frameInterval = evalFrameIntervalMs(configuration.supportsFastDump);
 
     // One frame per tick, at this row's own provider's pace — started only
     // once `emitter.start()` is called below, from "ready". Each socket

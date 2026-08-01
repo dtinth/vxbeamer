@@ -36,7 +36,16 @@ function configuration(id: string, overrides: Partial<EvalConfiguration> = {}): 
   // Splitting the id for a providerId default is a test-fixture shortcut only
   // — production code must not do this (see `ConfigurationDescriptor` in
   // apps/backend/src/asr.ts): the real providerId always comes from the server.
-  return { id, label: id, providerId: id.split("/")[0]!, configured: true, ...overrides };
+  // supportsFastDump defaults true since every fixture below except
+  // SLOW_VENDOR stands in for an actually fast-dump-confirmed provider.
+  return {
+    id,
+    label: id,
+    providerId: id.split("/")[0]!,
+    supportsFastDump: true,
+    configured: true,
+    ...overrides,
+  };
 }
 
 /** PCM stand-in: `seconds` of silence, cut into 256-byte worklet chunks. */
@@ -190,19 +199,19 @@ test("upgrades the backend's scheme to a websocket one", () => {
 
 // --- Per-provider pacing ---
 
-test("a provider not confirmed fast-dump-safe defaults to realtime", () => {
-  expect(evalFrameIntervalMs("future-vendor")).toBe(EVAL_FRAME_INTERVAL_MS);
+test("a configuration not confirmed fast-dump-safe defaults to realtime", () => {
+  expect(evalFrameIntervalMs(false)).toBe(EVAL_FRAME_INTERVAL_MS);
 });
 
-test("providers confirmed by testdata/OBSERVATIONS.md skip the pacing delay", () => {
-  expect(evalFrameIntervalMs("qwen")).toBe(0);
-  expect(evalFrameIntervalMs("qwen-omni")).toBe(0);
-  expect(evalFrameIntervalMs("byteplus")).toBe(0);
-  expect(evalFrameIntervalMs("mock")).toBe(0);
+test("a fast-dump-confirmed configuration skips the pacing delay", () => {
+  expect(evalFrameIntervalMs(true)).toBe(0);
 });
 
 test("replays one frame per tick and never dumps the buffer", () => {
-  const harness = createHarness([configuration(SLOW_VENDOR)], recordedChunks(1));
+  const harness = createHarness(
+    [configuration(SLOW_VENDOR, { supportsFastDump: false })],
+    recordedChunks(1),
+  );
 
   harness.emit(SLOW_VENDOR, { type: "ready", configurationId: SLOW_VENDOR });
   // `ready` sends the first frame; nothing more until the clock moves.
@@ -255,7 +264,7 @@ test("stops after the last frame and asks the vendor to finish", () => {
 
 test("a late connection still hears its audio at its own pace rather than catching up", () => {
   const harness = createHarness(
-    [configuration(QWEN), configuration(SLOW_VENDOR)],
+    [configuration(QWEN), configuration(SLOW_VENDOR, { supportsFastDump: false })],
     recordedChunks(1),
   );
 
@@ -277,7 +286,7 @@ test("a late connection still hears its audio at its own pace rather than catchi
 
 test("progress tracks the clip rather than the number of rows", () => {
   const harness = createHarness(
-    [configuration(QWEN), configuration(SLOW_VENDOR)],
+    [configuration(QWEN), configuration(SLOW_VENDOR, { supportsFastDump: false })],
     recordedChunks(1),
   );
 

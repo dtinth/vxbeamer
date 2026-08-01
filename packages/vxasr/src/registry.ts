@@ -35,6 +35,17 @@ export interface ProviderSpec<TConfig> {
   readonly label: string;
   /** Allowlist of model ids this provider serves. The first is the default. */
   readonly models: readonly [string, ...string[]];
+  /**
+   * Whether this vendor is confirmed to accept a fast dump — every frame sent
+   * back-to-back rather than paced at realtime — without hanging or losing
+   * accuracy. A provider earns `true` by being tested against a fixture (see
+   * `testdata/OBSERVATIONS.md`, "fast dump vs realtime"), the same discipline
+   * `builtin.ts` applies to pinned model ids. Declared here rather than
+   * guessed by a caller, since only the vendor layer knows what it was tested
+   * against — a caller that paces every provider's audio replay off this
+   * (e.g. the eval dialog) then never has to duplicate or re-guess the list.
+   */
+  readonly supportsFastDump: boolean;
   /** Read this provider's credentials/config out of the environment. */
   resolveConfig(env: ProviderEnv): ConfigResolution<TConfig>;
   /** Build a provider. `model` is always one of `models`. */
@@ -60,6 +71,8 @@ export interface ProviderDefinition {
   readonly label: string;
   readonly models: readonly string[];
   readonly defaultModel: string;
+  /** See {@link ProviderSpec.supportsFastDump}. */
+  readonly supportsFastDump: boolean;
   /** True when the environment carries everything this provider needs. */
   isConfigured(env: ProviderEnv): boolean;
   /** Env var names this provider needs but the environment does not carry. */
@@ -75,6 +88,7 @@ export function defineProvider<TConfig>(spec: ProviderSpec<TConfig>): ProviderDe
     label: spec.label,
     models: spec.models,
     defaultModel,
+    supportsFastDump: spec.supportsFastDump,
 
     isConfigured(env) {
       return spec.resolveConfig(env).ok;

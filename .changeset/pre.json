@@ -19,6 +19,7 @@
     "eval-dialog-prototype",
     "eval-per-provider-pacing",
     "eval-vote-and-eval-set-upload",
+    "export-fast-dump-metadata",
     "lazy-eels-repeat",
     "openai-live-transcribe",
     "qwen-dated-snapshots",

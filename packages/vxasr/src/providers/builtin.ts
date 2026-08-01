@@ -25,6 +25,8 @@ export const qwenProviderDefinition: ProviderDefinition = defineProvider<QwenPro
   // 2025-10-27 leads because it is what the floating id resolved to when it
   // was dropped: the primary's behaviour is unchanged, only pinned.
   models: ["qwen3-asr-flash-realtime-2025-10-27", "qwen3-asr-flash-realtime-2026-02-10"],
+  // Confirmed against testdata/OBSERVATIONS.md, "fast dump vs realtime".
+  supportsFastDump: true,
   resolveConfig(env) {
     const apiKey = env.DASHSCOPE_API_KEY;
     if (!apiKey) return { ok: false, missing: ["DASHSCOPE_API_KEY"] };
@@ -57,6 +59,8 @@ export const qwenOmniProviderDefinition: ProviderDefinition =
       "qwen3.5-omni-plus-realtime-2026-03-15",
       "qwen3-omni-flash-realtime-2025-12-01",
     ],
+    // Confirmed against testdata/OBSERVATIONS.md, "fast dump vs realtime".
+    supportsFastDump: true,
     resolveConfig(env) {
       const apiKey = env.DASHSCOPE_API_KEY;
       if (!apiKey) return { ok: false, missing: ["DASHSCOPE_API_KEY"] };
@@ -79,6 +83,13 @@ export const bytePlusProviderDefinition: ProviderDefinition =
     // `bigmodel` stays served but is not declared as a configuration — see
     // `../builtin.ts`.
     models: ["bigmodel_nostream", "bigmodel"],
+    // Confirmed for `bigmodel_nostream` only (testdata/OBSERVATIONS.md, "fast
+    // dump vs realtime") — the only model this provider actually declares as a
+    // configuration, so the only one a fast-dump caller can ever reach. The
+    // other model, bi-directional `bigmodel`, hangs outright on a fast dump;
+    // it stays un-declared for exactly that reason (see the comment above),
+    // so this flag never gets a chance to mislead a caller about it.
+    supportsFastDump: true,
     resolveConfig(env) {
       const apiKey = env.BYTEPLUS_API_KEY;
       if (!apiKey) return { ok: false, missing: ["BYTEPLUS_API_KEY"] };
@@ -111,6 +122,9 @@ export const openAIProviderDefinition: ProviderDefinition = defineProvider<OpenA
   // is a different, post-commit-only model this adapter has not spoken to —
   // adding it here would be a claim this package cannot back up yet.
   models: [OPENAI_DEFAULT_MODEL],
+  // Not yet fast-dump tested against testdata/OBSERVATIONS.md — defaults to
+  // realtime pacing until it earns this the same way the others did.
+  supportsFastDump: false,
   resolveConfig(env) {
     const apiKey = env.OPENAI_API_KEY;
     if (!apiKey) return { ok: false, missing: ["OPENAI_API_KEY"] };
@@ -125,6 +139,8 @@ export const mockProviderDefinition: ProviderDefinition = defineProvider<Record<
   id: "mock",
   label: "Mock (canned transcript, no network)",
   models: ["mock"],
+  // No vendor socket behind it, so there is no send pace to violate.
+  supportsFastDump: true,
   resolveConfig() {
     return { ok: true, config: {} };
   },

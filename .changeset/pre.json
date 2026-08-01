@@ -12,6 +12,7 @@
     "baked-drag-tint",
     "buffered-socket-session",
     "byteplus-language",
+    "disconnect-vendor-reclaim",
     "drag-charge-feedback",
     "drag-image-preview",
     "eval-configuration-discovery",
@@ -19,12 +20,16 @@
     "eval-per-provider-pacing",
     "eval-vote-and-eval-set-upload",
     "lazy-eels-repeat",
+    "openai-live-transcribe",
     "qwen-dated-snapshots",
     "qwen-omni-realtime",
+    "retry-connect-feedback",
+    "retry-stale-token",
     "review-fixes",
     "settings-ui-improvements",
     "small-recording-bar-padding",
     "soft-pans-shake",
+    "test-mode-audio-replay",
     "websocket-idle-cleanup"
   ]
 }

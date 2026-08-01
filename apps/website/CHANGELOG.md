@@ -1,5 +1,15 @@
 # website
 
+## 0.1.0-next.6
+
+### Patch Changes
+
+- 02be1ab: Show a "Retrying…" state on the error bubble immediately when the retry button is tapped, instead of leaving it looking untouched until the reconnect attempt settles.
+- 02be1ab: Fix retry doing nothing on a connection that failed a while ago: it was reusing the access token captured at the original connect attempt, which the backend's `/ws` upgrade rejects outright once expired — reading as a silent no-op rather than a real retry. A retry now fetches a fresh token before reconnecting, the same as every other authenticated call.
+- 02be1ab: Add a hidden test-audio mode: setting `localStorage.vxbeamer_test_audio_url` makes the record button replay a pre-recorded PCM clip, paced like a live capture, instead of opening the microphone — for exercising the record flow in environments with no mic (e.g. a headless browser). Also fixes a pre-existing bug where `audioProcessingMode` (noise suppression / echo cancellation / auto gain) was silently never applied to real microphone recordings.
+- Updated dependencies [02be1ab]
+  - vxasr@0.1.0-next.6
+
 ## 0.1.0-next.5
 
 ### Patch Changes

@@ -421,8 +421,14 @@ app.get(
     // share a pooled vendor connection even if their client ids collided.
     // Undefined for a client that sends none, which opts this connection out
     // of session reuse entirely — today's plain behaviour.
+    //
+    // JSON-encoded rather than joined with a separator: an OIDC `sub` is
+    // arbitrary text from the identity provider, not guaranteed free of
+    // whatever separator a plain `${subject}:${rawClientId}` would pick, so
+    // a naive join risks two different (subject, client id) pairs producing
+    // the same pool key.
     const rawClientId = nonEmptyQuery(c.req.query("client_id"));
-    const clientId = rawClientId ? `${subject}:${rawClientId}` : undefined;
+    const clientId = rawClientId ? JSON.stringify([subject, rawClientId]) : undefined;
 
     function stopWatchdogs(): void {
       idle?.stop();

@@ -48,6 +48,15 @@ export interface BufferedSocketSessionOptions {
   handleMessage(raw: Buffer): void;
   /** Report a transport-level socket error (not a vendor error frame). */
   onError(err: Error): void;
+  /**
+   * True when `ws` is already open and configured — handed back from an
+   * earlier turn rather than opened by this call (see `qwen-omni.ts`'s
+   * sticky sessions). Skips {@link sendHandshake} and the wait for `open`
+   * (which an already-open socket will never fire again), and detaches
+   * whatever the previous turn left listening on `message`/`error` first, so
+   * only this call's own handlers see this turn's events. Default `false`.
+   */
+  alreadyOpen?: boolean;
 }
 
 /**
@@ -56,10 +65,19 @@ export interface BufferedSocketSessionOptions {
  * the flush loop, the pre-open finish race, and teardown.
  */
 export function createBufferedSocketSession(options: BufferedSocketSessionOptions): ASRSession {
-  const { ws, chunkSize, sendChunk, sendHandshake, endTurn, handleMessage, onError } = options;
+  const {
+    ws,
+    chunkSize,
+    sendChunk,
+    sendHandshake,
+    endTurn,
+    handleMessage,
+    onError,
+    alreadyOpen = false,
+  } = options;
 
   let buffer = Buffer.alloc(0);
-  let ready = false;
+  let ready = alreadyOpen;
   let finishing = false;
   let closed = false;
 
@@ -78,17 +96,25 @@ export function createBufferedSocketSession(options: BufferedSocketSessionOption
     endTurn(remaining);
   }
 
-  ws.on("open", () => {
-    // A `close()` before the handshake means the session was abandoned while
-    // connecting; do not speak into a socket that is being terminated.
-    if (closed) return;
-    sendHandshake();
-    ready = true;
-    flush();
-    // A clip short enough to finish before the socket opened still has to be
-    // sent, or the turn never ends and the session hangs.
-    if (finishing) finishTurn();
-  });
+  if (alreadyOpen) {
+    // The `open` event already fired, on whichever call actually opened this
+    // socket — it will not fire again, and a previous turn's own handlers
+    // are still attached and must not also see this turn's events.
+    ws.removeAllListeners("message");
+    ws.removeAllListeners("error");
+  } else {
+    ws.on("open", () => {
+      // A `close()` before the handshake means the session was abandoned while
+      // connecting; do not speak into a socket that is being terminated.
+      if (closed) return;
+      sendHandshake();
+      ready = true;
+      flush();
+      // A clip short enough to finish before the socket opened still has to be
+      // sent, or the turn never ends and the session hangs.
+      if (finishing) finishTurn();
+    });
+  }
 
   ws.on("message", (raw: Buffer) => {
     if (closed) return;

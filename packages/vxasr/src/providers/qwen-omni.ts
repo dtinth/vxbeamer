@@ -225,29 +225,31 @@ export function createQwenOmniProvider(config: QwenOmniProviderConfig): ASRProvi
         existing.model === model &&
         existing.ws.readyState === WebSocket.OPEN
       );
-      // A stale entry (dead socket, or pinned to a model this turn didn't ask
-      // for) cannot serve this turn — drop it so it doesn't shadow whatever
-      // gets pooled next. A *busy* entry is left alone; its own turn owns it.
-      if (existing && !reusing && existing.ws.readyState !== WebSocket.OPEN && clientId) {
+
+      let startingAudioSeconds = 0;
+      if (reusing && existing) {
+        startingAudioSeconds = existing.totalAudioSeconds;
+        existing.busy = true;
+        if (existing.lingerTimer) {
+          clearTimeout(existing.lingerTimer);
+          existing.lingerTimer = null;
+        }
+      } else if (existing && clientId && existing.ws.readyState !== WebSocket.OPEN) {
+        // A dead socket cannot serve this turn — drop it so it doesn't
+        // shadow whatever gets pooled next. A *busy* entry, or one pinned to
+        // a different model, is left alone; its own turn still owns it.
         stickyPool.delete(clientId);
       }
-      const startingAudioSeconds = reusing ? existing!.totalAudioSeconds : 0;
-      if (reusing) {
-        existing!.busy = true;
-        if (existing!.lingerTimer) {
-          clearTimeout(existing!.lingerTimer);
-          existing!.lingerTimer = null;
-        }
-      }
 
-      const ws = reusing
-        ? existing!.ws
-        : new WebSocket(url, {
-            headers: {
-              Authorization: `Bearer ${config.apiKey}`,
-              "OpenAI-Beta": "realtime=v1",
-            },
-          });
+      const ws =
+        reusing && existing
+          ? existing.ws
+          : new WebSocket(url, {
+              headers: {
+                Authorization: `Bearer ${config.apiKey}`,
+                "OpenAI-Beta": "realtime=v1",
+              },
+            });
 
       let transcript = "";
       // Total bytes appended this turn — the ASR providers deliberately skip
@@ -329,6 +331,19 @@ export function createQwenOmniProvider(config: QwenOmniProviderConfig): ASRProvi
           ws.close(1000, "done");
           return;
         }
+        // Release this turn's own message/error handlers now rather than
+        // keeping them (and everything they close over — a whole backend
+        // request's worth of state) reachable for the rest of the linger
+        // window. A lone `error` handler replaces them: an EventEmitter with
+        // no `error` listener throws on one, and this connection may now sit
+        // idle for a while before the next turn (or the linger timeout)
+        // attaches a real handler.
+        ws.removeAllListeners("message");
+        ws.removeAllListeners("error");
+        ws.on("error", () => {
+          if (stickyPool.get(clientId)?.ws === ws) stickyPool.delete(clientId);
+          ws.close();
+        });
         const entry: StickyConnection = {
           ws,
           model,
@@ -377,57 +392,9 @@ export function createQwenOmniProvider(config: QwenOmniProviderConfig): ASRProvi
         }
       }
 
-      if (reusing) {
-        // The vendor already has this connection configured and open from an
-        // earlier turn — no handshake to resend, no `open` event to wait for.
-        // Only this turn's own handler may hear its messages, so the previous
-        // turn's listeners are detached first.
-        ws.removeAllListeners("message");
-        ws.removeAllListeners("error");
-        ws.on("message", handleMessage);
-        ws.on("error", (err: Error) => {
-          options.onError?.(err);
-          evict();
-          ws.close();
-        });
-
-        let buffer = Buffer.alloc(0);
-        let finishing = false;
-        let closed = false;
-
-        function flush() {
-          while (buffer.length >= CHUNK_SIZE) {
-            const chunk = buffer.subarray(0, CHUNK_SIZE);
-            buffer = buffer.subarray(CHUNK_SIZE);
-            append(chunk);
-          }
-        }
-
-        return {
-          sendAudio(chunk: Buffer) {
-            if (finishing || closed) return;
-            buffer = Buffer.concat([buffer, chunk]);
-            flush();
-          },
-          finish() {
-            if (finishing) return;
-            finishing = true;
-            if (ws.readyState === WebSocket.OPEN) {
-              const remaining = buffer;
-              buffer = Buffer.alloc(0);
-              endTurn(remaining);
-            }
-          },
-          close() {
-            if (closed) return;
-            closed = true;
-            finishing = true;
-            evict();
-            ws.terminate();
-          },
-        };
-      }
-
+      // A reused connection is already open and configured from an earlier
+      // turn — `alreadyOpen` skips resending the handshake and waiting for an
+      // `open` event that will never fire again on it.
       return createBufferedSocketSession({
         ws,
         chunkSize: CHUNK_SIZE,
@@ -435,6 +402,7 @@ export function createQwenOmniProvider(config: QwenOmniProviderConfig): ASRProvi
         sendHandshake,
         endTurn,
         handleMessage,
+        alreadyOpen: reusing,
         onError(err) {
           options.onError?.(err);
           evict();

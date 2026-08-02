@@ -64,7 +64,18 @@ export const qwenOmniProviderDefinition: ProviderDefinition =
     resolveConfig(env) {
       const apiKey = env.DASHSCOPE_API_KEY;
       if (!apiKey) return { ok: false, missing: ["DASHSCOPE_API_KEY"] };
-      return { ok: true, config: { apiKey } };
+      return {
+        ok: true,
+        config: {
+          apiKey,
+          stickyLingerMs: env.QWEN_OMNI_STICKY_LINGER_MS
+            ? Number(env.QWEN_OMNI_STICKY_LINGER_MS)
+            : undefined,
+          stickyMaxAudioSeconds: env.QWEN_OMNI_STICKY_MAX_AUDIO_SECONDS
+            ? Number(env.QWEN_OMNI_STICKY_MAX_AUDIO_SECONDS)
+            : undefined,
+        },
+      };
     },
     create(config, model) {
       return createQwenOmniProvider({ ...config, model });

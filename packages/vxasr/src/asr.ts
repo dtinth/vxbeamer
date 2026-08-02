@@ -12,6 +12,25 @@ export interface ASRSessionCallbacks {
   onUsage?: (records: UsageRecord[]) => void;
 }
 
+/**
+ * Extends {@link ASRSessionCallbacks} rather than replacing it, so existing
+ * code that builds a plain callbacks object keeps type-checking unchanged —
+ * `clientId` is optional, and a provider that does not understand it just
+ * behaves as it always has.
+ */
+export interface ASRCreateSessionOptions extends ASRSessionCallbacks {
+  /**
+   * An opaque key identifying which caller this session belongs to, scoped by
+   * the caller (e.g. a backend combines its own subject with a client-supplied
+   * id so two different accounts can never collide). A provider with no notion
+   * of session reuse ignores this entirely. One that supports it (currently
+   * only `qwen-omni`) may keep its vendor connection open after a turn ends and
+   * hand the *same* connection back to a later `createSession` call carrying
+   * the same `clientId`, so the vendor keeps the prior turn's context.
+   */
+  clientId?: string;
+}
+
 export interface ASRSession {
   /**
    * Feed PCM (16 kHz, 16-bit signed, mono) **at roughly realtime pace**.
@@ -40,5 +59,5 @@ export interface ASRSession {
 }
 
 export interface ASRProvider {
-  createSession(callbacks: ASRSessionCallbacks): ASRSession;
+  createSession(options: ASRCreateSessionOptions): ASRSession;
 }

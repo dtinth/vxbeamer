@@ -20,6 +20,16 @@ import { clearLocalConnectionError, obtainSessionToken, setLocalConnectionError 
 
 const CONNECT_TIMEOUT_MS = 8000;
 
+/**
+ * One id per page load, not saved anywhere — a refresh always starts fresh
+ * (dtinth/vxbeamer#99). Lets the backend recognise every `/ws` connection
+ * from this tab as the same caller, so a provider that supports it (currently
+ * only `qwen-omni`) can keep its vendor connection open between recordings
+ * and carry context from one to the next. A provider with no notion of this
+ * just ignores it — sending it costs nothing when it isn't useful.
+ */
+const CLIENT_ID = crypto.randomUUID();
+
 interface ConnectionState {
   referenceId: string;
   authToken: string;
@@ -54,6 +64,7 @@ function openSocket(state: ConnectionState): void {
   const wsUrl = buildBackendSocketUrl(state.backendUrl, "/ws", {
     access_token: state.authToken,
     reference_id: state.referenceId,
+    client_id: CLIENT_ID,
   });
   const ws = new WebSocket(wsUrl);
   ws.binaryType = "arraybuffer";

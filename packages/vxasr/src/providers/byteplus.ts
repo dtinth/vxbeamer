@@ -1,6 +1,6 @@
 import WebSocket from "ws";
 import { randomUUID } from "crypto";
-import type { ASRProvider, ASRSession, ASRSessionCallbacks } from "../asr.ts";
+import type { ASRCreateSessionOptions, ASRProvider, ASRSession } from "../asr.ts";
 import { BYTES_PER_SECOND } from "../audio.ts";
 import { createBufferedSocketSession } from "./bufferedSocketSession.ts";
 
@@ -125,7 +125,7 @@ export function createBytePlusProvider(config: BytePlusProviderConfig): ASRProvi
   const url = `${base}/${mode.path}`;
 
   return {
-    createSession(callbacks: ASRSessionCallbacks): ASRSession {
+    createSession(callbacks: ASRCreateSessionOptions): ASRSession {
       const ws = new WebSocket(url, {
         headers: {
           "X-Api-Key": config.apiKey,

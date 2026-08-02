@@ -416,6 +416,13 @@ app.get(
     let disconnectWatchdog: IdleWatchdog | null = null;
     const referenceId = c.req.query("reference_id");
     const configurationParam = nonEmptyQuery(c.req.query("configuration"));
+    // A per-app-launch id the client makes up (not persisted — see
+    // dtinth/vxbeamer#99), scoped to this subject so two accounts can never
+    // share a pooled vendor connection even if their client ids collided.
+    // Undefined for a client that sends none, which opts this connection out
+    // of session reuse entirely — today's plain behaviour.
+    const rawClientId = nonEmptyQuery(c.req.query("client_id"));
+    const clientId = rawClientId ? `${subject}:${rawClientId}` : undefined;
 
     function stopWatchdogs(): void {
       idle?.stop();
@@ -463,6 +470,7 @@ app.get(
         store.addMessage(subject, message);
         store.broadcast(subject, { type: "created", message });
         asrSession = provider.createSession({
+          clientId,
           onUsage(records) {
             if (!message) return;
             message.usage = [...(message.usage ?? []), ...records];

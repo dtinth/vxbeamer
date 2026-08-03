@@ -24,6 +24,7 @@
     "openai-live-transcribe",
     "qwen-dated-snapshots",
     "qwen-omni-realtime",
+    "qwen-omni-sticky-session",
     "retry-connect-feedback",
     "retry-stale-token",
     "review-fixes",

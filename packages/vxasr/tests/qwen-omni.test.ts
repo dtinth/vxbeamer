@@ -8,6 +8,7 @@ import {
   createQwenOmniProvider,
   createDefaultConfigurationCatalogue,
   createDefaultProviderRegistry,
+  type ASRProvider,
 } from "../src/index.ts";
 import { run, trackVendors, type RunOutcome } from "./streamingSessionHarness.ts";
 
@@ -26,6 +27,8 @@ interface FakeVendor {
   /** `?model=` the adapter connected with. */
   readonly model: () => string | undefined;
   readonly authorization: () => string | undefined;
+  /** How many separate WebSocket connections this vendor has accepted. */
+  readonly connectionCount: () => number;
   /** The `session.update` payload's `session` object. */
   readonly session: () => Promise<Record<string, any>>;
   /** Every client event type, in order. */
@@ -45,6 +48,7 @@ async function startFakeVendor(
 
   let model: string | undefined;
   let authorization: string | undefined;
+  let connectionCount = 0;
   const events: string[] = [];
   let audio = Buffer.alloc(0);
   let resolveSession: (payload: Record<string, any>) => void;
@@ -53,6 +57,7 @@ async function startFakeVendor(
   });
 
   wss.on("connection", (ws: WebSocket, request) => {
+    connectionCount++;
     model = new URL(request.url ?? "", "ws://localhost").searchParams.get("model") ?? undefined;
     authorization = request.headers.authorization;
     ws.send(JSON.stringify({ type: "session.created" }));
@@ -103,10 +108,16 @@ async function startFakeVendor(
     baseUrl: `ws://127.0.0.1:${port}`,
     model: () => model,
     authorization: () => authorization,
+    connectionCount: () => connectionCount,
     session: () => session,
     events: () => events,
     audio: () => audio,
     async close() {
+      // A sticky-session test can leave a connection deliberately lingering
+      // (that is the feature) — `wss.close()` alone only stops accepting new
+      // connections and waits for existing ones to close on their own, which
+      // a lingering one never does within a test's lifetime.
+      for (const client of wss.clients) client.terminate();
       wss.close();
       await new Promise<void>((resolve) => server.close(() => resolve()));
     },
@@ -308,4 +319,163 @@ test("qwen-omni is a separate provider from qwen, sharing only the key", () => {
   expect(registry.get("qwen-omni")?.missingConfig({})).toEqual(["DASHSCOPE_API_KEY"]);
   expect(registry.get("qwen")?.models).not.toContain("qwen3.5-omni-flash-realtime-2026-03-15");
   expect(registry.get("qwen-omni")?.defaultModel).toBe(FLASH);
+});
+
+// --- Sticky sessions (dtinth/vxbeamer#99) ---
+//
+// A `clientId` lets a connection linger after a turn ends instead of closing,
+// so the next turn from the same caller can reuse it and keep the vendor's
+// conversation context. `stickyPool` lives at module scope in the adapter
+// (see its own doc comment), so every test below uses its own unique id —
+// otherwise tests would see each other's pooled connections.
+
+let nextClientId = 0;
+/** A fresh id per call, so pooling in one test can never leak into another. */
+function clientId(): string {
+  nextClientId++;
+  return `sticky-test-client-${nextClientId}`;
+}
+
+/** Drives one turn with an explicit `clientId`, awaiting its `onEnd`/`onError`. */
+function runTurn(p: ASRProvider, audio: Buffer, clientId: string | undefined): Promise<RunOutcome> {
+  return new Promise((resolve) => {
+    let text = "";
+    const session = p.createSession({
+      clientId,
+      onFinal: (final) => (text = final),
+      onEnd: () => resolve({ text, partials: [], usage: [] }),
+      onError: (error) => resolve({ text, partials: [], usage: [], error }),
+    });
+    for (let offset = 0; offset < audio.length; offset += 3200) {
+      session.sendAudio(audio.subarray(offset, offset + 3200));
+    }
+    session.finish();
+  });
+}
+
+test("a second turn with the same client id reuses the connection", async () => {
+  const vendor = await withVendor();
+  const p = provider(vendor);
+  const id = clientId();
+
+  await runTurn(p, Buffer.alloc(3200), id);
+  await runTurn(p, Buffer.alloc(3200), id);
+
+  expect(vendor.connectionCount()).toBe(1);
+});
+
+test("a reused connection is not reconfigured — the vendor keeps its context", async () => {
+  const vendor = await withVendor();
+  const p = provider(vendor);
+  const id = clientId();
+
+  await runTurn(p, Buffer.alloc(3200), id);
+  await runTurn(p, Buffer.alloc(3200), id);
+
+  // One handshake for the whole lingering connection, not one per turn — a
+  // second `session.update` would tell the vendor to reconfigure, which is
+  // not "keep context from the last turn".
+  expect(vendor.events().filter((e) => e === "session.update")).toHaveLength(1);
+});
+
+test("a different client id never shares a connection", async () => {
+  const vendor = await withVendor();
+  const p = provider(vendor);
+
+  await runTurn(p, Buffer.alloc(3200), clientId());
+  await runTurn(p, Buffer.alloc(3200), clientId());
+
+  expect(vendor.connectionCount()).toBe(2);
+});
+
+test("no client id behaves as before — a new connection every turn", async () => {
+  const vendor = await withVendor();
+  const p = provider(vendor);
+
+  await runTurn(p, Buffer.alloc(3200), undefined);
+  await runTurn(p, Buffer.alloc(3200), undefined);
+
+  expect(vendor.connectionCount()).toBe(2);
+});
+
+test("a connection past the audio cap is retired, not reused", async () => {
+  const vendor = await withVendor();
+  const id = clientId();
+  // One 3200-byte (100ms) chunk is already 0.1s — over an 0.05s cap.
+  const p = createQwenOmniProvider({
+    apiKey: "test-key",
+    model: FLASH,
+    baseUrl: vendor.baseUrl,
+    stickyMaxAudioSeconds: 0.05,
+  });
+
+  await runTurn(p, Buffer.alloc(3200), id);
+  await runTurn(p, Buffer.alloc(3200), id);
+
+  expect(vendor.connectionCount()).toBe(2);
+});
+
+test("a connection left idle past the linger time is retired, not reused", async () => {
+  const vendor = await withVendor();
+  const id = clientId();
+  const p = createQwenOmniProvider({
+    apiKey: "test-key",
+    model: FLASH,
+    baseUrl: vendor.baseUrl,
+    stickyLingerMs: 10,
+  });
+
+  await runTurn(p, Buffer.alloc(3200), id);
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  await runTurn(p, Buffer.alloc(3200), id);
+
+  expect(vendor.connectionCount()).toBe(2);
+});
+
+test("a turn on a fresh, non-lingering connection ends it exactly as before", async () => {
+  const vendor = await withVendor();
+
+  const outcome = await runTurn(provider(vendor), Buffer.alloc(3200), undefined);
+
+  expect(outcome.text).toBe(TRANSCRIPT);
+  expect(outcome.error).toBeUndefined();
+});
+
+test("a second, concurrent turn with the same client id does not wait or share", async () => {
+  const vendor = await withVendor();
+  const p = provider(vendor);
+  const id = clientId();
+
+  // Neither turn has finished before the other starts — the first is still
+  // mid-flight when the second begins.
+  const [first, second] = await Promise.all([
+    runTurn(p, Buffer.alloc(3200), id),
+    runTurn(p, Buffer.alloc(3200), id),
+  ]);
+
+  expect(first.error).toBeUndefined();
+  expect(second.error).toBeUndefined();
+  expect(vendor.connectionCount()).toBe(2);
+});
+
+test("a turn cannot reuse a connection another turn is still actively using", async () => {
+  const vendor = await withVendor();
+  const p = provider(vendor);
+  const id = clientId();
+
+  await runTurn(p, Buffer.alloc(3200), id); // pools one connection
+  expect(vendor.connectionCount()).toBe(1);
+
+  // Claims the pooled connection but does not finish — it stays busy.
+  const holding = p.createSession({ clientId: id, onFinal() {}, onEnd() {}, onError() {} });
+  holding.sendAudio(Buffer.alloc(3200));
+
+  // A third turn arrives while the pooled connection is still claimed.
+  const outcome = await runTurn(p, Buffer.alloc(3200), id);
+
+  expect(outcome.error).toBeUndefined();
+  expect(vendor.connectionCount()).toBe(2);
+
+  holding.finish();
+  await new Promise((resolve) => setTimeout(resolve, 50));
 });

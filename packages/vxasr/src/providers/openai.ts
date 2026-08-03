@@ -1,5 +1,5 @@
 import WebSocket from "ws";
-import type { ASRProvider, ASRSession, ASRSessionCallbacks } from "../asr.ts";
+import type { ASRCreateSessionOptions, ASRProvider, ASRSession } from "../asr.ts";
 import { BYTES_PER_SECOND, SAMPLE_RATE } from "../audio.ts";
 import { LinearResampler } from "../resample.ts";
 import { createBufferedSocketSession } from "./bufferedSocketSession.ts";
@@ -56,7 +56,7 @@ export function createOpenAIProvider(config: OpenAIProviderConfig): ASRProvider 
   const url = `${config.baseUrl ?? DEFAULT_BASE_URL}?intent=transcription`;
 
   return {
-    createSession(callbacks: ASRSessionCallbacks): ASRSession {
+    createSession(callbacks: ASRCreateSessionOptions): ASRSession {
       const ws = new WebSocket(url, {
         headers: { Authorization: `Bearer ${config.apiKey}` },
       });

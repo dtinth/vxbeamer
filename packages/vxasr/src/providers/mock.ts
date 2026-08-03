@@ -1,4 +1,4 @@
-import type { ASRProvider, ASRSession, ASRSessionCallbacks } from "../asr.ts";
+import type { ASRCreateSessionOptions, ASRProvider, ASRSession } from "../asr.ts";
 
 const MOCK_TRANSCRIPT =
   "Good morning everyone. Today we'll be discussing the quarterly results and our plans for the next quarter.";
@@ -13,7 +13,7 @@ const MOCK_PARTIALS = [
 
 export function createMockProvider(): ASRProvider {
   return {
-    createSession(callbacks: ASRSessionCallbacks): ASRSession {
+    createSession(callbacks: ASRCreateSessionOptions): ASRSession {
       let chunkCount = 0;
 
       return {

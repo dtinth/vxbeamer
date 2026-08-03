@@ -1,5 +1,5 @@
 import Groq from "groq-sdk";
-import type { ASRProvider, ASRSession, ASRSessionCallbacks } from "../asr.ts";
+import type { ASRCreateSessionOptions, ASRProvider, ASRSession } from "../asr.ts";
 
 const GROQ_INPUT_PRICE_PER_TOKEN = 0.15e-6;
 const GROQ_OUTPUT_PRICE_PER_TOKEN = 0.6e-6;
@@ -37,7 +37,7 @@ export function withGroqEnhancement(
   const groq = new Groq({ apiKey: config.apiKey });
 
   return {
-    createSession(callbacks: ASRSessionCallbacks): ASRSession {
+    createSession(callbacks: ASRCreateSessionOptions): ASRSession {
       // Queue ensures multiple finals are processed in order
       let queue = Promise.resolve();
 

@@ -1,5 +1,5 @@
 import WebSocket from "ws";
-import type { ASRProvider, ASRSession, ASRSessionCallbacks } from "../asr.ts";
+import type { ASRCreateSessionOptions, ASRProvider, ASRSession } from "../asr.ts";
 import { BYTES_PER_SECOND } from "../audio.ts";
 import { createBufferedSocketSession } from "./bufferedSocketSession.ts";
 
@@ -15,7 +15,7 @@ const CHUNK_SIZE = 3200; // 100ms at 16kHz 16-bit mono
 
 export function createQwenProvider(config: QwenProviderConfig): ASRProvider {
   return {
-    createSession(callbacks: ASRSessionCallbacks): ASRSession {
+    createSession(callbacks: ASRCreateSessionOptions): ASRSession {
       const url = `${config.baseUrl ?? "wss://dashscope-intl.aliyuncs.com/api-ws/v1/realtime"}?model=${config.model ?? "qwen3-asr-flash-realtime"}`;
       const ws = new WebSocket(url, {
         headers: {

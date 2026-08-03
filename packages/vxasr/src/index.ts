@@ -1,4 +1,10 @@
-export type { ASRProvider, ASRSession, ASRSessionCallbacks, UsageRecord } from "./asr.ts";
+export type {
+  ASRCreateSessionOptions,
+  ASRProvider,
+  ASRSession,
+  ASRSessionCallbacks,
+  UsageRecord,
+} from "./asr.ts";
 export {
   BITS_PER_SAMPLE,
   BYTES_PER_SECOND,
@@ -13,6 +19,8 @@ export { LinearResampler } from "./resample.ts";
 export { createQwenProvider } from "./providers/qwen.ts";
 export type { QwenProviderConfig } from "./providers/qwen.ts";
 export {
+  DEFAULT_STICKY_LINGER_MS,
+  DEFAULT_STICKY_MAX_AUDIO_SECONDS,
   QWEN_OMNI_DEFAULT_MODEL,
   QWEN_OMNI_PRICING,
   QWEN_OMNI_TRANSCRIPTION_INSTRUCTIONS,

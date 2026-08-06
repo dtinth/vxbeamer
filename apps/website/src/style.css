@@ -121,10 +121,6 @@ body {
   .eval-progress {
     transition: none;
   }
-
-  .message-bubble-copy-bounce {
-    animation: none;
-  }
 }
 
 .message-card-snap-scroll {

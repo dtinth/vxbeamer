@@ -8,6 +8,11 @@ import { createQwenProvider, type QwenProviderConfig } from "./qwen.ts";
 import { createQwenOmniProvider, type QwenOmniProviderConfig } from "./qwen-omni.ts";
 import { createBytePlusProvider, type BytePlusProviderConfig } from "./byteplus.ts";
 import { createOpenAIProvider, OPENAI_DEFAULT_MODEL, type OpenAIProviderConfig } from "./openai.ts";
+import {
+  createOpenRouterProvider,
+  OPENROUTER_DEFAULT_MODEL,
+  type OpenRouterProviderConfig,
+} from "./openrouter.ts";
 import { createMockProvider } from "./mock.ts";
 
 export const qwenProviderDefinition: ProviderDefinition = defineProvider<QwenProviderConfig>({
@@ -146,6 +151,30 @@ export const openAIProviderDefinition: ProviderDefinition = defineProvider<OpenA
   },
 });
 
+export const openRouterProviderDefinition: ProviderDefinition =
+  defineProvider<OpenRouterProviderConfig>({
+    id: "openrouter",
+    label: "OpenRouter",
+    // One model for now: `mai-transcribe-1.5`, tried live against the real
+    // endpoint alongside 18 sibling OpenRouter STT models on the same fixture
+    // testdata/OBSERVATIONS.md uses (dtinth/vxbeamer#86). Add another id here
+    // once it has been run against that fixture too — same discipline every
+    // other provider's models list follows.
+    models: [OPENROUTER_DEFAULT_MODEL],
+    // A batch HTTP call, not a realtime stream — every audio chunk is only
+    // ever buffered client-side, so no pace at which `sendAudio` is called
+    // can violate anything the vendor sees on the wire.
+    supportsFastDump: true,
+    resolveConfig(env) {
+      const apiKey = env.OPENROUTER_API_KEY;
+      if (!apiKey) return { ok: false, missing: ["OPENROUTER_API_KEY"] };
+      return { ok: true, config: { apiKey } };
+    },
+    create(config, model) {
+      return createOpenRouterProvider({ ...config, model });
+    },
+  });
+
 export const mockProviderDefinition: ProviderDefinition = defineProvider<Record<string, never>>({
   id: "mock",
   label: "Mock (canned transcript, no network)",
@@ -165,6 +194,7 @@ export const builtinProviderDefinitions: readonly ProviderDefinition[] = [
   qwenOmniProviderDefinition,
   bytePlusProviderDefinition,
   openAIProviderDefinition,
+  openRouterProviderDefinition,
   mockProviderDefinition,
 ];
 

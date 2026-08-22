@@ -118,6 +118,10 @@ export const builtinConfigurations: readonly ConfigurationSpec[] = [
   // OpenAI does not publish dated variants of it the way DashScope does, so
   // there is nothing to pin to — same situation as BytePlus's mode ids.
   { provider: "openai", label: "OpenAI gpt-live-transcribe (raw)" },
+  // Tried live alongside 18 sibling OpenRouter STT models on the test fixture
+  // (dtinth/vxbeamer#86) — this one earned a preset. Declared raw only: it is
+  // a plain transcription endpoint with no post-processing chain to enhance.
+  { provider: "openrouter", label: "OpenRouter MAI-Transcribe-1.5 (raw)" },
   { provider: "mock", label: "Mock (canned transcript, no network)" },
 ];
 

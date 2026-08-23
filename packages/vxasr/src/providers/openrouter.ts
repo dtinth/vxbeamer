@@ -1,3 +1,4 @@
+import type { BlobPart } from "node:buffer";
 import type { ASRCreateSessionOptions, ASRProvider, ASRSession } from "../asr.ts";
 import { writeWav } from "../audio.ts";
 
@@ -41,7 +42,7 @@ export function createOpenRouterProvider(config: OpenRouterProviderConfig): ASRP
 
   return {
     createSession(options: ASRCreateSessionOptions): ASRSession {
-      let chunks: Buffer[] = [];
+      const chunks: Buffer[] = [];
       let finishing = false;
       let closed = false;
       const controller = new AbortController();
@@ -56,15 +57,14 @@ export function createOpenRouterProvider(config: OpenRouterProviderConfig): ASRP
           if (finishing || closed) return;
           finishing = true;
           const pcm = Buffer.concat(chunks);
-          chunks = [];
 
           void (async () => {
             let response: Response;
             try {
-              const wav = Buffer.from(writeWav(pcm));
+              const wav = writeWav(pcm);
               const form = new FormData();
               form.append("model", model);
-              form.append("file", new Blob([wav], { type: "audio/wav" }), "audio.wav");
+              form.append("file", new Blob([wav as BlobPart], { type: "audio/wav" }), "audio.wav");
               response = await fetch(url, {
                 method: "POST",
                 headers: { Authorization: `Bearer ${config.apiKey}` },

@@ -40,6 +40,11 @@ export interface ASRSession {
    * hangs outright. A live microphone paces itself, but anything replaying
    * buffered audio — an eval run comparing configurations, say — must throttle
    * to about 1x. Billing is per audio-second, so pacing costs nothing.
+   *
+   * One exception: `openrouter`'s vendor is a batch HTTP endpoint, not a
+   * stream — it never sees these chunks individually, only the whole clip
+   * once {@link ASRSession.finish} sends it — so pacing genuinely does not
+   * matter there (see `ProviderSpec.supportsFastDump` in `../registry.ts`).
    */
   sendAudio(chunk: Buffer): void;
   finish(): void;

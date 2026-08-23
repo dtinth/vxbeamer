@@ -1,5 +1,12 @@
 # backend
 
+## 0.1.0-next.9
+
+### Patch Changes
+
+- Updated dependencies [3d6323d]
+  - vxasr@0.1.0-next.9
+
 ## 0.1.0-next.8
 
 ### Patch Changes

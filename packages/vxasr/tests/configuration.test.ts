@@ -205,6 +205,8 @@ test("the default catalogue offers each real model, enhanced only where that hel
     // Raw only, like the Qwen Omni models — tried live, and it renders
     // loanwords in Latin unprompted, so a `+groq` sibling has nothing to add.
     "openai/gpt-live-transcribe",
+    // Raw only: a plain batch transcription endpoint, nothing to enhance.
+    "openrouter/microsoft/mai-transcribe-1.5",
     "mock/mock",
   ]);
 });
@@ -228,6 +230,9 @@ test("no configuration names a floating model id", () => {
     // Same situation for OpenAI: `gpt-live-transcribe` is the vendor's whole
     // name for it, with no dated siblings published to pin to instead.
     if (configuration.providerId === "openai") continue;
+    // OpenRouter's model ids are the router's own naming, not this package's
+    // to date — `mai-transcribe-1.5` is already a versioned id as published.
+    if (configuration.providerId === "openrouter") continue;
     expect(configuration.model).toMatch(/-\d{4}-\d{2}-\d{2}$/);
   }
 });

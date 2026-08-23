@@ -31,6 +31,8 @@ export { createBytePlusProvider } from "./providers/byteplus.ts";
 export type { BytePlusProviderConfig } from "./providers/byteplus.ts";
 export { createOpenAIProvider, OPENAI_DEFAULT_MODEL } from "./providers/openai.ts";
 export type { OpenAIProviderConfig } from "./providers/openai.ts";
+export { createOpenRouterProvider, OPENROUTER_DEFAULT_MODEL } from "./providers/openrouter.ts";
+export type { OpenRouterProviderConfig } from "./providers/openrouter.ts";
 export { withGroqEnhancement } from "./providers/groq-enhancement.ts";
 export type { GroqEnhancementConfig } from "./providers/groq-enhancement.ts";
 export { createMockProvider } from "./providers/mock.ts";
@@ -51,6 +53,7 @@ export {
   createDefaultProviderRegistry,
   mockProviderDefinition,
   openAIProviderDefinition,
+  openRouterProviderDefinition,
   qwenOmniProviderDefinition,
   qwenProviderDefinition,
 } from "./providers/builtin.ts";

@@ -1,5 +1,122 @@
 # vxasr
 
+## 0.1.0
+
+### Minor Changes
+
+- 2681be3: Add a `vxasr` command-line tool. It runs one model configuration against an audio file. It needs no server, no browser, and no microphone.
+
+  It accepts a WAV file or raw PCM audio (16 kHz, 16-bit, mono). It checks the file content to detect WAV format. It does not rely on the file extension. It prints the transcript to stdout. It prints the cost of each processing layer to stderr. This lets you see what each layer charged.
+
+  By default, the tool sends audio at real-time speed. Use `--fast` only to test faster sending. Fast sending does not show real-time behavior.
+
+  This change also replaces the package README file. The old file was still the unused template text.
+
+- 9663f08: Fix BytePlus. It can now transcribe the language the speaker actually uses.
+
+  The adapter connected to `/api/v3/sauc/bigmodel`. This is the two-way streaming mode. This mode does not accept a `language` field. The vendor's documentation says the `language` field works only with `/api/v3/sauc/bigmodel_nostream`. Without a language field, this mode only covers Mandarin, English, and a few Chinese dialects. It could not hear Thai. It did not fail with an error. Instead, it returned confident but wrong text, such as: `project Niagara typescript Chai framework Chai do deploy material way 来自 Chai MongoDB Atlassian common。` This is the worst kind of error. A human judge may believe it is correct.
+
+  **Each mode is now a separate model.** BytePlus serves each mode at its own address. So, `byteplus/bigmodel_nostream` and `byteplus/bigmodel` are now two separate items in the list. They are two separate configuration IDs. The two modes hear different languages from the same audio. So, they must be evaluated as different things. A vote must say which mode it is for. On the wire, both modes still send `model_name: bigmodel`. The vendor uses one model name for both. The two modes differ only by their address path.
+
+  **You can now set the language with `BYTEPLUS_LANGUAGE`** (for example, `th-TH`). The provider reads this setting and sends it in the `audio` object, not the `request` object. This setting is specific to BytePlus. It is not a shared `ASR_LANGUAGE` setting for all providers. Each vendor uses its own language codes. Qwen, for example, takes no language setting at all — it detects the language automatically. A shared setting could also affect other providers in ways we have not yet decided. The language setting is sent only to modes that support it. The `bigmodel` mode never receives a field that the vendor would reject.
+
+  **The `byteplus/bigmodel` configurations are removed from the default list.** A model that cannot be told the speaker's language wastes a vendor call. It is not a fair choice to evaluate. The `bigmodel+groq` combination was even worse. The Groq step rewrote the wrong text into text that reads like a correct answer. The provider still supports `bigmodel`. A deployment that mainly serves Mandarin or English speakers can still add it as a configuration. It is just not offered by default.
+
+  Note a trade-off: `bigmodel_nostream` only returns results after 15 seconds of audio, or after the final audio packet. So, it sends few or no partial results while recording. It favors accuracy over speed. This fits the eval feature well, since only the final result matters there. It fits the live recording feature less well.
+
+  This change also fixes a hang. Before, if you called `finish()` before the socket finished opening, the app dropped the last audio packet. The turn never ended.
+
+- e920490: Save every eval winner pick to cloud storage. The app always saves a **vote**. It also saves an **eval-set** when you check "save for eval".
+
+  The backend signs upload links. The browser uploads the file directly. The endpoint `POST /messages/:id/winner` now returns `{ ok, upload }`. The `upload` field holds signed upload links for this pick's vote and, if checked, its eval-set. The audio never passes through the backend server. This keeps the rule "the backend never stores recordings" true by design, not just by convention. No storage password ever reaches the browser. Signing happens offline, so creating the links adds no extra network delay. The links are created for the `configurationId` that the winner endpoint already checked. A separate endpoint would have to check it again, or it could create links for configurations the server does not serve.
+
+  A storage failure cannot block a vote. The app applies and shares the winner pick first. It creates the upload link after. So, if storage is down, not set up, or missing, you only lose the eval-set upload — the vote itself is not affected. The `upload` field is `null` when no storage bucket is configured. If the backend refuses the upload, nothing is sent.
+
+  A **vote** (`{"type":"vote",…}`) is created for every pick. It has the winning configuration's ID, the full list of options that were compared, each option's cost, response time, and any errors, plus the audio's length in time. It does not include the audio itself or any transcripts. This is what makes it safe to store without limits. The list of options and the ID of the original primary answer make the vote log useful to read later. Without the list of options, a win is just a count, not a rate. Without knowing the original primary answer, you cannot tell a new favorite from the old default. An **eval-set** (`{"type":"eval-set",…}`) has everything a vote has, plus the recording as a base64 WAV file, plus every option's transcript. An eval-set is built as a vote plus more data. This design means the two records can never disagree about the same pick.
+
+  Files are named by type first, then by UTC date, then by time and message ID. For example: `votes/2026/07/16/…-<messageId>.json`. This way, reading the vote log never requires loading megabytes of audio data. A pick's vote file and eval-set file share the same file name ending.
+
+  The `vxasr` package now has a `writeWav` function. It sits next to the existing `readPcm` function, which reads the same file format. This keeps one set of rules and one set of numbers for the format, checked by a test that writes a file and reads it back. This means the same code that saves today's audio will also be used to replay it against models later. This function is exported as `vxasr/audio`, so a browser can use it without loading the full provider code.
+
+  Configure this feature with `EVAL_STORAGE_BUCKET` (this turns the feature on), `EVAL_STORAGE_ACCESS_KEY_ID`, `EVAL_STORAGE_SECRET_ACCESS_KEY`, and, if needed, `EVAL_STORAGE_REGION`, `ENDPOINT`, `FORCE_PATH_STYLE`, and `PREFIX`. If you set a bucket name but no credentials, the server fails to start. This is safer than creating upload links that fail in the browser, where no one would see the error.
+
+- 5855bcf: Export "fast dump" support as real data: `ProviderSpec.supportsFastDump`, and the matching fields on `ProviderDefinition` and `ConfigurationDefinition`. The backend's `GET /asr/configurations` endpoint now includes this data too. "Fast dump" means the provider accepts a whole audio clip sent all at once, not paced over time.
+
+  Before, this data only existed as a fixed list, `FAST_DUMP_PROVIDERS`, inside the website's eval-replay code. So, any other program using the `vxasr` package had no way to know which providers support fast dump. It would have had to guess, or copy that same list. Now, the website's eval dialog reads this data from the server. It no longer keeps its own copy of the list.
+
+- 02be1ab: Add OpenAI's `gpt-live-transcribe` model as a new ASR provider. This is the `openai` entry in the provider list. For now, it only supports raw output — it has no `+groq` cleanup option. The connection uses the account's own secret key directly. It does not use the short-lived `client_secrets` method. The backend is a trusted caller, so the extra network round trip would only add delay.
+
+  This change also adds `LinearResampler`. This is a reusable tool that resamples streaming audio. It keeps state across audio chunks, so it does not create a glitch where one chunk ends and the next begins. It is used here to convert the app's 16 kHz audio up to the 24 kHz that this API requires.
+
+- 3d6323d: Add OpenRouter as a new ASR provider. This provider works differently from every other provider here. It sends one plain HTTP request (`POST /v1/audio/transcriptions`) for each recording. It does not use a live connection. The app collects the whole audio clip, sends it as one WAV file when you call `finish()`, and then waits for one response. There is no partial text while it works.
+
+  The model `microsoft/mai-transcribe-1.5` is now a preset. Its configuration ID is `openrouter/microsoft/mai-transcribe-1.5`. This model was picked after a live comparison test against 18 other OpenRouter speech-to-text models. All tests used the same audio file already used in `testdata/OBSERVATIONS.md`.
+
+- 94e7feb: Change every Qwen model ID to a dated, fixed version. Remove the old, undated `qwen3-asr-flash-realtime` ID.
+
+  An undated model ID can change without warning — the vendor can point it to a new model version at any time. So, the app's output could change even when nothing in this project's code has changed. A vote could then end up naming a model that no longer exists in that form. This is not a small risk. Fun-ASR shows a real case: its newest version silently stopped supporting Thai. An undated ID would have quietly broken a language, with no warning.
+
+  You can now select `qwen3-asr-flash-realtime-2025-10-27` and `qwen3-asr-flash-realtime-2026-02-10`. Each is available raw or with `+groq`. The main, default model is now `2025-10-27+groq`. This is the version the old, undated ID pointed to right before this change. So, behavior for existing users does not change — only the model version is now fixed in place.
+
+  **Breaking change**: If you set `ASR_MODEL=qwen3-asr-flash-realtime`, this will now fail. That ID no longer exists. You must set a dated version instead.
+
+- ac46ea8: Add the Qwen Omni Realtime models as a new provider, called `qwen-omni`. It has three fixed configurations you can select.
+
+  These are not speech-to-text models. They are general chat models that can also hear audio. On the Thai test audio file, they give the best result of all providers tested. They write Thai words in Thai script, and product names in Latin script (for example: `โปรเจกต์นี้เขียนด้วยภาษา TypeScript … ใช้เฟรมเวิร์กชื่อ Elysia`). No other tested model, including BytePlus, mixes scripts this way.
+
+  These models use their **own message format**. They do not use the same format as the regular Qwen speech-to-text models. A turn ends with two messages: `input_audio_buffer.commit`, then `response.create`. The transcript arrives in `response.text.delta` and `response.text.done` messages. There is no `session.finish` message — if you send one, the connection to these models times out. Billing also works differently: it is based on tokens used, at rates that differ by model. For these reasons, this is a new, separate provider. It is not added as new models under the existing `qwen` provider. One provider matches one message format.
+
+  You can select these configurations. All are **raw only** — with no `+groq` cleanup step. These models already produce clean output, so a Groq cleanup step would cost an extra AI call and a vote choice, for no real gain:
+
+  - `qwen-omni/qwen3.5-omni-flash-realtime-2026-03-15` (the default model)
+  - `qwen-omni/qwen3.5-omni-plus-realtime-2026-03-15`
+  - `qwen-omni/qwen3-omni-flash-realtime-2025-12-01`
+
+  All three use fixed, dated model versions from the vendor's own model list. So, the rule against undated model IDs needed no exception here. These models use the same setting as before: `DASHSCOPE_API_KEY`.
+
+  Usage is measured and reported in **tokens**. Audio input, text input, and text output are each billed at their own rate, since the vendor charges different rates for audio and text. Reporting the real, measured token count — instead of estimating from audio length — reveals a real cost difference: `qwen3-omni-flash-realtime` costs about 58% more per recording than `qwen3.5-omni-flash-realtime`, even though their listed rates are almost the same. This is because the older model needs more tokens to represent the same audio.
+
+- 1bd504c: Let a `qwen-omni` vendor connection stay open for reuse by the same client. Before, the app always closed the connection after each turn. Now, if the same client starts a new, short recording soon after, it can reuse the same connection. This lets the model keep its earlier conversation context.
+
+  This feature is opt-in. It uses a new `clientId` field on `ASRCreateSessionOptions`. Every other provider ignores this field — for them, nothing changes. The website sends one client ID for each page load. It does not save this ID, so reloading the page always starts fresh. The backend combines this ID with your login, so two different accounts can never share the same open connection.
+
+  The app closes an idle connection, instead of keeping it open, once one of two limits is reached: the connection has been idle longer than `QWEN_OMNI_STICKY_LINGER_MS` (30 seconds by default), or the total audio sent on it has passed `QWEN_OMNI_STICKY_MAX_AUDIO_SECONDS` (180 seconds by default). This second limit keeps token cost and conversation size from growing without a limit.
+
+- d9c4698: Add a provider registry and a list of **model configurations**.
+
+  A provider connects an ID to a function. This function builds an `ASRProvider` from settings and a model name. Each provider defines its own settings shape. This means a provider that needs more than an API key — for example, a region code, full cloud credentials, or a setup step — can still be added, without changing the registry itself.
+
+  A configuration pairs one provider and one model with a chain of processing steps. This configuration is the item that users select and compare. The processing steps are part of a configuration's identity. They are not a separate, optional setting on each request. So, `qwen/qwen3-asr-flash-realtime` and `qwen/qwen3-asr-flash-realtime+groq` are two separate configurations. Users can compare them as equal, separate choices. Each configuration's ID is built from its parts. So, an ID can never drift out of sync with what it names.
+
+  This change exports these new functions: `createProviderRegistry`, `defineProvider`, `createDefaultProviderRegistry`, `createConfigurationCatalogue`, `defineDecorator`, `buildConfigurationId`, and `createDefaultConfigurationCatalogue`. This is also the first change that makes `createBytePlusProvider` usable from outside this package. `BytePlusProviderConfig` now has an optional `model` field. If you do not set it, it defaults to `bigmodel`, the same value that was hardcoded before.
+
+### Patch Changes
+
+- 8048d13: Move shared code out of three ASR providers into one place.
+
+  Qwen, Qwen-Omni, and BytePlus each had about 35 lines of the same code. This code managed the buffer state, the chunk-send loop, a timing issue at the start, the error handler, and the `close()` function. Over time, the three copies had started to differ from each other (see issue dtinth/vxbeamer#72).
+
+  This code now lives in one function: `createBufferedSocketSession`. Each provider now supplies only its own vendor-specific parts: the handshake, the audio format, the turn-end signal, and the message parser. Each provider still counts its own bytes for billing. This matters because Qwen-Omni bills by token, not by audio time.
+
+  This change also fixes a bug in `finish()`. BytePlus checked if the socket was open before it tried to end a turn. Qwen and Qwen-Omni did not have this check. So, if the socket had an error after it opened, and then you called `finish()`, Qwen and Qwen-Omni would report a false error. The check now lives in the shared function. It applies to all three providers.
+
+  This change also merges three smaller pieces of duplicate code. There is no change in behavior.
+
+  - `readAudioFrame` and `isStopMessage`: These functions decode binary audio frames and detect stop messages. The recording socket and the eval socket now share this code. The decoder does not touch the message log. This keeps the eval socket separate from the message store, as required.
+  - `buildBackendSocketUrl`: This function builds a `ws` or `wss` URL from an `http` or `https` URL. The recording bar and the eval feature now share this code.
+  - `concatChunks`: This function joins audio chunks into one buffer. The WAV writer and the eval frame splitter now share this code.
+
+- 2fd891a: Remove an unused `latencyMs` field — nothing ever set it. Share one `quoteId` function between the provider registry and the configuration list, instead of two separate copies. Have the frontend read its audio constants from `vxasr/audio`, instead of writing the same values a second time.
+- 0431692: Reclaim vendor connections. Close idle connections. Always close a connection after an error.
+
+  Each speech vendor allows only a limited number of open connections per account. The error for this is: "connections too much max_connections 100". Every `/ws` and `/asr/eval` connection holds one of these open for its whole life. Two gaps let these connections leak, until the account hit that limit:
+
+  - **There was no way to close an abandoned session.** The `ASRSession` type only had `sendAudio()` and `finish()`. The `finish()` function waits for the vendor to send a final message. But if the connection has gone silent, the vendor may never send that message. This change adds `ASRSession.close()`. This function closes the connection right away. It is safe to call more than once. It sends no more updates after you call it. This lets the app free up a vendor connection slot, instead of waiting for the vendor to notice and close it first.
+
+  - **An error did not always close the connection.** Now, every provider's `ws.on("error")` handler closes the socket. Also, the Qwen provider now closes its connection after a vendor error message, the same way BytePlus and Qwen-Omni already did. Before, a "max_connections" error itself could leak another connection — making the same problem it was reporting even worse.
+
+  The app now also closes an idle connection automatically. A timer starts when the vendor session opens. Each new audio frame resets this timer. If `WS_IDLE_TIMEOUT_MS` passes with no new audio (60 seconds, by default), the app closes both the client connection and the vendor connection. Set this value to 0 or less to turn this feature off. This timer checks for silence, not just an open connection — so a client that stays connected but stops sending audio is still cleaned up. This timer turns off once you send a `stop` message, since after that, the vendor controls the pace, not the client.
+
 ## 0.1.0-next.9
 
 ### Minor Changes

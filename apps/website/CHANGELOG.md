@@ -1,5 +1,99 @@
 # website
 
+## 0.1.0
+
+### Minor Changes
+
+- e920490: Save every eval winner pick to cloud storage. The app always saves a **vote**. It also saves an **eval-set** when you check "save for eval".
+
+  The backend signs upload links. The browser uploads the file directly. The endpoint `POST /messages/:id/winner` now returns `{ ok, upload }`. The `upload` field holds signed upload links for this pick's vote and, if checked, its eval-set. The audio never passes through the backend server. This keeps the rule "the backend never stores recordings" true by design, not just by convention. No storage password ever reaches the browser. Signing happens offline, so creating the links adds no extra network delay. The links are created for the `configurationId` that the winner endpoint already checked. A separate endpoint would have to check it again, or it could create links for configurations the server does not serve.
+
+  A storage failure cannot block a vote. The app applies and shares the winner pick first. It creates the upload link after. So, if storage is down, not set up, or missing, you only lose the eval-set upload — the vote itself is not affected. The `upload` field is `null` when no storage bucket is configured. If the backend refuses the upload, nothing is sent.
+
+  A **vote** (`{"type":"vote",…}`) is created for every pick. It has the winning configuration's ID, the full list of options that were compared, each option's cost, response time, and any errors, plus the audio's length in time. It does not include the audio itself or any transcripts. This is what makes it safe to store without limits. The list of options and the ID of the original primary answer make the vote log useful to read later. Without the list of options, a win is just a count, not a rate. Without knowing the original primary answer, you cannot tell a new favorite from the old default. An **eval-set** (`{"type":"eval-set",…}`) has everything a vote has, plus the recording as a base64 WAV file, plus every option's transcript. An eval-set is built as a vote plus more data. This design means the two records can never disagree about the same pick.
+
+  Files are named by type first, then by UTC date, then by time and message ID. For example: `votes/2026/07/16/…-<messageId>.json`. This way, reading the vote log never requires loading megabytes of audio data. A pick's vote file and eval-set file share the same file name ending.
+
+  The `vxasr` package now has a `writeWav` function. It sits next to the existing `readPcm` function, which reads the same file format. This keeps one set of rules and one set of numbers for the format, checked by a test that writes a file and reads it back. This means the same code that saves today's audio will also be used to replay it against models later. This function is exported as `vxasr/audio`, so a browser can use it without loading the full provider code.
+
+  Configure this feature with `EVAL_STORAGE_BUCKET` (this turns the feature on), `EVAL_STORAGE_ACCESS_KEY_ID`, `EVAL_STORAGE_SECRET_ACCESS_KEY`, and, if needed, `EVAL_STORAGE_REGION`, `ENDPOINT`, `FORCE_PATH_STYLE`, and `PREFIX`. If you set a bucket name but no credentials, the server fails to start. This is safer than creating upload links that fail in the browser, where no one would see the error.
+
+### Patch Changes
+
+- b89025e: Add a color tint to the message drag image. When you drag a message, the image now shows a solid light tint. Before, the image had no tint. The tint is flat, not a moving gradient, because a still image cannot show movement.
+- 8048d13: Move shared code out of three ASR providers into one place.
+
+  Qwen, Qwen-Omni, and BytePlus each had about 35 lines of the same code. This code managed the buffer state, the chunk-send loop, a timing issue at the start, the error handler, and the `close()` function. Over time, the three copies had started to differ from each other (see issue dtinth/vxbeamer#72).
+
+  This code now lives in one function: `createBufferedSocketSession`. Each provider now supplies only its own vendor-specific parts: the handshake, the audio format, the turn-end signal, and the message parser. Each provider still counts its own bytes for billing. This matters because Qwen-Omni bills by token, not by audio time.
+
+  This change also fixes a bug in `finish()`. BytePlus checked if the socket was open before it tried to end a turn. Qwen and Qwen-Omni did not have this check. So, if the socket had an error after it opened, and then you called `finish()`, Qwen and Qwen-Omni would report a false error. The check now lives in the shared function. It applies to all three providers.
+
+  This change also merges three smaller pieces of duplicate code. There is no change in behavior.
+
+  - `readAudioFrame` and `isStopMessage`: These functions decode binary audio frames and detect stop messages. The recording socket and the eval socket now share this code. The decoder does not touch the message log. This keeps the eval socket separate from the message store, as required.
+  - `buildBackendSocketUrl`: This function builds a `ws` or `wss` URL from an `http` or `https` URL. The recording bar and the eval feature now share this code.
+  - `concatChunks`: This function joins audio chunks into one buffer. The WAV writer and the eval frame splitter now share this code.
+
+- e34184d: The tap-to-copy bounce animation on a message bubble now always plays. Before, it did not play when the device had "reduce motion" turned on.
+- 5a9d144: Add a visual "charging" effect to message bubbles. While you hold a finger on a bubble, waiting for the OS to start a drag, a soft color tint sweeps from left to right. This takes about 700 ms. This shows that the app is registering your hold. When you lift your finger to start the drag, the tint quickly fills in and then fades. If you swipe, scroll, or release early, the tint reverses and fades right away. This effect works on touch screens only.
+- 6fbe108: Give the message drag a custom image. Before, dragging a message bubble out to another app used the browser's default screenshot. This default image showed the bubble's round corners as solid squares. It also froze the color-sweep effect partway through. Now, the drag shows a clean rectangle copy of the bubble, without the color-sweep effect. Tested on iPadOS Safari and Android Chrome.
+- cb94f9d: Add the Eval dialog. It replays a recording through every model configuration. You then pick the best result.
+
+  If a finished message still has its audio in memory, the app now shows an **Eval** option. The dialog opens one WebSocket connection for each configuration. It replays the saved audio through all of them at the same time. It shows each configuration's text as it arrives. You read the results and tap the one you prefer. That result then replaces the message's main answer.
+
+  - **`/asr/eval`** (on the backend) transcribes audio without writing to the message log. This is a separate route, in its own code module. This module cannot import the message store. This design guarantees that an eval run creates no message (see issue dtinth/vxbeamer#38). This is a structural rule, not just a setting. Results return down the same socket, since only the frontend needs an eval run's results.
+  - **Each replay runs at 1x speed.** The app sends one 3200-byte audio frame every 100 ms, per socket, once that socket is ready. This is not something to speed up: BytePlus stops responding if you send audio faster than real time. Also, billing is based on audio duration, not connection time, so slower sending costs nothing extra. Because all sockets run at the same time, one eval run takes about as long as the audio clip itself, no matter how many configurations you compare.
+  - **Each configuration runs only once** per eval. There are no repeat runs, no averaging, and no confidence scores. The real signal comes from votes across many messages over time, not from one eval run.
+  - Some rows will not show live text (a model that returns one final result). Other rows cannot run at all (the server has no credentials for that configuration). The app shows both of these cases plainly. It does not treat them as errors.
+
+- c04dd8a: Speed up the eval dialog. Each model configuration's audio now replays at a speed confirmed to work for its own vendor, instead of one shared real-time speed. Every provider in the current list (Qwen ASR, Qwen Omni, BytePlus) was tested. Each one accepts the whole audio clip sent all at once. So, an eval now finishes in about 1 to 2 seconds. Before, it took as long as the audio clip itself. A provider that has not been tested this way still uses the slower, real-time speed by default.
+- 5855bcf: Export "fast dump" support as real data: `ProviderSpec.supportsFastDump`, and the matching fields on `ProviderDefinition` and `ConfigurationDefinition`. The backend's `GET /asr/configurations` endpoint now includes this data too. "Fast dump" means the provider accepts a whole audio clip sent all at once, not paced over time.
+
+  Before, this data only existed as a fixed list, `FAST_DUMP_PROVIDERS`, inside the website's eval-replay code. So, any other program using the `vxasr` package had no way to know which providers support fast dump. It would have had to guess, or copy that same list. Now, the website's eval dialog reads this data from the server. It no longer keeps its own copy of the list.
+
+- 7173755: Add a new endpoint: `POST /messages/:id/winner`. This endpoint lets an eval winner's transcript replace the message's main answer.
+
+  An eval run creates no message of its own. So, picking a winner just updates the existing message. The app shares this update over SSE, the same way it shares a live transcription update. The webhook fires again too, this time with the winner's transcript. The system already told other services the primary answer when the recording finished. This second webhook call is the correction. The payload type was already `message.updated` for the first call, so a second update uses that same, correct type.
+
+  Messages now have a `configurationId` field. This field names the model configuration that wrote the current answer. The recording sets it at first. Picking a winner then overwrites it. Without this field, a second `message.updated` event would be an unexplained change to the transcript.
+
+  The server checks that the winning configuration ID is one it actually serves. The server does not check the transcript text itself, and it cannot: the eval results come from the browser, and the backend keeps no copy of the recording to check against. This write only affects the caller's own message log. So, even though the transcript is not checked, it can only ever change the caller's own messages. The server refuses this request if the message is still recording — a live session could otherwise overwrite the winner. The server accepts this request if the message's primary answer had failed. In that case, the message becomes "done".
+
+- 1bd504c: Let a `qwen-omni` vendor connection stay open for reuse by the same client. Before, the app always closed the connection after each turn. Now, if the same client starts a new, short recording soon after, it can reuse the same connection. This lets the model keep its earlier conversation context.
+
+  This feature is opt-in. It uses a new `clientId` field on `ASRCreateSessionOptions`. Every other provider ignores this field — for them, nothing changes. The website sends one client ID for each page load. It does not save this ID, so reloading the page always starts fresh. The backend combines this ID with your login, so two different accounts can never share the same open connection.
+
+  The app closes an idle connection, instead of keeping it open, once one of two limits is reached: the connection has been idle longer than `QWEN_OMNI_STICKY_LINGER_MS` (30 seconds by default), or the total audio sent on it has passed `QWEN_OMNI_STICKY_MAX_AUDIO_SECONDS` (180 seconds by default). This second limit keeps token cost and conversation size from growing without a limit.
+
+- 02be1ab: When you tap the retry button on an error bubble, it now shows a "Retrying…" state right away. Before, the button showed no change until the retry attempt finished.
+- 02be1ab: Fix the retry button. Before, if a connection had failed a while ago, tapping retry did nothing. This happened because retry reused the login token from the first connection attempt. If that token had since expired, the backend's `/ws` connection step rejected it right away. This looked like the retry button did nothing at all. Now, retry always fetches a fresh login token before it reconnects. This matches how every other login-based request already works.
+- e5959bd: Add more settings. The settings sheet now scrolls, to fit them. New settings:
+
+  - "Transcript history": show every transcript, or keep only the latest 10. When you turn on this limit, the app waits for the current scroll to finish before it removes old bubbles. This stops a bubble from disappearing mid-animation.
+  - "Recording button" size: choose default, small, or hidden.
+  - "Refresh app" button: reloads the page.
+
+- 1920562: Reduce the recording bar's top and bottom padding when you set the recording button to "small". This gives the transcript feed more room on screen.
+- 02be1ab: Add a hidden test-audio mode. Set `localStorage.vxbeamer_test_audio_url` to turn it on. When on, the record button replays a saved audio clip, at the same pace as a live recording, instead of using the microphone. This helps you test the record flow on a device with no real microphone, such as an automated browser test.
+
+  This change also fixes a bug. Before, the `audioProcessingMode` setting — which controls noise suppression, echo cancellation, and auto gain — was silently never applied to real microphone recordings.
+
+- Updated dependencies [2681be3]
+- Updated dependencies [8048d13]
+- Updated dependencies [9663f08]
+- Updated dependencies [e920490]
+- Updated dependencies [5855bcf]
+- Updated dependencies [02be1ab]
+- Updated dependencies [3d6323d]
+- Updated dependencies [94e7feb]
+- Updated dependencies [ac46ea8]
+- Updated dependencies [1bd504c]
+- Updated dependencies [2fd891a]
+- Updated dependencies [d9c4698]
+- Updated dependencies [0431692]
+  - vxasr@0.1.0
+
 ## 0.1.0-next.9
 
 ### Patch Changes

@@ -3,30 +3,12 @@
 "backend": patch
 ---
 
-Reclaim upstream vendor connections: kick idle sockets and always tear down on error
+Reclaim vendor connections. Close idle connections. Always close a connection after an error.
 
-The realtime vendors cap concurrent connections per account ("connections too
-much max_connections 100"), and each `/ws` (and `/asr/eval`) socket holds one of
-those open for its whole life. Two gaps let those connections leak until the cap
-was hit:
+Each speech vendor allows only a limited number of open connections per account. The error for this is: "connections too much max_connections 100". Every `/ws` and `/asr/eval` connection holds one of these open for its whole life. Two gaps let these connections leak, until the account hit that limit:
 
-- **No way to hang up an abandoned session.** `ASRSession` only exposed
-  `sendAudio()` and `finish()`, and `finish()` is _graceful_ — it waits for the
-  vendor's terminal event, which never comes for a socket that has simply gone
-  silent. `ASRSession.close()` is new: an immediate, idempotent teardown that
-  `terminate()`s the vendor socket and emits no further callbacks, so a session
-  that can no longer produce a transcript releases its slot rather than holding
-  it until the vendor reaps it.
+- **There was no way to close an abandoned session.** The `ASRSession` type only had `sendAudio()` and `finish()`. The `finish()` function waits for the vendor to send a final message. But if the connection has gone silent, the vendor may never send that message. This change adds `ASRSession.close()`. This function closes the connection right away. It is safe to call more than once. It sends no more updates after you call it. This lets the app free up a vendor connection slot, instead of waiting for the vendor to notice and close it first.
 
-- **Error paths left the socket open.** Every provider's `ws.on("error")` now
-  closes the socket, and Qwen now hangs up on a vendor `error` frame the way
-  BytePlus and Qwen-Omni already did — previously it did not, so a
-  "max_connections" error frame itself leaked another connection, compounding the
-  very condition it reported.
+- **An error did not always close the connection.** Now, every provider's `ws.on("error")` handler closes the socket. Also, the Qwen provider now closes its connection after a vendor error message, the same way BytePlus and Qwen-Omni already did. Before, a "max_connections" error itself could leak another connection — making the same problem it was reporting even worse.
 
-Idle-kicking is now enforced at the socket layer: a watchdog, armed when the
-vendor session opens and deferred on every audio frame, closes the client and
-aborts the vendor session after `WS_IDLE_TIMEOUT_MS` of silence (default 60s; a
-non-positive value disables it). It watches _audio_, not liveness, so a client
-that keeps the socket open but stops speaking is still reclaimed. The watchdog is
-disarmed on `stop`, since finalisation is the vendor's clock, not the client's.
+The app now also closes an idle connection automatically. A timer starts when the vendor session opens. Each new audio frame resets this timer. If `WS_IDLE_TIMEOUT_MS` passes with no new audio (60 seconds, by default), the app closes both the client connection and the vendor connection. Set this value to 0 or less to turn this feature off. This timer checks for silence, not just an open connection — so a client that stays connected but stops sending audio is still cleaned up. This timer turns off once you send a `stop` message, since after that, the vendor controls the pace, not the client.

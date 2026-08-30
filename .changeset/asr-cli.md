@@ -2,10 +2,10 @@
 "vxasr": minor
 ---
 
-Add a `vxasr` CLI for running one model configuration against an audio file — no server, browser, or microphone needed.
+Add a `vxasr` command-line tool. It runs one model configuration against an audio file. It needs no server, no browser, and no microphone.
 
-Accepts WAV or headerless raw PCM (16 kHz/16-bit/mono), detecting WAV by content rather than file extension and walking its chunks rather than assuming a 44-byte header. Prints the transcript to stdout and per-layer usage costs to stderr, so a decorated chain shows what each layer charged. Configurations resolve through the catalogue, so every newly declared one becomes testable for free.
+It accepts a WAV file or raw PCM audio (16 kHz, 16-bit, mono). It checks the file content to detect WAV format. It does not rely on the file extension. It prints the transcript to stdout. It prints the cost of each processing layer to stderr. This lets you see what each layer charged.
 
-Audio is paced at realtime by default; `--fast` is a probe, since feeding faster than realtime does not reproduce live behaviour.
+By default, the tool sends audio at real-time speed. Use `--fast` only to test faster sending. Fast sending does not show real-time behavior.
 
-Also replaces the package README, which was still the unmodified Vite+ starter template.
+This change also replaces the package README file. The old file was still the unused template text.

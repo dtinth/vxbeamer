@@ -2,10 +2,10 @@
 "backend": minor
 ---
 
-Add `GET /asr/configurations`, so a client can discover which model configurations it may transcribe with instead of hardcoding them — the list an eval fans out over.
+Add a new endpoint: `GET /asr/configurations`. A client can call this endpoint to find out which model configurations it may use. Before, a client had to hardcode this list.
 
-There is deliberately no separate eval-set setting. An eval opens one `/ws` per configuration, so an eval-only list could only ever be a subset of what `/ws` already accepts, and a second env var could only disagree with `ASR_CONFIGURATIONS` — advertising configurations the socket rejects, or hiding ones it serves. The selectable set already is the answer, and the endpoint reports exactly it.
+There is no separate setting for the eval list. An eval opens one `/ws` connection per configuration. So, an eval-only list could only ever be a smaller version of what `/ws` already accepts. A second setting could disagree with the `ASR_CONFIGURATIONS` setting. It could advertise configurations that the `/ws` socket then rejects. Or, it could hide configurations that the socket does serve. The list of allowed configurations is already the right answer. This endpoint reports that same list.
 
-Each entry carries its id, a label, and its identity components (`providerId`, `model`, `postProcessing`), so a client never has to parse an id back apart — the id is derived from those, not the other way round. `primaryConfigurationId` is named once at the top rather than flagged per entry, and the primary appears in the list like any other candidate.
+Each entry has an ID, a label, and its identity parts: `providerId`, `model`, and `postProcessing`. A client never needs to take an ID apart to find these parts. The ID is built from these parts, not the other way around. The field `primaryConfigurationId` names the primary configuration once, at the top level. The primary configuration also appears in the list, like every other configuration.
 
-Credentials never appear in the response: not their values, and not the names of missing env vars either. A token authenticates a subject, not an operator, so the server's environment is not described here; a `configured` boolean answers whether a configuration will work, and the `/ws` close reason still tells an operator which variable to set.
+The response never includes credentials. It does not include credential values. It also does not include the names of missing setting variables. A login token identifies a user, not a server operator. So, this endpoint does not describe the server's setup. A `configured` field on each entry tells the client if that configuration will work. If a socket connection is refused, its close reason still tells the operator which setting to fix.

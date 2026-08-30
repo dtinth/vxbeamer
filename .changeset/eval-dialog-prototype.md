@@ -3,26 +3,11 @@
 "website": patch
 ---
 
-Add the Eval dialog: replay a recording against every configuration and pick a winner
+Add the Eval dialog. It replays a recording through every model configuration. You then pick the best result.
 
-A finished message whose audio is still in memory now offers **Eval**. The dialog
-opens one WebSocket per configuration, replays the retained PCM through all of
-them in parallel, and streams each configuration's interim text as it arrives.
-The user reads the results and taps the one they like; it replaces the message's
-primary answer.
+If a finished message still has its audio in memory, the app now shows an **Eval** option. The dialog opens one WebSocket connection for each configuration. It replays the saved audio through all of them at the same time. It shows each configuration's text as it arrives. You read the results and tap the one you prefer. That result then replaces the message's main answer.
 
-- **`/asr/eval`** (backend) transcribes without a message log behind it. It is a
-  separate route in its own module that cannot import the store, so "an eval run
-  creates no message" (dtinth/vxbeamer#38) holds structurally rather than by a
-  flag. Results come back down the socket, since the frontend is the only place
-  an eval run exists.
-- **Replay is paced at 1x** — one 3200-byte frame per 100 ms, per socket, from
-  that socket's own `ready`. Not an optimisation target: BytePlus hangs outright
-  on a fast dump, and billing is per audio-second, so pacing is free. Because the
-  sockets run in parallel, a run takes the clip's own duration however many
-  configurations are on the ballot.
-- **Each configuration runs once.** No repeat runs, no averaging, no confidence
-  indicators — the signal is the vote stream across many messages, not one eval.
-- Rows that will not stream (a buffering batch adapter) or cannot run (a
-  configuration the server has no credentials for) are shown rather than hidden,
-  and neither is dressed up as a fault.
+- **`/asr/eval`** (on the backend) transcribes audio without writing to the message log. This is a separate route, in its own code module. This module cannot import the message store. This design guarantees that an eval run creates no message (see issue dtinth/vxbeamer#38). This is a structural rule, not just a setting. Results return down the same socket, since only the frontend needs an eval run's results.
+- **Each replay runs at 1x speed.** The app sends one 3200-byte audio frame every 100 ms, per socket, once that socket is ready. This is not something to speed up: BytePlus stops responding if you send audio faster than real time. Also, billing is based on audio duration, not connection time, so slower sending costs nothing extra. Because all sockets run at the same time, one eval run takes about as long as the audio clip itself, no matter how many configurations you compare.
+- **Each configuration runs only once** per eval. There are no repeat runs, no averaging, and no confidence scores. The real signal comes from votes across many messages over time, not from one eval run.
+- Some rows will not show live text (a model that returns one final result). Other rows cannot run at all (the server has no credentials for that configuration). The app shows both of these cases plainly. It does not treat them as errors.

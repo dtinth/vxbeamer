@@ -2,4 +2,4 @@
 "website": patch
 ---
 
-Add a drag-charge tint to message bubbles: while a finger holds a bubble waiting for the OS long-press lift, a soft primary-coloured tint sweeps left→right over ~700 ms so the wait is legible. On lift it rushes home and fades; on a swipe, scroll, or early release it reverses left and fades at once. Touch only.
+Add a visual "charging" effect to message bubbles. While you hold a finger on a bubble, waiting for the OS to start a drag, a soft color tint sweeps from left to right. This takes about 700 ms. This shows that the app is registering your hold. When you lift your finger to start the drag, the tint quickly fills in and then fades. If you swipe, scroll, or release early, the tint reverses and fades right away. This effect works on touch screens only.

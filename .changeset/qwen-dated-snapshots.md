@@ -2,10 +2,10 @@
 "vxasr": minor
 ---
 
-Pin every Qwen model to a dated snapshot and drop the floating `qwen3-asr-flash-realtime` id.
+Change every Qwen model ID to a dated, fixed version. Remove the old, undated `qwen3-asr-flash-realtime` ID.
 
-Undated ids float — the vendor repoints them without notice — so a transcript could change with nothing in this repo changing, and a vote would name a moving target. Fun-ASR shows this is not theoretical: its newest snapshot dropped Thai outright, which a floating id would have delivered as a language quietly ceasing to work.
+An undated model ID can change without warning — the vendor can point it to a new model version at any time. So, the app's output could change even when nothing in this project's code has changed. A vote could then end up naming a model that no longer exists in that form. This is not a small risk. Fun-ASR shows a real case: its newest version silently stopped supporting Thai. An undated ID would have quietly broken a language, with no warning.
 
-Selectable configurations are now `qwen3-asr-flash-realtime-2025-10-27` and `-2026-02-10`, each raw and `+groq`. The primary derives to `2025-10-27+groq` — what the floating id resolved to when it was dropped — so behaviour is unchanged, only pinned.
+You can now select `qwen3-asr-flash-realtime-2025-10-27` and `qwen3-asr-flash-realtime-2026-02-10`. Each is available raw or with `+groq`. The main, default model is now `2025-10-27+groq`. This is the version the old, undated ID pointed to right before this change. So, behavior for existing users does not change — only the model version is now fixed in place.
 
-**Breaking for anyone setting `ASR_MODEL=qwen3-asr-flash-realtime`**: that id no longer exists; name a dated snapshot.
+**Breaking change**: If you set `ASR_MODEL=qwen3-asr-flash-realtime`, this will now fail. That ID no longer exists. You must set a dated version instead.

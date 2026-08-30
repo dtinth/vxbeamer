@@ -2,4 +2,6 @@
 "vxasr": minor
 ---
 
-Add OpenAI's `gpt-live-transcribe` (Realtime API) as an ASR provider — `openai` in the provider registry, raw-only for now (no `+groq` post-processing variant). Connects directly with the account's secret key rather than the ephemeral `client_secrets` token flow, since the backend is a trusted caller and the extra round trip would only add latency. Introduces `LinearResampler`, a reusable streaming resampler that carries state across chunks so it doesn't introduce a boundary artifact, used here to upsample the 16kHz capture to the API's 24kHz minimum.
+Add OpenAI's `gpt-live-transcribe` model as a new ASR provider. This is the `openai` entry in the provider list. For now, it only supports raw output — it has no `+groq` cleanup option. The connection uses the account's own secret key directly. It does not use the short-lived `client_secrets` method. The backend is a trusted caller, so the extra network round trip would only add delay.
+
+This change also adds `LinearResampler`. This is a reusable tool that resamples streaming audio. It keeps state across audio chunks, so it does not create a glitch where one chunk ends and the next begins. It is used here to convert the app's 16 kHz audio up to the 24 kHz that this API requires.

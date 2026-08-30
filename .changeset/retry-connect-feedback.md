@@ -2,4 +2,4 @@
 "website": patch
 ---
 
-Show a "Retrying…" state on the error bubble immediately when the retry button is tapped, instead of leaving it looking untouched until the reconnect attempt settles.
+When you tap the retry button on an error bubble, it now shows a "Retrying…" state right away. Before, the button showed no change until the retry attempt finished.

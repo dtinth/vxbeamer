@@ -2,4 +2,4 @@
 "website": patch
 ---
 
-Tighten the recording bar's vertical padding when the recording button is set to small, so the bar takes less vertical space and leaves more room for the transcript feed.
+Reduce the recording bar's top and bottom padding when you set the recording button to "small". This gives the transcript feed more room on screen.

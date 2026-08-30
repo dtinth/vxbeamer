@@ -3,10 +3,10 @@
 "website": patch
 ---
 
-Add `POST /messages/:id/winner`: an eval winner's transcript replaces the message's primary answer.
+Add a new endpoint: `POST /messages/:id/winner`. This endpoint lets an eval winner's transcript replace the message's main answer.
 
-Eval runs create no message of their own, so there is nothing to merge or delete — picking a winner is an update to the existing message, broadcast over SSE exactly as the live transcription path broadcasts one. The webhook re-fires with the winner's transcript: downstream was already told the primary's answer when the recording finished, and this is the correction. The payload type was always `message.updated`, so a second update is precisely what it already says.
+An eval run creates no message of its own. So, picking a winner just updates the existing message. The app shares this update over SSE, the same way it shares a live transcription update. The webhook fires again too, this time with the winner's transcript. The system already told other services the primary answer when the recording finished. This second webhook call is the correction. The payload type was already `message.updated` for the first call, so a second update uses that same, correct type.
 
-Messages now carry a `configurationId` — the model configuration that authored the current answer, set from the recording's own configuration and overwritten by a winner. Without it a second `message.updated` is an unexplained transcript change.
+Messages now have a `configurationId` field. This field names the model configuration that wrote the current answer. The recording sets it at first. Picking a winner then overwrites it. Without this field, a second `message.updated` event would be an unexplained change to the transcript.
 
-The winning configuration id is validated against the configurations this server serves; the transcript is not, and cannot be, since eval results are collected in the browser and the backend holds no recording to re-transcribe. The write is scoped to the caller's own message log, so an unverifiable transcript only ever edits the caller's own words. A message still recording is refused (the live session would clobber the winner); a message whose primary errored is accepted and promoted to done.
+The server checks that the winning configuration ID is one it actually serves. The server does not check the transcript text itself, and it cannot: the eval results come from the browser, and the backend keeps no copy of the recording to check against. This write only affects the caller's own message log. So, even though the transcript is not checked, it can only ever change the caller's own messages. The server refuses this request if the message is still recording — a live session could otherwise overwrite the winner. The server accepts this request if the message's primary answer had failed. In that case, the message becomes "done".

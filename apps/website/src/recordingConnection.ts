@@ -50,7 +50,13 @@ interface ConnectionState {
   ws: WebSocket | null;
   /** PCM not yet delivered over an open socket, in capture order. */
   buffer: ArrayBuffer[];
-  connectTimeout: ReturnType<typeof setTimeout> | null;
+  /**
+   * The one timer this connection is ever waiting on — the connect timeout
+   * while an attempt is in flight, or the auto-retry delay between attempts.
+   * Never both: {@link failConnect} always clears whichever one led to it
+   * before possibly arming the other.
+   */
+  pendingTimeout: ReturnType<typeof setTimeout> | null;
   /** Once the socket has opened once, mid-stream drops are out of scope. */
   opened: boolean;
   /** The user pressed stop before this ever opened — finish up once it does. */
@@ -59,21 +65,19 @@ interface ConnectionState {
   retrying: boolean;
   /** Silent auto-retries still available to the *initial* connect. */
   autoRetriesLeft: number;
-  autoRetryTimeout: ReturnType<typeof setTimeout> | null;
 }
 
 const connections = new Map<string, ConnectionState>();
 
-function clearConnectTimeout(state: ConnectionState): void {
-  if (state.connectTimeout === null) return;
-  clearTimeout(state.connectTimeout);
-  state.connectTimeout = null;
+/** This state stopped being the one to act on — forgotten, or resolved some other way, while an async step was in flight. */
+function isStale(state: ConnectionState): boolean {
+  return connections.get(state.referenceId) !== state || state.opened;
 }
 
-function clearAutoRetryTimeout(state: ConnectionState): void {
-  if (state.autoRetryTimeout === null) return;
-  clearTimeout(state.autoRetryTimeout);
-  state.autoRetryTimeout = null;
+function clearPendingTimeout(state: ConnectionState): void {
+  if (state.pendingTimeout === null) return;
+  clearTimeout(state.pendingTimeout);
+  state.pendingTimeout = null;
 }
 
 /**
@@ -84,13 +88,12 @@ function clearAutoRetryTimeout(state: ConnectionState): void {
  */
 function failConnect(state: ConnectionState, message: string): void {
   if (state.opened) return;
-  clearConnectTimeout(state);
+  clearPendingTimeout(state);
   if (state.autoRetriesLeft > 0) {
     state.autoRetriesLeft -= 1;
-    state.autoRetryTimeout = setTimeout(() => {
-      state.autoRetryTimeout = null;
-      // Forgotten, or opened some other way, while this was waiting to fire.
-      if (connections.get(state.referenceId) !== state || state.opened) return;
+    state.pendingTimeout = setTimeout(() => {
+      state.pendingTimeout = null;
+      if (isStale(state)) return;
       openSocket(state);
     }, AUTO_RETRY_DELAY_MS);
     return;
@@ -108,14 +111,25 @@ function openSocket(state: ConnectionState): void {
   ws.binaryType = "arraybuffer";
   state.ws = ws;
 
-  state.connectTimeout = setTimeout(() => {
+  // A timed-out connect closes a still-CONNECTING socket, which itself raises
+  // `error` — so both the timeout below and the error listener would call
+  // `failConnect` for the very same failure. Without this guard that spends
+  // two retries (and opens two replacement sockets) for one.
+  let failedOnce = false;
+  function handleFailure(message: string): void {
+    if (failedOnce) return;
+    failedOnce = true;
+    failConnect(state, message);
+  }
+
+  state.pendingTimeout = setTimeout(() => {
     if (state.opened) return;
     ws.close();
-    failConnect(state, "Connection timed out");
+    handleFailure("Connection timed out");
   }, CONNECT_TIMEOUT_MS);
 
   ws.addEventListener("open", () => {
-    clearConnectTimeout(state);
+    clearPendingTimeout(state);
     state.opened = true;
     const buffered = state.buffer;
     state.buffer = [];
@@ -129,7 +143,7 @@ function openSocket(state: ConnectionState): void {
     }
   });
 
-  ws.addEventListener("error", () => failConnect(state, "Connection failed"));
+  ws.addEventListener("error", () => handleFailure("Connection failed"));
 
   ws.addEventListener("close", () => {
     if (state.ws === ws) state.ws = null;
@@ -148,12 +162,11 @@ export function beginRecordingConnection(
     backendUrl,
     ws: null,
     buffer: [],
-    connectTimeout: null,
+    pendingTimeout: null,
     opened: false,
     stopped: false,
     retrying: false,
     autoRetriesLeft: MAX_AUTO_RETRIES,
-    autoRetryTimeout: null,
   };
   connections.set(referenceId, state);
   openSocket(state);
@@ -207,8 +220,7 @@ export function retryRecordingConnection(referenceId: string): void {
   const state = connections.get(referenceId);
   if (!state || state.opened || state.retrying) return;
   state.retrying = true;
-  clearConnectTimeout(state);
-  clearAutoRetryTimeout(state);
+  clearPendingTimeout(state);
   state.ws?.close();
   // Otherwise a retry that fails the same way leaves the bubble showing the
   // exact same text it did before the tap — indistinguishable from the tap
@@ -217,15 +229,13 @@ export function retryRecordingConnection(referenceId: string): void {
 
   void obtainSessionToken()
     .then((authToken) => {
-      // Forgotten, or the connection opened some other way, while the token
-      // refresh was in flight.
-      if (connections.get(referenceId) !== state || state.opened) return;
+      if (isStale(state)) return;
       state.retrying = false;
       state.authToken = authToken;
       openSocket(state);
     })
     .catch((err) => {
-      if (connections.get(referenceId) !== state || state.opened) return;
+      if (isStale(state)) return;
       state.retrying = false;
       failConnect(state, err instanceof Error ? err.message : "Could not refresh session");
     });
@@ -235,8 +245,7 @@ export function retryRecordingConnection(referenceId: string): void {
 export function forgetRecordingConnection(referenceId: string): void {
   const state = connections.get(referenceId);
   if (state) {
-    clearConnectTimeout(state);
-    clearAutoRetryTimeout(state);
+    clearPendingTimeout(state);
     state.ws?.close();
     connections.delete(referenceId);
   }

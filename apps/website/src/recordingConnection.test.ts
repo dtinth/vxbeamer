@@ -26,7 +26,20 @@ class FakeWebSocket {
 
   close(): void {
     if (this.readyState === 3) return;
+    // Per the real WebSocket spec, closing a still-CONNECTING socket "fails"
+    // it — that raises `error` (then `close`), not just `close`. A test
+    // double that skipped this would never catch a caller assuming a single
+    // failure signal per attempt (dtinth/vxbeamer#86). Deferred with a
+    // microtask, not fired inline: a real browser dispatches these
+    // asynchronously too, which matters here — a caller that already acted
+    // synchronously on its own "this failed" branch (e.g. a connect timeout)
+    // must win the race against this trailing `error`, not the other way
+    // round.
+    const wasConnecting = this.readyState === 0;
     this.readyState = 3;
+    if (wasConnecting) {
+      void Promise.resolve().then(() => this.listeners.error?.forEach((cb) => cb()));
+    }
     this.listeners.close?.forEach((cb) => cb());
   }
 

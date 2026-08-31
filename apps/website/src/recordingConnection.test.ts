@@ -104,6 +104,21 @@ beforeEach(() => {
   FakeWebSocket.instances = [];
 });
 
+/**
+ * Fails the most recent connect attempt, over and over, until the initial
+ * connect's 3 silent auto-retries (dtinth/vxbeamer#86) are used up and the
+ * failure finally surfaces as a visible error, one second apart each. Leaves
+ * `FakeWebSocket.instances` with 4 entries: the original attempt plus 3
+ * retries.
+ */
+async function exhaustAutoRetries(): Promise<void> {
+  for (let i = 0; i < 3; i++) {
+    FakeWebSocket.instances.at(-1)!.triggerError();
+    await vi.advanceTimersByTimeAsync(1000);
+  }
+  FakeWebSocket.instances.at(-1)!.triggerError();
+}
+
 test("buffers audio while connecting and flushes it in order once the socket opens", async () => {
   const { beginRecordingConnection, sendRecordingAudio } = await import("./recordingConnection.ts");
 
@@ -132,7 +147,66 @@ test("sends audio immediately once the socket is already open", async () => {
   expect(FakeWebSocket.instances[0]!.sent).toEqual([chunk]);
 });
 
-test("surfaces a local connection error on connect failure, without losing buffered audio", async () => {
+test("surfaces a local connection error only once auto-retry is exhausted, without losing buffered audio", async () => {
+  const [{ beginRecordingConnection, sendRecordingAudio }, { $visibleMessages }] =
+    await Promise.all([import("./recordingConnection.ts"), import("./store.ts")]);
+
+  beginRecordingConnection("ref-1", "token", "https://backend.example");
+  const chunk = new ArrayBuffer(4);
+  sendRecordingAudio("ref-1", chunk);
+  await exhaustAutoRetries();
+
+  const placeholder = $visibleMessages.get().get("local:ref-1");
+  expect(placeholder).toMatchObject({ status: "error", connectionError: true });
+});
+
+// --- Auto-retry on the initial connect (dtinth/vxbeamer#86) ---
+
+test("a single connect failure retries silently, with no error shown yet", async () => {
+  const [{ beginRecordingConnection }, { $visibleMessages }] = await Promise.all([
+    import("./recordingConnection.ts"),
+    import("./store.ts"),
+  ]);
+
+  beginRecordingConnection("ref-1", "token", "https://backend.example");
+  FakeWebSocket.instances[0]!.triggerError();
+
+  expect($visibleMessages.get().has("local:ref-1")).toBe(false);
+  expect(FakeWebSocket.instances).toHaveLength(1); // the retry hasn't fired yet
+
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(FakeWebSocket.instances).toHaveLength(2);
+  expect($visibleMessages.get().has("local:ref-1")).toBe(false);
+});
+
+test("each auto-retry is spaced one second apart, not sooner", async () => {
+  const { beginRecordingConnection } = await import("./recordingConnection.ts");
+
+  beginRecordingConnection("ref-1", "token", "https://backend.example");
+  FakeWebSocket.instances[0]!.triggerError();
+
+  await vi.advanceTimersByTimeAsync(999);
+  expect(FakeWebSocket.instances).toHaveLength(1); // one ms early — not yet
+
+  await vi.advanceTimersByTimeAsync(1);
+  expect(FakeWebSocket.instances).toHaveLength(2);
+});
+
+test("exactly 3 auto-retries happen before the error becomes visible", async () => {
+  const [{ beginRecordingConnection }, { $visibleMessages }] = await Promise.all([
+    import("./recordingConnection.ts"),
+    import("./store.ts"),
+  ]);
+
+  beginRecordingConnection("ref-1", "token", "https://backend.example");
+  await exhaustAutoRetries();
+
+  // The original attempt plus 3 retries — 4 sockets total.
+  expect(FakeWebSocket.instances).toHaveLength(4);
+  expect($visibleMessages.get().get("local:ref-1")?.error).toBe("Connection failed");
+});
+
+test("an auto-retry that succeeds opens normally, with no error ever shown", async () => {
   const [{ beginRecordingConnection, sendRecordingAudio }, { $visibleMessages }] =
     await Promise.all([import("./recordingConnection.ts"), import("./store.ts")]);
 
@@ -140,9 +214,51 @@ test("surfaces a local connection error on connect failure, without losing buffe
   const chunk = new ArrayBuffer(4);
   sendRecordingAudio("ref-1", chunk);
   FakeWebSocket.instances[0]!.triggerError();
+  await vi.advanceTimersByTimeAsync(1000);
 
-  const placeholder = $visibleMessages.get().get("local:ref-1");
-  expect(placeholder).toMatchObject({ status: "error", connectionError: true });
+  const retried = FakeWebSocket.instances[1]!;
+  retried.open();
+
+  expect(retried.sent).toEqual([chunk]);
+  expect($visibleMessages.get().has("local:ref-1")).toBe(false);
+});
+
+test("a hung connect (timeout, not an error event) also auto-retries before surfacing", async () => {
+  const [{ beginRecordingConnection }, { $visibleMessages }] = await Promise.all([
+    import("./recordingConnection.ts"),
+    import("./store.ts"),
+  ]);
+
+  beginRecordingConnection("ref-1", "token", "https://backend.example");
+  const first = FakeWebSocket.instances[0]!;
+
+  // The first 3 timeouts (8s each) are silently retried, 1s apart.
+  await vi.advanceTimersByTimeAsync(9000 * 3);
+  expect(FakeWebSocket.instances).toHaveLength(4);
+  expect(first.readyState).toBe(3); // closed by its own timeout, same as before
+  expect($visibleMessages.get().has("local:ref-1")).toBe(false);
+
+  // Auto-retry is spent — the 4th timeout is the one that surfaces.
+  await vi.advanceTimersByTimeAsync(8000);
+  expect(FakeWebSocket.instances.at(-1)!.readyState).toBe(3);
+  expect($visibleMessages.get().get("local:ref-1")?.error).toBe("Connection timed out");
+});
+
+test("a manual retry pre-empts a pending auto-retry rather than racing it", async () => {
+  const { beginRecordingConnection, retryRecordingConnection } =
+    await import("./recordingConnection.ts");
+  await signIn();
+
+  beginRecordingConnection("ref-1", "token", "https://backend.example");
+  FakeWebSocket.instances[0]!.triggerError(); // schedules a silent auto-retry
+
+  retryRecordingConnection("ref-1");
+  await vi.advanceTimersByTimeAsync(0); // let the token refresh settle
+  expect(FakeWebSocket.instances).toHaveLength(2); // the manual retry's socket
+
+  // If the cancelled auto-retry still fired, this would open a 3rd socket.
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(FakeWebSocket.instances).toHaveLength(2);
 });
 
 test("retrying replays every buffered chunk into a fresh socket, from the start", async () => {
@@ -180,7 +296,7 @@ test("retrying shows a distinct 'Retrying…' state, not the stale failure text"
   await signIn();
 
   beginRecordingConnection("ref-1", "token", "https://backend.example");
-  FakeWebSocket.instances[0]!.triggerError();
+  await exhaustAutoRetries();
   expect($visibleMessages.get().get("local:ref-1")?.error).toBe("Connection failed");
 
   retryRecordingConnection("ref-1");
@@ -190,7 +306,9 @@ test("retrying shows a distinct 'Retrying…' state, not the stale failure text"
 
   // Fails the same way again — the text changes once more, proving the retry
   // actually ran rather than the bubble just sitting on "Retrying…" forever.
-  FakeWebSocket.instances[1]!.triggerError();
+  // A manual retry's own failure is never auto-retried again — it shows
+  // right away.
+  FakeWebSocket.instances.at(-1)!.triggerError();
   expect($visibleMessages.get().get("local:ref-1")?.error).toBe("Connection failed");
 });
 
@@ -266,21 +384,6 @@ test("double-tapping retry before the token refresh settles opens only one new s
   expect(FakeWebSocket.instances).toHaveLength(2);
 });
 
-test("treats a hung connect as a failure once the timeout elapses", async () => {
-  const [{ beginRecordingConnection }, { $visibleMessages }] = await Promise.all([
-    import("./recordingConnection.ts"),
-    import("./store.ts"),
-  ]);
-
-  beginRecordingConnection("ref-1", "token", "https://backend.example");
-  const ws = FakeWebSocket.instances[0]!;
-
-  vi.advanceTimersByTime(8000);
-
-  expect(ws.readyState).toBe(3);
-  expect($visibleMessages.get().get("local:ref-1")?.error).toBe("Connection timed out");
-});
-
 test("a socket that opens before the timeout is not later closed by it", async () => {
   const { beginRecordingConnection } = await import("./recordingConnection.ts");
 
@@ -351,16 +454,17 @@ test("forgetting a connection closes the socket and drops its retry state", asyn
   const { $visibleMessages } = await import("./store.ts");
 
   beginRecordingConnection("ref-1", "token", "https://backend.example");
-  const ws = FakeWebSocket.instances[0]!;
-  ws.triggerError();
+  await exhaustAutoRetries();
   expect($visibleMessages.get().has("local:ref-1")).toBe(true);
 
+  const current = FakeWebSocket.instances.at(-1)!;
+  const socketCountBeforeForget = FakeWebSocket.instances.length;
   forgetRecordingConnection("ref-1");
-  expect(ws.readyState).toBe(3);
+  expect(current.readyState).toBe(3);
   expect($visibleMessages.get().has("local:ref-1")).toBe(false);
 
   retryRecordingConnection("ref-1");
-  expect(FakeWebSocket.instances).toHaveLength(1);
+  expect(FakeWebSocket.instances).toHaveLength(socketCountBeforeForget);
 });
 
 test("forgetting a connection with no error bubble showing is a no-op, not a crash", async () => {

@@ -9,9 +9,11 @@ import { clearLocalConnectionError, obtainSessionToken, setLocalConnectionError 
  * `RecordingBar` — without waiting for `/ws` to open. This module owns the
  * socket itself: PCM handed to `sendRecordingAudio` is delivered immediately
  * if the socket is open, or held in order otherwise, so a slow or failed
- * connect never loses audio. If the connect fails or times out, the recording
- * keeps running and the failure surfaces as a retryable error bubble
- * (`setLocalConnectionError`) rather than aborting the recording.
+ * connect never loses audio. If the connect fails or times out, it retries a
+ * few times on its own first (see `MAX_AUTO_RETRIES`) — most failures are a
+ * brief blip, not worth interrupting the user for. Only once those are
+ * exhausted does the recording keep running with the failure surfaced as a
+ * retryable error bubble (`setLocalConnectionError`) rather than aborting it.
  *
  * Scope: only the *initial* connect is retried here. A connection that did
  * open and then drops mid-recording is a separate problem this does not
@@ -19,6 +21,17 @@ import { clearLocalConnectionError, obtainSessionToken, setLocalConnectionError 
  */
 
 const CONNECT_TIMEOUT_MS = 8000;
+
+/**
+ * How many times the *initial* connect retries itself, silently, before
+ * surfacing an error bubble the user has to tap (dtinth/vxbeamer#86). Spaced
+ * {@link AUTO_RETRY_DELAY_MS} apart. Exhausted once and never replenished —
+ * a manual retry after that (via {@link retryRecordingConnection}) is always
+ * a single attempt, so a repeat failure reads as an immediate "still
+ * failing" rather than another silent wait.
+ */
+const MAX_AUTO_RETRIES = 3;
+const AUTO_RETRY_DELAY_MS = 1000;
 
 /**
  * One id per page load, not saved anywhere — a refresh always starts fresh
@@ -44,6 +57,9 @@ interface ConnectionState {
   stopped: boolean;
   /** A retry's token refresh is in flight — guards against a double-tap. */
   retrying: boolean;
+  /** Silent auto-retries still available to the *initial* connect. */
+  autoRetriesLeft: number;
+  autoRetryTimeout: ReturnType<typeof setTimeout> | null;
 }
 
 const connections = new Map<string, ConnectionState>();
@@ -54,9 +70,31 @@ function clearConnectTimeout(state: ConnectionState): void {
   state.connectTimeout = null;
 }
 
+function clearAutoRetryTimeout(state: ConnectionState): void {
+  if (state.autoRetryTimeout === null) return;
+  clearTimeout(state.autoRetryTimeout);
+  state.autoRetryTimeout = null;
+}
+
+/**
+ * A connect attempt failed. While auto-retries remain, try again after
+ * {@link AUTO_RETRY_DELAY_MS} without telling the user — a single dropped
+ * packet on an otherwise fine connection shouldn't interrupt them. Only once
+ * they're exhausted does this become a visible, tap-to-retry error.
+ */
 function failConnect(state: ConnectionState, message: string): void {
   if (state.opened) return;
   clearConnectTimeout(state);
+  if (state.autoRetriesLeft > 0) {
+    state.autoRetriesLeft -= 1;
+    state.autoRetryTimeout = setTimeout(() => {
+      state.autoRetryTimeout = null;
+      // Forgotten, or opened some other way, while this was waiting to fire.
+      if (connections.get(state.referenceId) !== state || state.opened) return;
+      openSocket(state);
+    }, AUTO_RETRY_DELAY_MS);
+    return;
+  }
   setLocalConnectionError(state.referenceId, message);
 }
 
@@ -114,6 +152,8 @@ export function beginRecordingConnection(
     opened: false,
     stopped: false,
     retrying: false,
+    autoRetriesLeft: MAX_AUTO_RETRIES,
+    autoRetryTimeout: null,
   };
   connections.set(referenceId, state);
   openSocket(state);
@@ -168,6 +208,7 @@ export function retryRecordingConnection(referenceId: string): void {
   if (!state || state.opened || state.retrying) return;
   state.retrying = true;
   clearConnectTimeout(state);
+  clearAutoRetryTimeout(state);
   state.ws?.close();
   // Otherwise a retry that fails the same way leaves the bubble showing the
   // exact same text it did before the tap — indistinguishable from the tap
@@ -195,6 +236,7 @@ export function forgetRecordingConnection(referenceId: string): void {
   const state = connections.get(referenceId);
   if (state) {
     clearConnectTimeout(state);
+    clearAutoRetryTimeout(state);
     state.ws?.close();
     connections.delete(referenceId);
   }

@@ -207,6 +207,7 @@ test("the default catalogue offers each real model, enhanced only where that hel
     "openai/gpt-live-transcribe",
     // Raw only: a plain batch transcription endpoint, nothing to enhance.
     "openrouter/microsoft/mai-transcribe-1.5",
+    "openrouter/microsoft/mai-transcribe-2",
     "mock/mock",
   ]);
 });

@@ -112,27 +112,27 @@ services:
 
 ### Environment variables
 
-| Variable               | Required | Description                                                                                                    |
-| ---------------------- | -------- | -------------------------------------------------------------------------------------------------------------- |
-| `DASHSCOPE_API_KEY`    | Yes      | Alibaba Cloud DashScope key for Qwen3-ASR-Flash and Qwen Omni Realtime                                         |
-| `API_KEYS`             | No       | Comma-separated `sub:secret` pairs for API key exchange                                                        |
-| `GROQ_API_KEY`         | No       | Groq API key for gpt-oss-120b post-processing; enables the `+groq` configurations                              |
-| `ASR_CONFIGURATION`    | No       | Default configuration id (default: derived from `ASR_PROVIDER`/`ASR_MODEL`/`GROQ_API_KEY`)                     |
-| `ASR_CONFIGURATIONS`   | No       | Comma-separated configurations clients may select (default: every configuration with credentials)              |
-| `ASR_PROVIDER`         | No       | Provider for the derived default: `qwen` (default), `qwen-omni`, `byteplus`, `openai`, `openrouter`, or `mock` |
-| `ASR_MODEL`            | No       | Model for the derived default (default: the provider's own default model)                                      |
-| `BYTEPLUS_API_KEY`     | No       | BytePlus key; enables the `byteplus` configurations                                                            |
-| `BYTEPLUS_LANGUAGE`    | No       | BytePlus language hint, e.g. `th-TH` (default: unset — Mandarin/English only)                                  |
-| `BYTEPLUS_RESOURCE_ID` | No       | BytePlus resource id (default: `volc.seedasr.sauc.duration`)                                                   |
-| `BYTEPLUS_BASE_URL`    | No       | BytePlus endpoint base, without the mode path segment                                                          |
-| `OPENAI_API_KEY`       | No       | OpenAI key; enables the `openai` (`gpt-live-transcribe`) configuration                                         |
-| `OPENROUTER_API_KEY`   | No       | OpenRouter key; enables the `openrouter` (`microsoft/mai-transcribe-1.5`) configuration                        |
-| `OIDC_DISCOVERY_URL`   | No       | OIDC provider discovery URL (alternative to API keys)                                                          |
-| `OIDC_CLIENT_ID`       | No       | OIDC client ID (default: `vxbeamer-mobile`)                                                                    |
-| `OIDC_AUDIENCE`        | No       | Expected token audience (default: same as client ID)                                                           |
-| `OIDC_SECRET`          | No       | HMAC secret for session tokens (default: `local-dev-secret`)                                                   |
-| `WEBHOOK_URL`          | No       | Endpoint to POST completed transcriptions to                                                                   |
-| `PORT`                 | No       | HTTP port (default: `8787`)                                                                                    |
+| Variable               | Required | Description                                                                                                            |
+| ---------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `DASHSCOPE_API_KEY`    | Yes      | Alibaba Cloud DashScope key for Qwen3-ASR-Flash and Qwen Omni Realtime                                                 |
+| `API_KEYS`             | No       | Comma-separated `sub:secret` pairs for API key exchange                                                                |
+| `GROQ_API_KEY`         | No       | Groq API key for gpt-oss-120b post-processing; enables the `+groq` configurations                                      |
+| `ASR_CONFIGURATION`    | No       | Default configuration id (default: derived from `ASR_PROVIDER`/`ASR_MODEL`/`GROQ_API_KEY`)                             |
+| `ASR_CONFIGURATIONS`   | No       | Comma-separated configurations clients may select (default: every configuration with credentials)                      |
+| `ASR_PROVIDER`         | No       | Provider for the derived default: `qwen` (default), `qwen-omni`, `byteplus`, `openai`, `openrouter`, or `mock`         |
+| `ASR_MODEL`            | No       | Model for the derived default (default: the provider's own default model)                                              |
+| `BYTEPLUS_API_KEY`     | No       | BytePlus key; enables the `byteplus` configurations                                                                    |
+| `BYTEPLUS_LANGUAGE`    | No       | BytePlus language hint, e.g. `th-TH` (default: unset — Mandarin/English only)                                          |
+| `BYTEPLUS_RESOURCE_ID` | No       | BytePlus resource id (default: `volc.seedasr.sauc.duration`)                                                           |
+| `BYTEPLUS_BASE_URL`    | No       | BytePlus endpoint base, without the mode path segment                                                                  |
+| `OPENAI_API_KEY`       | No       | OpenAI key; enables the `openai` (`gpt-live-transcribe`) configuration                                                 |
+| `OPENROUTER_API_KEY`   | No       | OpenRouter key; enables the `openrouter` configurations (`microsoft/mai-transcribe-1.5`, `microsoft/mai-transcribe-2`) |
+| `OIDC_DISCOVERY_URL`   | No       | OIDC provider discovery URL (alternative to API keys)                                                                  |
+| `OIDC_CLIENT_ID`       | No       | OIDC client ID (default: `vxbeamer-mobile`)                                                                            |
+| `OIDC_AUDIENCE`        | No       | Expected token audience (default: same as client ID)                                                                   |
+| `OIDC_SECRET`          | No       | HMAC secret for session tokens (default: `local-dev-secret`)                                                           |
+| `WEBHOOK_URL`          | No       | Endpoint to POST completed transcriptions to                                                                           |
+| `PORT`                 | No       | HTTP port (default: `8787`)                                                                                            |
 
 #### Eval storage
 
@@ -216,13 +216,14 @@ A configuration is a provider, a model, and the post-processing chain applied to
 | `byteplus/bigmodel_nostream+groq`                  | `BYTEPLUS_API_KEY`, `GROQ_API_KEY`  |
 | `openai/gpt-live-transcribe`                       | `OPENAI_API_KEY`                    |
 | `openrouter/microsoft/mai-transcribe-1.5`          | `OPENROUTER_API_KEY`                |
+| `openrouter/microsoft/mai-transcribe-2`            | `OPENROUTER_API_KEY`                |
 | `mock/mock`                                        | nothing                             |
 
 Every Qwen model id is a dated snapshot, not a floating one — the vendor repoints undated ids without notice, which would make a vote name a moving target. The Qwen Omni models need no `+groq` variant: their output is already well-formatted (Thai words in Thai, product names in Latin), which is what Groq formatting was tidying up for the plain ASR models — running it on top of Omni's output measurably added nothing.
 
 BytePlus exposes two modes at two endpoints, and only `bigmodel_nostream` accepts a language — the bi-directional `bigmodel` mode covers Mandarin, English and a few Chinese dialects and nothing else, so on any other language it returns confident nonsense. Only `bigmodel_nostream` is offered as a configuration for that reason; the provider still serves `bigmodel` for deployments in those languages. Set `BYTEPLUS_LANGUAGE` (e.g. `th-TH`) or BytePlus falls back to that same Chinese/English default set. Note that `bigmodel_nostream` returns results only after 15 s of audio or the final packet, so it emits few or no partials — it is accuracy-tuned rather than low-latency.
 
-OpenRouter is a batch HTTP endpoint fanning out to many backing vendors under one key, not a live socket like every other provider here — the whole clip is sent as one file once recording stops, so it produces no partial transcript. `microsoft/mai-transcribe-1.5` is the one model declared as a configuration, chosen after comparing 19 OpenRouter STT models on the same fixture `testdata/OBSERVATIONS.md` uses.
+OpenRouter is a batch HTTP endpoint fanning out to many backing vendors under one key, not a live socket like every other provider here — the whole clip is sent as one file once recording stops, so it produces no partial transcript. `microsoft/mai-transcribe-1.5` was chosen as a configuration after comparing 19 OpenRouter STT models on the same fixture `testdata/OBSERVATIONS.md` uses, and stays the provider's default. `microsoft/mai-transcribe-2` was added alongside it later: about a third of `1.5`'s cost, but slightly less accurate on that same fixture, so it is offered as a second option rather than a replacement.
 
 Ids contain `+`, which decodes to a space in a query string, so clients must URL-encode them — `URLSearchParams` does this automatically. The OpenRouter configuration id also contains `/` (the router's own model naming, e.g. `microsoft/mai-transcribe-1.5`), which needs no special handling in a query string value.
 

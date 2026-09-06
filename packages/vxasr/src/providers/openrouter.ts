@@ -17,7 +17,7 @@ import { writeWav } from "../audio.ts";
  * https://openrouter.ai/docs/api/api-reference/stt/create-transcription.
  * Compared live against 18 sibling OpenRouter STT models on the same fixture
  * `testdata/OBSERVATIONS.md` uses (dtinth/vxbeamer#86); `mai-transcribe-1.5`
- * is the one declared as a configuration for now.
+ * and `mai-transcribe-2` are the ones declared as configurations so far.
  */
 export interface OpenRouterProviderConfig {
   apiKey: string;

@@ -121,7 +121,16 @@ export const builtinConfigurations: readonly ConfigurationSpec[] = [
   // Tried live alongside 18 sibling OpenRouter STT models on the test fixture
   // (dtinth/vxbeamer#86) — this one earned a preset. Declared raw only: it is
   // a plain transcription endpoint with no post-processing chain to enhance.
+  // It leads the provider's model list, so it stays the default.
   { provider: "openrouter", label: "OpenRouter MAI-Transcribe-1.5 (raw)" },
+  // Tried live the same way once released (dtinth/vxbeamer#86): about a third
+  // of `1.5`'s cost, but made two small transcription errors on the same
+  // fixture that `1.5` did not — a second choice, not a replacement.
+  {
+    provider: "openrouter",
+    model: "microsoft/mai-transcribe-2",
+    label: "OpenRouter MAI-Transcribe-2 (raw)",
+  },
   { provider: "mock", label: "Mock (canned transcript, no network)" },
 ];
 

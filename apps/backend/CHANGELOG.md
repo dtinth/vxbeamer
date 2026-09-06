@@ -1,5 +1,12 @@
 # backend
 
+## 0.2.0
+
+### Patch Changes
+
+- Updated dependencies [a0c839e]
+  - vxasr@0.2.0
+
 ## 0.1.0
 
 ### Minor Changes

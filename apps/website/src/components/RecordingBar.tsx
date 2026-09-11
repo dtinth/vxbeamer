@@ -235,6 +235,11 @@ export function RecordingBar({ createAudioSource, onOpenSettings }: RecordingBar
           className="absolute inset-0 w-full h-full rounded-xl"
         />
         <button
+          // Lets `r` and hold-Space find and click this exact button (see
+          // keyboardShortcuts.ts) — a plain DOM query rather than a prop,
+          // since the shortcut listener lives above this component in the
+          // tree and has no handler of its own to pass down.
+          data-shortcut="record-toggle"
           onClick={handleToggle}
           className={[
             "relative z-10 rounded-full flex items-center justify-center transition-all shadow-lg",

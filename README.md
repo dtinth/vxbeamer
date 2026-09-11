@@ -28,6 +28,8 @@ This project is primarily for personal use and is not designed to be particularl
 4. To stop, click the same button
 5. Click on the transcript bubble to copy, swipe left to delete, swipe right to beam to custom integrations
 
+Keyboard shortcuts (ignored while typing in a text field): `c` copies the latest finished transcript, `r` toggles recording, and holding Space is push-to-talk — it starts recording on press, and on release stops and copies the transcript automatically once it finishes.
+
 ## Costs & Stats
 
 ![Cost per hour of audio — $0.1448, 47,996 words per dollar](./stats.svg)

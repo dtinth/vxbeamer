@@ -5,9 +5,12 @@ import {
   compareMessagesForDisplay,
   getMessageCardInitialScrollLeft,
   getMessageCardSnapAction,
+  getMessageDisplayText,
   getMessageFeedScrollBehavior,
+  isMessageCopyable,
   MESSAGE_CARD_ACTION_WIDTH,
   MESSAGE_CARD_SNAP_TOLERANCE,
+  selectLatestCopyableMessageId,
   selectVisibleMessages,
 } from "./messageFeedScroll.ts";
 
@@ -39,6 +42,73 @@ describe("canEvalMessage", () => {
 
   test("refuses eval without retained audio", () => {
     expect(canEvalMessage(message(), false)).toBe(false);
+  });
+});
+
+describe("getMessageDisplayText", () => {
+  test("prefers the final transcript", () => {
+    expect(getMessageDisplayText(message({ final: "done", partial: "still going" }))).toBe("done");
+  });
+
+  test("falls back to the partial transcript", () => {
+    expect(getMessageDisplayText(message({ partial: "still going" }))).toBe("still going");
+  });
+
+  test("shows a placeholder while recording with nothing yet", () => {
+    expect(getMessageDisplayText(message({ status: "recording" }))).toBe("…");
+  });
+
+  test("falls back to the error text once recording has stopped", () => {
+    expect(getMessageDisplayText(message({ status: "error", error: "mic denied" }))).toBe(
+      "mic denied",
+    );
+  });
+});
+
+describe("isMessageCopyable", () => {
+  test("a finished message with text is copyable", () => {
+    expect(isMessageCopyable(message({ final: "hello" }))).toBe(true);
+  });
+
+  test("still recording with only a partial is not copyable", () => {
+    expect(isMessageCopyable(message({ status: "recording", partial: "still going" }))).toBe(false);
+  });
+
+  test("still recording but already carrying a final transcript is copyable", () => {
+    // The backend can deliver `final` slightly ahead of the follow-up event
+    // that flips `status` to "done" — the displayed text is already the
+    // complete transcript by then, so this must not wait on `status` too.
+    expect(isMessageCopyable(message({ status: "recording", final: "done speaking" }))).toBe(true);
+  });
+
+  test("a connect-error placeholder is not copyable", () => {
+    expect(isMessageCopyable(message({ connectionError: true, error: "failed" }))).toBe(false);
+  });
+
+  test("a finished message with no text is not copyable", () => {
+    expect(isMessageCopyable(message({ status: "done" }))).toBe(false);
+  });
+});
+
+describe("selectLatestCopyableMessageId", () => {
+  test("picks the most recently created copyable message", () => {
+    const older = message({ id: "a", createdAt: 1, final: "first" });
+    const newer = message({ id: "b", createdAt: 2, final: "second" });
+    expect(selectLatestCopyableMessageId([older, newer])).toBe("b");
+  });
+
+  test("skips a still-recording message that is newer than the last finished one", () => {
+    const done = message({ id: "a", createdAt: 1, final: "first" });
+    const recording = message({ id: "b", createdAt: 2, status: "recording" });
+    expect(selectLatestCopyableMessageId([done, recording])).toBe("a");
+  });
+
+  test("returns null when nothing is copyable yet", () => {
+    expect(selectLatestCopyableMessageId([message({ status: "recording" })])).toBeNull();
+  });
+
+  test("returns null for an empty message set", () => {
+    expect(selectLatestCopyableMessageId([])).toBeNull();
   });
 });
 

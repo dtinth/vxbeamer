@@ -19,7 +19,9 @@ import {
   compareMessagesForDisplay,
   getMessageCardInitialScrollLeft,
   getMessageCardSnapAction,
+  getMessageDisplayText,
   getMessageFeedScrollBehavior,
+  isMessageCopyable,
   MESSAGE_CARD_ACTION_WIDTH,
   MESSAGE_CARD_SNAP_TOLERANCE,
   MESSAGE_FEED_PRUNE_FALLBACK_MS,
@@ -73,10 +75,7 @@ function MessageCard({
   const sweepResetTimeoutRef = useRef<number | null>(null);
   const dragImageRef = useRef<HTMLElement | null>(null);
 
-  const text =
-    message.final ??
-    message.partial ??
-    (message.status === "recording" ? "…" : (message.error ?? ""));
+  const text = getMessageDisplayText(message);
 
   const time = new Date(message.createdAt).toLocaleTimeString([], {
     hour: "2-digit",
@@ -85,7 +84,7 @@ function MessageCard({
 
   // A connect-error placeholder has an error string, not a transcript — swipe
   // (to delete the placeholder) still works, but there's nothing to copy.
-  const copyable = message.status !== "recording" && !message.connectionError && !!text;
+  const copyable = isMessageCopyable(message);
   const swipeable = message.status !== "recording";
 
   const scheduleClickSuppression = () => {
@@ -449,6 +448,11 @@ function MessageCard({
           </div>
         </div>
         <div
+          // Lets the `c` keyboard shortcut and push-to-talk's auto-copy find
+          // and click this exact bubble (see keyboardShortcuts.ts) — a plain
+          // DOM query rather than a prop, since the shortcut has no React
+          // parent in common with the feed to pass a handler through.
+          data-message-id={message.id}
           draggable={copyable}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}

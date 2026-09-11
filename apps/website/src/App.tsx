@@ -15,6 +15,7 @@ import { RecordingBar } from "./components/RecordingBar.tsx";
 import { SettingsSheet } from "./components/SettingsSheet.tsx";
 import { DesktopAuthCode } from "./components/DesktopAuthCode.tsx";
 import { handleCallback } from "./oidc.ts";
+import { attachKeyboardShortcuts } from "./keyboardShortcuts.ts";
 
 export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -22,6 +23,11 @@ export function App() {
   const authToken = useStore($sessionToken);
   const backendUrl = useStore($backendUrl);
   const sseStatus = useStore($sseStatus);
+
+  // `c` / `r` / hold-Space (dtinth/vxbeamer#86) — one listener for the app's
+  // lifetime, not scoped to any single child, since it acts on whichever
+  // record button and message bubbles are on screen right now.
+  useEffect(() => attachKeyboardShortcuts(), []);
 
   // Handle OIDC callback on mount
   useEffect(() => {

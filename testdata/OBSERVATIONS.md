@@ -294,6 +294,18 @@ Run **2026-08-23**, not 2026-07-16 like the rest of this file. A single HTTP end
 
 ---
 
+## Typhoon (SCB 10X)
+
+Run **2026-09-12**. Same OpenAI-compatible transcription shape as OpenRouter: `POST https://api.opentyphoon.ai/v1/audio/transcriptions`, `Authorization: Bearer`, `multipart/form-data` with `model` and `file`. One request, no pacing, no partials (dtinth/vxbeamer#86).
+
+| model                  | output                                                                                                                                                                                                                                                                                            | usage                                                                      | wall  |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ----- |
+| `typhoon-asr-realtime` | `โปรเจกต์นี้เขียนด้วยภาษา Thaiscribe ใช้เฟรมวิกชื่อเอเลเซียโดย Deply ไปที่ Realway และใช้ mango Debe Adlus เป็นผู้ให้บริการฐานข้อมูล` — every English loanword garbled: `TypeScript`→`Thaiscribe`, `Elysia`→`เอเลเซีย`, `deploy`→`Deply`, `Railway`→`Realway`, `MongoDB Atlas`→`mango Debe Adlus` | 460 input (audio) + 74 output = 534 tokens, no cost figure in the response | 1.6 s |
+
+The response carries no dollar cost, only a token count (`usage.type: "tokens"`) — the docs don't publish per-token pricing either. Not added as a configuration: on this fixture every English technical term came out wrong, worse than every other Thai-capable model already compared above.
+
+---
+
 ## Repeat runs
 
 Identical input, repeated. **These are the same request each time.**

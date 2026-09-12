@@ -1,0 +1,80 @@
+# vxbeamer Watch Relay
+
+Lets a Wear OS watch (built and tested against a Samsung Galaxy Watch 5) be a
+voice-input device for vxbeamer, without the watch ever talking to the
+internet itself (dtinth/vxbeamer#86).
+
+Two separate Android apps live here, in one Gradle project:
+
+- **`wear/`** — runs on the watch. One button. Tap to start: captures the
+  mic (16 kHz / 16-bit / mono, the exact format vxbeamer's own `/ws` already
+  expects) and streams it to the phone over Bluetooth, using the Wear OS
+  Data Layer's `ChannelClient`. Tap again to stop.
+- **`mobile/`** — runs on the paired phone, with no screen interaction
+  needed once signed in. Woken automatically by the system the moment the
+  watch opens a stream (a `WearableListenerService`, so no notification or
+  battery cost while idle). Reads the raw audio from that stream and
+  forwards it straight to vxbeamer's `/ws`, the same protocol the browser
+  uses, then sends the normal stop message once the watch closes its side.
+
+Sign-in reuses the desktop app's own flow: the phone app opens your browser,
+you sign in, the hosted web app shows a short code, and you paste that code
+back into the phone app. Nothing on the backend or website needed to change
+for a second app to reuse this path.
+
+## Status
+
+Not yet verified on real hardware. This was written and compiled in a
+sandboxed environment with no Android emulator support (no hardware
+virtualization), so it has only been checked for `assembleDebug` and
+`lintDebug` passing — not run. See dtinth/vxbeamer#86 for the design
+discussion and for reporting what breaks on a real watch and phone.
+
+## Prerequisites
+
+| Requirement     | Notes                                                                                   |
+| --------------- | --------------------------------------------------------------------------------------- |
+| **JDK 21**      | e.g. `mise use -g java@21`                                                              |
+| **Android SDK** | `compileSdk 34`; command-line tools are enough, Android Studio is not required to build |
+
+On an Apple Silicon Mac or another arm64 Linux machine, Google's own `aapt2`
+(pulled in by the Android Gradle Plugin) is x86_64-only and will fail to run.
+See [Commit451/android-arm-build-tools](https://github.com/Commit451/android-arm-build-tools)
+for a drop-in arm64 replacement, or build on an x86_64 machine — GitHub
+Actions' runners already are, so CI needs none of this.
+
+## Building
+
+```bash
+cd apps/watch
+./gradlew assembleDebug
+```
+
+Produces two unsigned-but-debug-signed APKs:
+
+- `mobile/build/outputs/apk/debug/mobile-debug.apk`
+- `wear/build/outputs/apk/debug/wear-debug.apk`
+
+## Installing
+
+Both apps are personal and unpublished — there is no Play Store listing.
+Install straight from the APK:
+
+```bash
+adb install mobile/build/outputs/apk/debug/mobile-debug.apk   # to the phone
+adb -s <watch-serial> install wear/build/outputs/apk/debug/wear-debug.apk   # to the watch, over adb-over-wifi or a USB dock
+```
+
+Or download the built APKs from GitHub Actions (see below) and open the file
+directly on-device.
+
+Sign in inside the phone app once, with the backend URL, before trying to
+record from the watch.
+
+## CI
+
+The [Build Watch Apps](../../.github/workflows/watch.yml) workflow builds
+both APKs on every push to `main` and on pull requests touching this
+directory, and uploads them as GitHub Actions artifacts — open the workflow
+run and download `vxbeamer-watch-relay-mobile-debug` /
+`vxbeamer-watch-relay-wear-debug` from the bottom of the page.

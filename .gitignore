@@ -35,3 +35,9 @@ test-storyboards/
 
 # Claude Code agent worktrees
 .claude/worktrees/
+
+# apps/watch (Android/Wear OS)
+apps/watch/local.properties
+apps/watch/.gradle/
+apps/watch/**/build/
+apps/watch/.kotlin/

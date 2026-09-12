@@ -1,0 +1,53 @@
+name: Build Watch Apps
+
+on:
+  push:
+    branches: [main]
+    paths: ["apps/watch/**", ".github/workflows/watch.yml"]
+  pull_request:
+    paths: ["apps/watch/**", ".github/workflows/watch.yml"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: apps/watch
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Lint
+        run: ./gradlew lintDebug --console=plain
+
+      - name: Build debug APKs
+        run: ./gradlew assembleDebug --console=plain
+
+      # Sideloadable straight away: debug builds are signed with Gradle's own
+      # debug key, which is all `adb install` (or tapping the file on-device)
+      # needs. Nothing to sign here for a personal, unpublished app.
+      - name: Upload phone companion APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: vxbeamer-watch-relay-mobile-debug
+          path: apps/watch/mobile/build/outputs/apk/debug/mobile-debug.apk
+          if-no-files-found: error
+
+      - name: Upload watch APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: vxbeamer-watch-relay-wear-debug
+          path: apps/watch/wear/build/outputs/apk/debug/wear-debug.apk
+          if-no-files-found: error

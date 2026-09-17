@@ -155,14 +155,20 @@ export const openRouterProviderDefinition: ProviderDefinition =
   defineProvider<OpenRouterProviderConfig>({
     id: "openrouter",
     label: "OpenRouter",
-    // `mai-transcribe-1.5` was tried live against the real endpoint alongside
-    // 18 sibling OpenRouter STT models on the same fixture
-    // testdata/OBSERVATIONS.md uses (dtinth/vxbeamer#86) — it leads the list,
-    // so it stays this provider's default: `mai-transcribe-2` costs about a
-    // third as much, but made two small transcription errors `1.5` did not.
+    // Each tried live against the real endpoint on the same fixture
+    // testdata/OBSERVATIONS.md uses (dtinth/vxbeamer#86). `mai-transcribe-1.5`
+    // led originally; `muse-voice-transcribe-1.0` replaced it as the default
+    // (this list's first entry) once it came back as the cleanest transcript
+    // seen yet, at under half the cost. `mai-transcribe-2` costs about a
+    // third of `1.5`'s price but made two small transcription errors `1.5`
+    // did not, so it stays a second choice rather than a replacement.
     // Add another id here once it has been run against that fixture too —
     // same discipline every other provider's models list follows.
-    models: [OPENROUTER_DEFAULT_MODEL, "microsoft/mai-transcribe-2"],
+    models: [
+      OPENROUTER_DEFAULT_MODEL,
+      "microsoft/mai-transcribe-1.5",
+      "microsoft/mai-transcribe-2",
+    ],
     // A batch HTTP call, not a realtime stream — every audio chunk is only
     // ever buffered client-side, so no pace at which `sendAudio` is called
     // can violate anything the vendor sees on the wire.

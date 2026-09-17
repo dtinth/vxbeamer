@@ -206,6 +206,7 @@ test("the default catalogue offers each real model, enhanced only where that hel
     // loanwords in Latin unprompted, so a `+groq` sibling has nothing to add.
     "openai/gpt-live-transcribe",
     // Raw only: a plain batch transcription endpoint, nothing to enhance.
+    "openrouter/meta/muse-voice-transcribe-1.0",
     "openrouter/microsoft/mai-transcribe-1.5",
     "openrouter/microsoft/mai-transcribe-2",
     "mock/mock",

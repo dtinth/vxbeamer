@@ -15,9 +15,10 @@ import { writeWav } from "../audio.ts";
  * `model` names the *router's* model id (e.g. `microsoft/mai-transcribe-1.5`),
  * not a vendor-native one — see
  * https://openrouter.ai/docs/api/api-reference/stt/create-transcription.
- * Compared live against 18 sibling OpenRouter STT models on the same fixture
- * `testdata/OBSERVATIONS.md` uses (dtinth/vxbeamer#86); `mai-transcribe-1.5`
- * and `mai-transcribe-2` are the ones declared as configurations so far.
+ * Compared live against sibling OpenRouter STT models on the same fixture
+ * `testdata/OBSERVATIONS.md` uses (dtinth/vxbeamer#86); `mai-transcribe-1.5`,
+ * `mai-transcribe-2`, and `muse-voice-transcribe-1.0` are the ones declared
+ * as configurations so far.
  */
 export interface OpenRouterProviderConfig {
   apiKey: string;
@@ -28,7 +29,7 @@ export interface OpenRouterProviderConfig {
 
 const DEFAULT_BASE_URL = "https://openrouter.ai/api/v1/audio/transcriptions";
 
-export const OPENROUTER_DEFAULT_MODEL = "microsoft/mai-transcribe-1.5";
+export const OPENROUTER_DEFAULT_MODEL = "meta/muse-voice-transcribe-1.0";
 
 interface OpenRouterTranscriptionResponse {
   text?: string;

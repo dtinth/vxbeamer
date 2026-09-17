@@ -60,5 +60,20 @@
             android:exported="false"
             android:foregroundServiceType="microphone" />
 
+        <!-- Toggling from inside any other app, without the "draw over other
+             apps" permission banking apps suppress. See ToggleTileService's
+             own doc comment for why a tile rather than an overlay or an
+             accessibility shortcut. -->
+        <service
+            android:name=".ToggleTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_mic"
+            android:label="@string/tile_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
     </application>
 </manifest>

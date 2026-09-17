@@ -118,11 +118,23 @@ export const builtinConfigurations: readonly ConfigurationSpec[] = [
   // OpenAI does not publish dated variants of it the way DashScope does, so
   // there is nothing to pin to — same situation as BytePlus's mode ids.
   { provider: "openai", label: "OpenAI gpt-live-transcribe (raw)" },
-  // Tried live alongside 18 sibling OpenRouter STT models on the test fixture
-  // (dtinth/vxbeamer#86) — this one earned a preset. Declared raw only: it is
-  // a plain transcription endpoint with no post-processing chain to enhance.
-  // It leads the provider's model list, so it stays the default.
-  { provider: "openrouter", label: "OpenRouter MAI-Transcribe-1.5 (raw)" },
+  // The cleanest transcript of every OpenRouter model compared on the test
+  // fixture so far, at under half the cost of the previous default
+  // (dtinth/vxbeamer#86). Declared raw only: it is a plain transcription
+  // endpoint with no post-processing chain to enhance. Leads the provider's
+  // model list, so it is the default — no explicit `model` here, same as
+  // every other provider's top slot.
+  { provider: "openrouter", label: "OpenRouter Muse Voice Transcribe (raw)" },
+  // The previous default, tried live alongside 18 sibling OpenRouter STT
+  // models on the test fixture (dtinth/vxbeamer#86). Still worth keeping —
+  // given an explicit `model` now, so its configuration id stays
+  // `openrouter/microsoft/mai-transcribe-1.5` regardless of which model
+  // leads the provider's own list.
+  {
+    provider: "openrouter",
+    model: "microsoft/mai-transcribe-1.5",
+    label: "OpenRouter MAI-Transcribe-1.5 (raw)",
+  },
   // Tried live the same way once released (dtinth/vxbeamer#86): about a third
   // of `1.5`'s cost, but made two small transcription errors on the same
   // fixture that `1.5` did not — a second choice, not a replacement.
@@ -131,6 +143,12 @@ export const builtinConfigurations: readonly ConfigurationSpec[] = [
     model: "microsoft/mai-transcribe-2",
     label: "OpenRouter MAI-Transcribe-2 (raw)",
   },
+  // The same model as the OpenRouter default above, spoken to directly
+  // (dtinth/vxbeamer#86): Meta's own endpoint streams genuine partial
+  // transcripts, where OpenRouter's is a batch upload with no partials.
+  // Declared raw only, same reasoning as the OpenRouter entry: a plain
+  // transcription endpoint with no post-processing chain to enhance.
+  { provider: "meta", label: "Meta Realtime Muse Voice Transcribe (raw)" },
   { provider: "mock", label: "Mock (canned transcript, no network)" },
 ];
 

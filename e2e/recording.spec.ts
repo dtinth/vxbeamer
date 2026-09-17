@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { storyboard } from "./support.ts";
+import { storyboard, startRecordingAndGetItsCard } from "./support.ts";
 
 const BACKEND_URL = "http://localhost:8788";
 const E2E_API_KEY = "e2e-test-api-key";
@@ -86,10 +86,15 @@ test("records audio and displays transcript from mock ASR", async ({ page }) => 
   // Start recording
   const recordButton = page.getByLabel("Start recording");
   await storyboard.capture("Ready to record", recordButton);
-  await recordButton.click();
+  // The backend keeps one in-memory log per subject and every e2e test signs
+  // in as the same one, so an earlier test's finished card — carrying the
+  // same canned "Good morning…" transcript — can still be on screen. Scope to
+  // this recording's own card by id (see startRecordingAndGetItsCard's doc)
+  // rather than matching the text anywhere on the page.
+  const card = await startRecordingAndGetItsCard(page, () => recordButton.click());
 
   // Wait for partial transcript to appear
-  const partialText = page.getByText("Good morning");
+  const partialText = card.getByText("Good morning");
   await expect(partialText).toBeVisible({ timeout: 10_000 });
   await storyboard.capture("Receiving transcript", partialText);
 
@@ -99,7 +104,7 @@ test("records audio and displays transcript from mock ASR", async ({ page }) => 
   await stopButton.click();
 
   // Wait for the final transcript (message transitions to done status)
-  const finalText = page.getByText("quarterly results and our plans for the next quarter");
+  const finalText = card.getByText("quarterly results and our plans for the next quarter");
   await expect(finalText).toBeVisible({ timeout: 10_000 });
   await storyboard.capture("Final transcript displayed", finalText);
 });
@@ -136,12 +141,13 @@ test("evaluates a finished recording against the configured model set", async ({
   await expect(page.locator('[title="connected"]')).toBeVisible({ timeout: 10_000 });
 
   // The backend keeps one in-memory log per subject and both tests sign in as
-  // the same one, so an earlier test's message may still be on screen. Work
-  // against the newest card rather than the whole feed — page-wide text is
-  // ambiguous the moment a second card carries the same mock transcript.
-  const card = page.locator(".message-card").last();
-
-  await page.getByLabel("Start recording").click();
+  // the same one, so an earlier test's message may still be on screen. Scope
+  // to this recording's own card by id (see startRecordingAndGetItsCard's
+  // doc) — page-wide text, or even a positional `.last()`, is ambiguous the
+  // moment a second card carries the same mock transcript.
+  const card = await startRecordingAndGetItsCard(page, () =>
+    page.getByLabel("Start recording").click(),
+  );
   await expect(card.getByText("Good morning")).toBeVisible({ timeout: 10_000 });
   // Hold the recording open long enough to retain a clip worth replaying: the
   // eval replays at 1x, so the clip's length is the run's length, and a

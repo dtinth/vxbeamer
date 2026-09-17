@@ -206,8 +206,10 @@ test("the default catalogue offers each real model, enhanced only where that hel
     // loanwords in Latin unprompted, so a `+groq` sibling has nothing to add.
     "openai/gpt-live-transcribe",
     // Raw only: a plain batch transcription endpoint, nothing to enhance.
+    "openrouter/meta/muse-voice-transcribe-1.0",
     "openrouter/microsoft/mai-transcribe-1.5",
     "openrouter/microsoft/mai-transcribe-2",
+    "meta/muse-voice-transcribe-1.0",
     "mock/mock",
   ]);
 });
@@ -234,6 +236,10 @@ test("no configuration names a floating model id", () => {
     // OpenRouter's model ids are the router's own naming, not this package's
     // to date — `mai-transcribe-1.5` is already a versioned id as published.
     if (configuration.providerId === "openrouter") continue;
+    // Same vendor-published id as OpenRouter's `meta/muse-voice-transcribe-1.0`,
+    // just spoken to directly — nothing to date here that OpenRouter's own
+    // exemption doesn't already cover.
+    if (configuration.providerId === "meta") continue;
     expect(configuration.model).toMatch(/-\d{4}-\d{2}-\d{2}$/);
   }
 });

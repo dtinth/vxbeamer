@@ -13,6 +13,11 @@ import {
   OPENROUTER_DEFAULT_MODEL,
   type OpenRouterProviderConfig,
 } from "./openrouter.ts";
+import {
+  createMetaMuseProvider,
+  META_MUSE_DEFAULT_MODEL,
+  type MetaMuseProviderConfig,
+} from "./meta-muse.ts";
 import { createMockProvider } from "./mock.ts";
 
 export const qwenProviderDefinition: ProviderDefinition = defineProvider<QwenProviderConfig>({
@@ -155,14 +160,20 @@ export const openRouterProviderDefinition: ProviderDefinition =
   defineProvider<OpenRouterProviderConfig>({
     id: "openrouter",
     label: "OpenRouter",
-    // `mai-transcribe-1.5` was tried live against the real endpoint alongside
-    // 18 sibling OpenRouter STT models on the same fixture
-    // testdata/OBSERVATIONS.md uses (dtinth/vxbeamer#86) — it leads the list,
-    // so it stays this provider's default: `mai-transcribe-2` costs about a
-    // third as much, but made two small transcription errors `1.5` did not.
+    // Each tried live against the real endpoint on the same fixture
+    // testdata/OBSERVATIONS.md uses (dtinth/vxbeamer#86). `mai-transcribe-1.5`
+    // led originally; `muse-voice-transcribe-1.0` replaced it as the default
+    // (this list's first entry) once it came back as the cleanest transcript
+    // seen yet, at under half the cost. `mai-transcribe-2` costs about a
+    // third of `1.5`'s price but made two small transcription errors `1.5`
+    // did not, so it stays a second choice rather than a replacement.
     // Add another id here once it has been run against that fixture too —
     // same discipline every other provider's models list follows.
-    models: [OPENROUTER_DEFAULT_MODEL, "microsoft/mai-transcribe-2"],
+    models: [
+      OPENROUTER_DEFAULT_MODEL,
+      "microsoft/mai-transcribe-1.5",
+      "microsoft/mai-transcribe-2",
+    ],
     // A batch HTTP call, not a realtime stream — every audio chunk is only
     // ever buffered client-side, so no pace at which `sendAudio` is called
     // can violate anything the vendor sees on the wire.
@@ -176,6 +187,27 @@ export const openRouterProviderDefinition: ProviderDefinition =
       return createOpenRouterProvider({ ...config, model });
     },
   });
+
+export const metaProviderDefinition: ProviderDefinition = defineProvider<MetaMuseProviderConfig>({
+  id: "meta",
+  label: "Meta (Realtime Voice Transcribe)",
+  // The same model OpenRouter offers as `meta/muse-voice-transcribe-1.0`, but
+  // spoken to directly: Meta's own endpoint is a genuine realtime stream with
+  // partial transcripts, where OpenRouter's is batch-only (see ./meta-muse.ts).
+  models: [META_MUSE_DEFAULT_MODEL],
+  // A real streaming protocol, not yet fast-dump tested against
+  // testdata/OBSERVATIONS.md — defaults to realtime pacing until it earns this
+  // the same way the others did.
+  supportsFastDump: false,
+  resolveConfig(env) {
+    const apiKey = env.META_API_KEY;
+    if (!apiKey) return { ok: false, missing: ["META_API_KEY"] };
+    return { ok: true, config: { apiKey } };
+  },
+  create(config, model) {
+    return createMetaMuseProvider({ ...config, model });
+  },
+});
 
 export const mockProviderDefinition: ProviderDefinition = defineProvider<Record<string, never>>({
   id: "mock",
@@ -197,6 +229,7 @@ export const builtinProviderDefinitions: readonly ProviderDefinition[] = [
   bytePlusProviderDefinition,
   openAIProviderDefinition,
   openRouterProviderDefinition,
+  metaProviderDefinition,
   mockProviderDefinition,
 ];
 

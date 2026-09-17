@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -37,8 +38,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.launch
 
 /**
  * "Transcribe anywhere" — a button that streams the phone's own mic to
@@ -55,6 +62,7 @@ import androidx.core.content.ContextCompat
  */
 class PipTranscribeActivity : ComponentActivity() {
     private var toggleReceiver: BroadcastReceiver? = null
+    private val inPipMode = mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -71,9 +79,21 @@ class PipTranscribeActivity : ComponentActivity() {
             ContextCompat.RECEIVER_NOT_EXPORTED,
         )
 
+        // The PiP action button is a snapshot, not a binding: Android keeps
+        // showing whatever `RemoteAction` was last handed to it. Without this,
+        // a window entered while recording keeps offering "Stop" forever, even
+        // after the recording finishes on its own (dtinth/vxbeamer#86).
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                PipRecordingService.state.collect {
+                    if (isInPictureInPictureMode) setPictureInPictureParams(buildPipParams())
+                }
+            }
+        }
+
         setContent {
             VxbeamerTheme {
-                Surface { TranscribeScreen(onToggle = ::toggleRecording) }
+                Surface { TranscribeScreen(onToggle = ::toggleRecording, compact = inPipMode.value) }
             }
         }
     }
@@ -97,6 +117,7 @@ class PipTranscribeActivity : ComponentActivity() {
 
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: android.content.res.Configuration) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        inPipMode.value = isInPictureInPictureMode
         if (isInPictureInPictureMode) setPictureInPictureParams(buildPipParams())
     }
 
@@ -136,7 +157,7 @@ class PipTranscribeActivity : ComponentActivity() {
 }
 
 @Composable
-private fun TranscribeScreen(onToggle: () -> Unit) {
+private fun TranscribeScreen(onToggle: () -> Unit, compact: Boolean) {
     val context = LocalContext.current
     val state by PipRecordingService.state.collectAsState()
     var keepScreenOn by remember { mutableStateOf(false) }
@@ -163,17 +184,40 @@ private fun TranscribeScreen(onToggle: () -> Unit) {
         }
     }
 
+    val label =
+        when (val s = state) {
+            is PipRecordingService.State.Idle -> "Tap to speak"
+            is PipRecordingService.State.Recording -> s.text?.takeIf { it.isNotEmpty() } ?: "Listening…"
+            is PipRecordingService.State.Finishing -> s.text?.takeIf { it.isNotEmpty() } ?: "Finishing…"
+            is PipRecordingService.State.Error -> "Failed: ${s.message}"
+        }
+
+    // A PiP window does not deliver touches to its content — Android routes a
+    // tap to its own controls overlay instead, so the button and switch below
+    // would be decoration the user cannot reach. In that mode this is a status
+    // readout only, and the `RemoteAction` on the window is the control
+    // (dtinth/vxbeamer#86).
+    if (compact) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(12.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = label,
+                textAlign = TextAlign.Center,
+                maxLines = 4,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+        return
+    }
+
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
     ) {
-        val label =
-            when (val s = state) {
-                is PipRecordingService.State.Idle -> "Tap to speak"
-                is PipRecordingService.State.Recording -> s.text?.takeIf { it.isNotEmpty() } ?: "Listening…"
-                is PipRecordingService.State.Finishing -> s.text?.takeIf { it.isNotEmpty() } ?: "Finishing…"
-                is PipRecordingService.State.Error -> "Failed: ${s.message}"
-            }
         Text(label)
 
         Button(
@@ -192,6 +236,6 @@ private fun TranscribeScreen(onToggle: () -> Unit) {
             Switch(checked = keepScreenOn, onCheckedChange = { keepScreenOn = it })
         }
 
-        Text("Leave this screen while recording to shrink it into a corner.")
+        Text("Leave this screen while recording to shrink it into a corner. Tap the window there to reveal its stop button.")
     }
 }

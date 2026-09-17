@@ -15,6 +15,7 @@ import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import java.util.UUID
@@ -65,7 +66,9 @@ class PipRecordingService : Service() {
     }
 
     private fun startRecording() {
-        if (_state.value !is State.Idle) return
+        // Idle or a previous session's error are both fine to start from —
+        // only an already-busy session blocks a new one.
+        if (_state.value is State.Recording || _state.value is State.Finishing) return
 
         val hasMic =
             ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
@@ -90,12 +93,13 @@ class PipRecordingService : Service() {
     private suspend fun runSession() {
         val authStore = AuthStore(this)
         if (!authStore.isSignedIn) {
-            finish()
+            finish("Not signed in")
             return
         }
 
         var webSocket: BackendWebSocket? = null
         var eventSource: EventSource? = null
+        var error: String? = null
         finalReceived = CompletableDeferred()
         try {
             val accessToken = authStore.currentAccessToken()
@@ -109,15 +113,17 @@ class PipRecordingService : Service() {
             // moment the mic stops.
             withTimeoutOrNull(FINAL_GRACE_PERIOD_MS) { finalReceived?.await() }
         } catch (t: Throwable) {
+            Log.e(TAG, "PiP recording session failed", t)
+            error = t.message ?: t.javaClass.simpleName
             webSocket?.abort()
         } finally {
             eventSource?.cancel()
-            finish()
+            finish(error)
         }
     }
 
-    private fun finish() {
-        _state.value = State.Idle
+    private fun finish(error: String? = null) {
+        _state.value = if (error != null) State.Error(error) else State.Idle
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
@@ -132,7 +138,7 @@ class PipRecordingService : Service() {
         val hasMic =
             ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
                 PackageManager.PERMISSION_GRANTED
-        if (!hasMic) return
+        if (!hasMic) error("Microphone permission was revoked")
 
         val minBuffer =
             AudioRecord.getMinBufferSize(SAMPLE_RATE_HZ, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
@@ -259,12 +265,21 @@ class PipRecordingService : Service() {
         data class Recording(val text: String?) : State
 
         data class Finishing(val text: String?) : State
+
+        data class Error(val message: String) : State
+
+        /** True while a session is actually running — Idle and Error are
+         *  both "nothing in progress", the states a new recording can start
+         *  from (see [startRecording]'s own guard). */
+        val isActive: Boolean
+            get() = this is Recording || this is Finishing
     }
 
     companion object {
         const val ACTION_START = "com.dtinth.vxbeamer.mobile.action.START_PIP_RECORDING"
         const val ACTION_STOP = "com.dtinth.vxbeamer.mobile.action.STOP_PIP_RECORDING"
 
+        private const val TAG = "PipRecordingService"
         private const val SAMPLE_RATE_HZ = 16000
         private const val CHUNK_BYTES = 3200 // 100 ms at 16 kHz / 16-bit / mono
         private const val MIN_BUFFER_MULTIPLIER = 4

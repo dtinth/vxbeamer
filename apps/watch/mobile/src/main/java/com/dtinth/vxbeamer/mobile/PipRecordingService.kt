@@ -57,7 +57,7 @@ class PipRecordingService : Service() {
             startForegroundCompat()
         } catch (t: Throwable) {
             Log.e(TAG, "Could not start the foreground recording notification", t)
-            Transcription.publish(Transcription.State.Error(t.message ?: t.javaClass.simpleName))
+            Transcription.publishStandalone(Transcription.State.Error(t.message ?: t.javaClass.simpleName))
             stopSelf()
             return
         }

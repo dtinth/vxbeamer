@@ -33,12 +33,14 @@ const CHUNK_SIZE = 3200; // 100ms at 16kHz 16-bit mono
 
 export const META_MUSE_DEFAULT_MODEL = "muse-voice-transcribe-1.0";
 
-// $0.18 per hour of audio processed, billed rounded down to whole seconds —
+// $0.18 per hour of audio processed, billed rounded up to whole seconds —
 // Meta's own published rate, confirmed to match what OpenRouter passed
 // through for the same model with no markup (dtinth/vxbeamer#86).
 const META_PRICE_PER_SECOND = 0.18 / 3600;
 
 export function createMetaMuseProvider(config: MetaMuseProviderConfig): ASRProvider {
+  const model = config.model ?? META_MUSE_DEFAULT_MODEL;
+
   return {
     createSession(callbacks: ASRCreateSessionOptions): ASRSession {
       const ws = new WebSocket(config.baseUrl ?? "wss://api.meta.ai/v1/asr/realtime");
@@ -57,7 +59,7 @@ export function createMetaMuseProvider(config: MetaMuseProviderConfig): ASRProvi
             JSON.stringify({
               authorization: { accessToken: `Bearer ${config.apiKey}` },
               audioEncoding: "PCM_16KHZ",
-              model: config.model ?? META_MUSE_DEFAULT_MODEL,
+              model,
               mode: "PUSH_TO_TALK",
             }),
           );
@@ -78,7 +80,7 @@ export function createMetaMuseProvider(config: MetaMuseProviderConfig): ASRProvi
               const seconds = Math.ceil(totalBytesSent / BYTES_PER_SECOND);
               callbacks.onUsage?.([
                 {
-                  sku: `meta:${config.model ?? META_MUSE_DEFAULT_MODEL}:seconds`,
+                  sku: `meta:${model}:seconds`,
                   unitPrice: META_PRICE_PER_SECOND,
                   quantity: seconds,
                 },

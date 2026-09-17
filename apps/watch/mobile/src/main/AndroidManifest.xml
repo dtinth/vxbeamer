@@ -2,8 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
@@ -40,6 +42,23 @@
                 <action android:name="com.google.android.gms.wearable.CHANNEL_EVENT" />
             </intent-filter>
         </service>
+
+        <!-- "Transcribe anywhere" — the phone's own mic, no watch involved.
+             supportsPictureInPicture lets this activity shrink into a
+             square corner window while a recording is running; see
+             PipTranscribeActivity's own doc comment. -->
+        <activity
+            android:name=".PipTranscribeActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|uiMode"
+            android:resizeableActivity="true"
+            android:supportsPictureInPicture="true"
+            android:theme="@style/Theme.Vxbeamer" />
+
+        <service
+            android:name=".PipRecordingService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
 
     </application>
 </manifest>

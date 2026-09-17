@@ -10,12 +10,24 @@ Two separate Android apps live here, in one Gradle project:
   mic (16 kHz / 16-bit / mono, the exact format vxbeamer's own `/ws` already
   expects) and streams it to the phone over Bluetooth, using the Wear OS
   Data Layer's `ChannelClient`. Tap again to stop.
-- **`mobile/`** — runs on the paired phone, with no screen interaction
-  needed once signed in. Woken automatically by the system the moment the
-  watch opens a stream (a `WearableListenerService`, so no notification or
-  battery cost while idle). Reads the raw audio from that stream and
-  forwards it straight to vxbeamer's `/ws`, the same protocol the browser
-  uses, then sends the normal stop message once the watch closes its side.
+- **`mobile/`** — runs on the paired phone. Two independent ways to get
+  audio into vxbeamer:
+  - Watch relay, with no screen interaction needed once signed in. Woken
+    automatically by the system the moment the watch opens a stream (a
+    `WearableListenerService`, so no notification or battery cost while
+    idle). Reads the raw audio from that stream and forwards it straight to
+    vxbeamer's `/ws`, the same protocol the browser uses, then sends the
+    normal stop message once the watch closes its side.
+  - "Transcribe anywhere" (`PipTranscribeActivity` / `PipRecordingService`)
+    — the phone's own mic, no watch involved. A button starts capturing
+    straight to `/ws`; leaving the app while it's running shrinks it into a
+    square picture-in-picture window in the corner of the screen, with a
+    single tap-to-stop action on the window itself, so it stays reachable
+    over any other app. Unlike a "draw over other apps" overlay, PiP is not
+    the permission banking apps commonly block (dtinth/vxbeamer#86). Once
+    the transcript finalizes (watched over `/sse`, the same events the web
+    app reacts to), it's copied to the clipboard automatically. A "keep
+    screen on" switch is also on the same screen.
 
 Sign-in reuses the desktop app's own flow: the phone app opens your browser,
 you sign in, the hosted web app shows a short code, and you paste that code

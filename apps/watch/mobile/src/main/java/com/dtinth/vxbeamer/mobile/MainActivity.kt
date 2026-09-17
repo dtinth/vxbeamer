@@ -75,6 +75,11 @@ private fun SignInScreen() {
         if (signedIn) {
             Text("Signed in. The watch app can relay recordings now.")
             Button(
+                onClick = { context.startActivity(Intent(context, PipTranscribeActivity::class.java)) },
+            ) {
+                Text("Start transcribing")
+            }
+            Button(
                 onClick = {
                     authStore.signOut()
                     signedIn = false

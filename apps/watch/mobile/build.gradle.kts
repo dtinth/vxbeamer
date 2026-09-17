@@ -52,4 +52,5 @@ dependencies {
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.androidx.security.crypto)
     implementation(libs.okhttp)
+    implementation(libs.okhttp.sse)
 }

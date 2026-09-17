@@ -44,13 +44,16 @@ class BackendWebSocket private constructor(private val socket: WebSocket) {
         suspend fun connect(backendUrl: String, accessToken: String, referenceId: String): BackendWebSocket =
             suspendCoroutine { continuation ->
                 val httpUrl = backendUrl.toHttpUrl()
-                val wsScheme = if (httpUrl.scheme == "https") "wss" else "ws"
                 // Mirrors buildBackendSocketUrl in apps/website/src/backendSocket.ts:
-                // swap the scheme, replace the whole path with `/ws`, drop any
-                // inherited query, then set these params fresh.
+                // replace the whole path with `/ws`, drop any inherited query,
+                // then set these params fresh. Unlike the browser's own
+                // WebSocket API, OkHttp's upgrades a plain http/https request
+                // to a socket internally — HttpUrl only ever accepts an
+                // http/https scheme and throws IllegalArgumentException on
+                // "ws"/"wss" (confirmed on real hardware, dtinth/vxbeamer#86),
+                // so the scheme is left as whatever `backendUrl` already is.
                 val wsUrl =
                     httpUrl.newBuilder()
-                        .scheme(wsScheme)
                         .encodedPath("/ws")
                         .query(null)
                         .addQueryParameter("access_token", accessToken)

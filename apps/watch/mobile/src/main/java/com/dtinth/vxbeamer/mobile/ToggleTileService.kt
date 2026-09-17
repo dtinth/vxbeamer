@@ -46,7 +46,7 @@ class ToggleTileService : TileService() {
         // window in which it is worth following the service's state.
         watchJob =
             scope.launch {
-                PipRecordingService.state.collect { render() }
+                Transcription.state.collect { render() }
             }
     }
 
@@ -58,7 +58,7 @@ class ToggleTileService : TileService() {
 
     override fun onClick() {
         super.onClick()
-        if (PipRecordingService.state.value.isActive) {
+        if (Transcription.state.value.isActive) {
             startService(
                 Intent(this, PipRecordingService::class.java).setAction(PipRecordingService.ACTION_STOP),
             )
@@ -93,7 +93,7 @@ class ToggleTileService : TileService() {
 
     private fun render() {
         val tile = qsTile ?: return
-        val active = PipRecordingService.state.value.isActive
+        val active = Transcription.state.value.isActive
         tile.state = if (active) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
         tile.label = getString(R.string.tile_label)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {

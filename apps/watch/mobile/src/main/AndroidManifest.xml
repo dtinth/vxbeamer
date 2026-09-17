@@ -7,6 +7,9 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- The always-on-top record button, switched on and off by the user from
+         PipTranscribeActivity — see FloatingWindowService's doc comment. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <application
         android:allowBackup="true"
@@ -57,6 +60,15 @@
 
         <service
             android:name=".PipRecordingService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
+
+        <!-- Owns the mic itself rather than delegating to PipRecordingService:
+             a tap on an overlay happens with the app in the background, where
+             a microphone service may not be started. See the service's own
+             doc comment. -->
+        <service
+            android:name=".FloatingWindowService"
             android:exported="false"
             android:foregroundServiceType="microphone" />
 

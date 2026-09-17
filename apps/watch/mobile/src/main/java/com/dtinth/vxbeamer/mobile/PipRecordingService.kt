@@ -35,6 +35,12 @@ class PipRecordingService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> session?.requestStop()
+            ACTION_RESET -> {
+                session?.abort()
+                job?.cancel()
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+            }
             else -> startRecording()
         }
         return START_NOT_STICKY
@@ -103,6 +109,9 @@ class PipRecordingService : Service() {
     companion object {
         const val ACTION_START = "com.dtinth.vxbeamer.mobile.action.START_PIP_RECORDING"
         const val ACTION_STOP = "com.dtinth.vxbeamer.mobile.action.STOP_PIP_RECORDING"
+
+        /** Abandons a recording that is not going to finish on its own. */
+        const val ACTION_RESET = "com.dtinth.vxbeamer.mobile.action.RESET_PIP_RECORDING"
 
         private const val TAG = "PipRecordingService"
         private const val NOTIFICATION_ID = 2

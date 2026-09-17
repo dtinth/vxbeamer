@@ -24,12 +24,17 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -250,11 +255,45 @@ private fun TranscribeScreen(onToggle: () -> Unit, compact: Boolean) {
         return
     }
 
-    Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
-    ) {
-        Text(label)
+    // Settings on top, transcript in the middle, record button at the bottom
+    // within thumb reach — the same shape the web app uses, because the phone
+    // itself is the microphone in this mode (dtinth/vxbeamer#86).
+    Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Keep screen on")
+            Switch(checked = keepScreenOn, onCheckedChange = { keepScreenOn = it })
+        }
+
+        FloatingWindowToggle()
+
+        Column(
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(text = label, textAlign = TextAlign.Center)
+        }
+
+        // Only offered when there is something to abandon: a provider that
+        // never sends a final would otherwise strand the session in
+        // "Finishing…" with no way out but force-quitting the app.
+        if (state is Transcription.State.Finishing) {
+            TextButton(
+                onClick = {
+                    context.startService(
+                        Intent(context, PipRecordingService::class.java)
+                            .setAction(PipRecordingService.ACTION_RESET),
+                    )
+                    context.startService(
+                        Intent(context, FloatingWindowService::class.java)
+                            .setAction(FloatingWindowService.ACTION_RESET),
+                    )
+                },
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+            ) {
+                Text("Reset stuck recording")
+            }
+        }
 
         Button(
             onClick = {
@@ -263,18 +302,20 @@ private fun TranscribeScreen(onToggle: () -> Unit, compact: Boolean) {
                         PackageManager.PERMISSION_GRANTED
                 if (hasMic) onToggle() else micPermission.launch(Manifest.permission.RECORD_AUDIO)
             },
+            shape = CircleShape,
+            colors =
+                ButtonDefaults.buttonColors(
+                    containerColor =
+                        if (state.isActive) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.primary
+                        },
+                ),
+            modifier = Modifier.align(Alignment.CenterHorizontally).size(120.dp),
         ) {
             Text(if (state.isActive) "Stop" else "Start")
         }
-
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Keep screen on")
-            Switch(checked = keepScreenOn, onCheckedChange = { keepScreenOn = it })
-        }
-
-        FloatingWindowToggle()
-
-        Text("Leave this screen while recording to shrink it into a corner. Tap the window there to reveal its stop button.")
     }
 }
 

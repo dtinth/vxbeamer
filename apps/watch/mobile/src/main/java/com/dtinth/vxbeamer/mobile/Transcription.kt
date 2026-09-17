@@ -49,6 +49,9 @@ class TranscriptionSession(private val context: Context) {
      *  `reference_id` the backend echoes back on this recording's message. */
     private val sessionId = UUID.randomUUID().toString()
 
+    @Volatile private var webSocket: BackendWebSocket? = null
+    @Volatile private var eventSource: EventSource? = null
+
     fun requestStop() {
         stopRequested = true
         val current = Transcription.state.value
@@ -57,10 +60,27 @@ class TranscriptionSession(private val context: Context) {
         }
     }
 
+    /**
+     * Abandons this recording immediately, without waiting for a transcript.
+     *
+     * A provider that never sends a final leaves an ordinary stop waiting out
+     * the whole [FINAL_GRACE_PERIOD_MS] — long enough to look hung, and there
+     * was no way to get out of it and retry (dtinth/vxbeamer#86). This drops
+     * the socket, stops listening, and releases the state so the next
+     * recording can start right away.
+     */
+    fun abort() {
+        stopRequested = true
+        webSocket?.abort()
+        eventSource?.cancel()
+        // Unblocks the grace-period wait in `run`, which would otherwise hold
+        // the session open for the rest of its timeout.
+        finalReceived?.complete(Unit)
+        Transcription.endSession(sessionId, Transcription.State.Idle)
+    }
+
     /** Runs one whole recording, returning only once it has finished. */
     suspend fun run() {
-        var webSocket: BackendWebSocket? = null
-        var eventSource: EventSource? = null
         var error: String? = null
         finalReceived = CompletableDeferred()
         Transcription.beginSession(sessionId)
@@ -72,10 +92,11 @@ class TranscriptionSession(private val context: Context) {
             val authStore = AuthStore(context)
             if (!authStore.isSignedIn) error("Not signed in")
             val accessToken = authStore.currentAccessToken()
-            webSocket = BackendWebSocket.connect(authStore.backendUrl, accessToken, sessionId)
+            val socket = BackendWebSocket.connect(authStore.backendUrl, accessToken, sessionId)
+            webSocket = socket
             eventSource = watchTranscript(authStore.backendUrl, accessToken, sessionId)
-            captureAndStream(webSocket)
-            webSocket.stop()
+            captureAndStream(socket)
+            socket.stop()
             // The final transcript can arrive slightly after the socket closes
             // — grace window rather than tearing down the moment the mic stops.
             withTimeoutOrNull(FINAL_GRACE_PERIOD_MS) { finalReceived?.await() }

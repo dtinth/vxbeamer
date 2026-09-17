@@ -1,9 +1,16 @@
 import { defineConfig, devices } from "@playwright/test";
+import { OIDC_SECRET } from "./e2e/testConfig.ts";
 
 const backendPort = 8788;
 const frontendPort = 5174;
 
-// API_KEYS in sub:secret format - matches E2E_API_KEY in e2e/recording.spec.ts
+// API_KEYS in sub:secret format - matches E2E_API_KEY in e2e/recording.spec.ts.
+// This pair is deliberately used by exactly one test ("records audio and
+// displays transcript from mock ASR" in e2e/recording.spec.ts), which is the
+// one that exercises the real `/auth/token` API-key exchange end to end.
+// Every other test mints its own access token directly (see
+// `signInAsFreshSubject` in e2e/support.ts) rather than going through this
+// pair, so this subject is never shared.
 const apiKeyPair = "e2e:e2e-test-api-key";
 
 export default defineConfig({
@@ -11,18 +18,19 @@ export default defineConfig({
   timeout: 60_000,
   retries: 0,
   // The backend is one long-lived process (see the single `webServer` entry
-  // below, not one per worker) and every e2e test signs in as the same
-  // `e2e` subject (see `apiKeyPair`). The backend keeps one in-memory
-  // message log per subject and broadcasts every update over SSE to every
-  // client subscribed to that subject (`apps/backend/src/store.ts`) — so two
-  // tests running concurrently in different workers are not isolated from
-  // each other: each sees the other's messages appear on its own page mid-
-  // test, corrupting card counts and producing duplicate-text elements
+  // below, not one per worker), with no reset between tests or spec files
+  // (`apps/backend/src/store.ts` keeps one in-memory message log per subject
+  // for the life of the process). Two tests running concurrently that shared
+  // a subject would see each other's messages appear on their own pages
+  // mid-test, corrupting card counts and producing duplicate-text elements
   // (dtinth/vxbeamer, recording.spec.ts "records audio and displays
   // transcript from mock ASR" failing with a strict-mode violation on two
-  // identical "Good morning…" cards). Forcing a single worker makes tests
-  // run strictly one at a time against that shared subject, which is what
-  // every spec here already assumes.
+  // identical "Good morning…" cards). Every test besides that one now signs
+  // in as its own private, never-reused subject (see `signInAsFreshSubject`
+  // in e2e/support.ts), which removes that cross-test bleed at its source —
+  // but workers stay pinned to 1 anyway, since a single shared frontend/
+  // backend dev-server pair per run isn't necessarily safe under concurrent
+  // browser contexts beyond just message isolation.
   workers: 1,
   use: {
     baseURL: `http://localhost:${frontendPort}`,
@@ -63,7 +71,7 @@ export default defineConfig({
         EVAL_STORAGE_FORCE_PATH_STYLE: "true",
         API_KEYS: apiKeyPair,
         OIDC_DISCOVERY_URL: "https://mockapis.onrender.com/oauth/.well-known/openid-configuration",
-        OIDC_SECRET: "e2e-test-secret",
+        OIDC_SECRET,
       },
       reuseExistingServer: !process.env.CI,
     },

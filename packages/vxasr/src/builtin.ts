@@ -143,6 +143,12 @@ export const builtinConfigurations: readonly ConfigurationSpec[] = [
     model: "microsoft/mai-transcribe-2",
     label: "OpenRouter MAI-Transcribe-2 (raw)",
   },
+  // The same model as the OpenRouter default above, spoken to directly
+  // (dtinth/vxbeamer#86): Meta's own endpoint streams genuine partial
+  // transcripts, where OpenRouter's is a batch upload with no partials.
+  // Declared raw only, same reasoning as the OpenRouter entry: a plain
+  // transcription endpoint with no post-processing chain to enhance.
+  { provider: "meta", label: "Meta Realtime Muse Voice Transcribe (raw)" },
   { provider: "mock", label: "Mock (canned transcript, no network)" },
 ];
 

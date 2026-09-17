@@ -70,6 +70,11 @@ class FloatingWindowService : Service() {
                 teardown()
                 return START_NOT_STICKY
             }
+            ACTION_RESET -> {
+                session?.abort()
+                sessionJob?.cancel()
+                return START_STICKY
+            }
             else -> show()
         }
         return START_STICKY
@@ -371,6 +376,9 @@ class FloatingWindowService : Service() {
 
     companion object {
         const val ACTION_HIDE = "com.dtinth.vxbeamer.mobile.action.HIDE_FLOATING_WINDOW"
+
+        /** Abandons a recording that is not going to finish on its own. */
+        const val ACTION_RESET = "com.dtinth.vxbeamer.mobile.action.RESET_FLOATING_RECORDING"
 
         private const val NOTIFICATION_ID = 3
         private const val CHANNEL_ID = "floating_window"

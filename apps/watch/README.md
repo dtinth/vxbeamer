@@ -1,8 +1,8 @@
-# vxbeamer Watch Relay
+# vxbeamer transmitter
 
-Lets a Wear OS watch (built and tested against a Samsung Galaxy Watch 5) be a
-voice-input device for vxbeamer, without the watch ever talking to the
-internet itself (dtinth/vxbeamer#86).
+Voice input for vxbeamer from a phone, or from a Wear OS watch (built and
+tested against a Samsung Galaxy Watch 5) that never talks to the internet
+itself (dtinth/vxbeamer#86).
 
 Two separate Android apps live here, in one Gradle project:
 
@@ -18,16 +18,24 @@ Two separate Android apps live here, in one Gradle project:
     idle). Reads the raw audio from that stream and forwards it straight to
     vxbeamer's `/ws`, the same protocol the browser uses, then sends the
     normal stop message once the watch closes its side.
-  - "Transcribe anywhere" (`PipTranscribeActivity` / `PipRecordingService`)
-    — the phone's own mic, no watch involved. A button starts capturing
-    straight to `/ws`; leaving the app while it's running shrinks it into a
-    square picture-in-picture window in the corner of the screen, with a
-    single tap-to-stop action on the window itself, so it stays reachable
-    over any other app. Unlike a "draw over other apps" overlay, PiP is not
-    the permission banking apps commonly block (dtinth/vxbeamer#86). Once
-    the transcript finalizes (watched over `/sse`, the same events the web
-    app reacts to), it's copied to the clipboard automatically. A "keep
-    screen on" switch is also on the same screen.
+  - "Transcribe anywhere" — the phone's own mic, no watch involved
+    (`PipTranscribeActivity`, with the recording itself in
+    `TranscriptionSession`, shared with the floating window). The finished
+    transcript is copied to the clipboard automatically, watched over
+    `/sse` — the same events the web app reacts to.
+
+    Three ways to reach it, because none of them is best everywhere:
+
+    |                     | Reach             | Notes                                                                                                                                                       |
+    | ------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+    | Full screen         | Open the app      | Record button at the bottom, in thumb reach                                                                                                                 |
+    | Floating button     | One tap, anywhere | Draggable, live transcript and level meter. Uses "draw over other apps", which banking apps can suppress on Android 12+, so it is opt-in and switchable off |
+    | Quick Settings tile | Swipe down, tap   | No permission, and no app can suppress it                                                                                                                   |
+
+    Leaving the app mid-recording drops it into a square picture-in-picture
+    window. That window is a **status readout, not a control** — a PiP
+    window never delivers touches to its content, so its stop button is the
+    `RemoteAction` revealed by tapping it.
 
 Sign-in reuses the desktop app's own flow: the phone app opens your browser,
 you sign in, the hosted web app shows a short code, and you paste that code
@@ -36,11 +44,18 @@ for a second app to reuse this path.
 
 ## Status
 
-Not yet verified on real hardware. This was written and compiled in a
-sandboxed environment with no Android emulator support (no hardware
-virtualization), so it has only been checked for `assembleDebug` and
-`lintDebug` passing — not run. See dtinth/vxbeamer#86 for the design
-discussion and for reporting what breaks on a real watch and phone.
+The **phone app works** — transcribing from its own mic is verified on real
+hardware (dtinth/vxbeamer#86).
+
+The **watch relay is still unverified**: it has never completed a recording
+on a real watch, and the watch it was written for has a failing battery. It
+compiles and its one known bug is fixed (the relay shares
+`BackendWebSocket` with the phone, which was rejecting its own URLs until
+that was found on device), but treat it as untested.
+
+This is developed in a sandbox with no emulator (no hardware
+virtualization), so anything not listed as verified above has only been
+checked for `assembleDebug` and `lintDebug` passing.
 
 ## Prerequisites
 

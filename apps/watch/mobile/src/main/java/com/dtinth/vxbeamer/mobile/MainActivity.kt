@@ -7,9 +7,16 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -26,17 +33,17 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
 /**
- * The only screen this app has. It is not where audio flows through — that
- * is [RelayListenerService], woken by the system on its own. This screen
- * exists purely to enter the backend URL and sign in once, the same
- * desktop-style flow the Tauri app uses (dtinth/vxbeamer#86).
+ * Setup and sign-in. Recording does not happen here — that is
+ * [PipTranscribeActivity] for the phone's own mic, and
+ * [RelayListenerService] for audio relayed from the watch, which the system
+ * wakes on its own (dtinth/vxbeamer#86).
  */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             VxbeamerTheme {
-                Surface { SignInScreen() }
+                Surface(modifier = Modifier.fillMaxSize()) { SignInScreen() }
             }
         }
     }
@@ -56,10 +63,20 @@ private fun SignInScreen() {
     var signedIn by remember { mutableStateOf(authStore.isSignedIn) }
 
     Column(
-        modifier = Modifier.fillMaxWidth().padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier =
+            Modifier.fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp, vertical = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
-        Text("vxbeamer Watch Relay")
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("vxbeamer transmitter", style = MaterialTheme.typography.headlineSmall)
+            Text(
+                "Voice input for vxbeamer, from this phone or a paired watch.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
 
         OutlinedTextField(
             value = backendUrl,
@@ -68,73 +85,137 @@ private fun SignInScreen() {
                 authStore.backendUrl = it
             },
             label = { Text("Backend URL") },
+            singleLine = true,
+            enabled = !signedIn,
+            supportingText = if (signedIn) ({ Text("Sign out to change this.") }) else null,
             modifier = Modifier.fillMaxWidth(),
         )
 
         if (signedIn) {
-            Text("Signed in. The watch app can relay recordings now.")
-            Button(
-                onClick = { context.startActivity(Intent(context, PipTranscribeActivity::class.java)) },
-            ) {
-                Text("Start transcribing")
-            }
-            Button(
-                onClick = {
+            SignedInCard(
+                onTranscribe = { context.startActivity(Intent(context, PipTranscribeActivity::class.java)) },
+                onSignOut = {
                     authStore.signOut()
                     signedIn = false
                     statusMessage = ""
                 },
-            ) {
-                Text("Sign out")
-            }
+            )
         } else {
-            Button(
-                onClick = {
+            SignInCard(
+                pendingCode = pendingCodeVerifier != null,
+                pastedCode = pastedCode,
+                onPastedCodeChange = { pastedCode = it },
+                onBeginSignIn = {
                     scope.launch {
                         runCatching { Oidc.beginSignIn(backendUrl) }
                             .onSuccess { pending ->
                                 pendingCodeVerifier = pending.codeVerifier
                                 pendingState = pending.state
-                                statusMessage = "Sign in, then paste the code shown below."
+                                statusMessage = "Sign in, then paste the code shown in the browser."
                                 context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(pending.authUrl)))
                             }
                             .onFailure { statusMessage = it.message ?: "Could not start sign-in" }
                     }
                 },
-            ) {
-                Text("Sign in")
+                onCompleteSignIn = {
+                    val codeVerifier = pendingCodeVerifier ?: return@SignInCard
+                    val state = pendingState ?: return@SignInCard
+                    scope.launch {
+                        runCatching { Oidc.completeSignIn(backendUrl, pastedCode, codeVerifier, state) }
+                            .onSuccess { tokens ->
+                                authStore.saveTokens(tokens)
+                                signedIn = true
+                                pendingCodeVerifier = null
+                                pendingState = null
+                                pastedCode = ""
+                                statusMessage = ""
+                            }
+                            .onFailure { statusMessage = it.message ?: "Sign-in failed" }
+                    }
+                },
+            )
+        }
+
+        if (statusMessage.isNotEmpty()) {
+            Text(
+                statusMessage,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SignedInCard(onTranscribe: () -> Unit, onSignOut: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text("Signed in", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "The watch can relay recordings now, or use this phone's own microphone.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Button(onClick = onTranscribe, modifier = Modifier.fillMaxWidth()) {
+                Text("Start transcribing")
+            }
+            OutlinedButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) {
+                Text("Sign out")
+            }
+        }
+    }
+}
+
+@Composable
+private fun SignInCard(
+    pendingCode: Boolean,
+    pastedCode: String,
+    onPastedCodeChange: (String) -> Unit,
+    onBeginSignIn: () -> Unit,
+    onCompleteSignIn: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text("Sign in", style = MaterialTheme.typography.titleMedium)
+            Text(
+                // The desktop app's own flow, reused as-is: the browser lands
+                // on the hosted web app, which shows a code to paste back here.
+                "Opens your browser. Copy the code it shows back into this app.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Button(onClick = onBeginSignIn, modifier = Modifier.fillMaxWidth()) {
+                Text(if (pendingCode) "Open browser again" else "Sign in")
             }
 
-            if (pendingCodeVerifier != null) {
+            if (pendingCode) {
                 OutlinedTextField(
                     value = pastedCode,
-                    onValueChange = { pastedCode = it },
-                    label = { Text("Paste the code from the browser") },
+                    onValueChange = onPastedCodeChange,
+                    label = { Text("Code from the browser") },
+                    singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Button(
-                    onClick = {
-                        val codeVerifier = pendingCodeVerifier ?: return@Button
-                        val state = pendingState ?: return@Button
-                        scope.launch {
-                            runCatching { Oidc.completeSignIn(backendUrl, pastedCode, codeVerifier, state) }
-                                .onSuccess { tokens ->
-                                    authStore.saveTokens(tokens)
-                                    signedIn = true
-                                    pendingCodeVerifier = null
-                                    pendingState = null
-                                    pastedCode = ""
-                                    statusMessage = "Signed in."
-                                }
-                                .onFailure { statusMessage = it.message ?: "Sign-in failed" }
-                        }
-                    },
+                    onClick = onCompleteSignIn,
+                    enabled = pastedCode.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text("Complete sign-in")
                 }
             }
         }
-
-        if (statusMessage.isNotEmpty()) Text(statusMessage)
     }
 }

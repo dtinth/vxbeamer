@@ -20,6 +20,15 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -224,17 +233,29 @@ private fun TranscribeScreen(onToggle: () -> Unit, compact: Boolean) {
         }
     }
 
-    val label =
+    val level by Transcription.audioLevel.collectAsState()
+
+    // What the model has heard so far, if anything — kept apart from the
+    // status line so a transcript never reads as a status and vice versa.
+    val transcript =
         when (val s = state) {
+            is Transcription.State.Recording -> s.text
+            is Transcription.State.Finishing -> s.text
+            is Transcription.State.Copied -> s.text
+            else -> null
+        }?.takeIf { it.isNotEmpty() }
+
+    val status =
+        when (state) {
             is Transcription.State.Idle -> "Tap to speak"
-            is Transcription.State.Recording -> s.text?.takeIf { it.isNotEmpty() } ?: "Listening…"
-            is Transcription.State.Finishing -> s.text?.takeIf { it.isNotEmpty() } ?: "Finishing…"
-            is Transcription.State.Copied -> "Copied: ${s.text}"
-            is Transcription.State.Error -> "Failed: ${s.message}"
+            is Transcription.State.Recording -> "Listening…"
+            is Transcription.State.Finishing -> "Finishing…"
+            is Transcription.State.Copied -> "Copied to clipboard"
+            is Transcription.State.Error -> "Failed"
         }
 
     // A PiP window does not deliver touches to its content — Android routes a
-    // tap to its own controls overlay instead, so the button and switch below
+    // tap to its own controls overlay instead, so the button and switches
     // would be decoration the user cannot reach. In that mode this is a status
     // readout only, and the `RemoteAction` on the window is the control
     // (dtinth/vxbeamer#86).
@@ -244,13 +265,17 @@ private fun TranscribeScreen(onToggle: () -> Unit, compact: Boolean) {
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(
-                text = label,
-                textAlign = TextAlign.Center,
-                maxLines = 4,
-                overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            StatusLine(state = state, status = status)
+            if (transcript != null) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = transcript,
+                    textAlign = TextAlign.Center,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
         }
         return
     }
@@ -258,20 +283,33 @@ private fun TranscribeScreen(onToggle: () -> Unit, compact: Boolean) {
     // Settings on top, transcript in the middle, record button at the bottom
     // within thumb reach — the same shape the web app uses, because the phone
     // itself is the microphone in this mode (dtinth/vxbeamer#86).
-    Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Keep screen on")
-            Switch(checked = keepScreenOn, onCheckedChange = { keepScreenOn = it })
-        }
-
-        FloatingWindowToggle()
+    Column(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        SettingsCard(keepScreenOn = keepScreenOn, onKeepScreenOnChange = { keepScreenOn = it })
 
         Column(
             modifier = Modifier.weight(1f).fillMaxWidth(),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(text = label, textAlign = TextAlign.Center)
+            StatusLine(state = state, status = status)
+            Spacer(Modifier.height(12.dp))
+            if (transcript != null) {
+                Text(
+                    text = transcript,
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            } else if (state is Transcription.State.Error) {
+                Text(
+                    text = (state as Transcription.State.Error).message,
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
         }
 
         // Only offered when there is something to abandon: a provider that
@@ -295,27 +333,125 @@ private fun TranscribeScreen(onToggle: () -> Unit, compact: Boolean) {
             }
         }
 
-        Button(
+        RecordButton(
+            recording = state.isActive,
+            level = level,
             onClick = {
                 val hasMic =
                     ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
                         PackageManager.PERMISSION_GRANTED
                 if (hasMic) onToggle() else micPermission.launch(Manifest.permission.RECORD_AUDIO)
             },
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+        )
+    }
+}
+
+/** Status with a colour-coded dot, so state reads at a glance. */
+@Composable
+private fun StatusLine(state: Transcription.State, status: String) {
+    val colour =
+        when (state) {
+            is Transcription.State.Recording -> MaterialTheme.colorScheme.error
+            is Transcription.State.Finishing -> MaterialTheme.colorScheme.tertiary
+            is Transcription.State.Copied -> MaterialTheme.colorScheme.primary
+            is Transcription.State.Error -> MaterialTheme.colorScheme.error
+            is Transcription.State.Idle -> MaterialTheme.colorScheme.outline
+        }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(colour))
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = status,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/**
+ * The record button, ringed by a live level meter. The ring is the audio
+ * level rather than a separate bar, so there is one thing to look at while
+ * speaking instead of two (dtinth/vxbeamer#86).
+ */
+@Composable
+private fun RecordButton(
+    recording: Boolean,
+    level: Float,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val ring by animateFloatAsState(targetValue = level, label = "level")
+    val ringColour = MaterialTheme.colorScheme.error
+    Box(modifier = modifier.size(144.dp), contentAlignment = Alignment.Center) {
+        if (recording) {
+            Box(
+                modifier =
+                    Modifier.size((112 + 32 * ring).dp)
+                        .clip(CircleShape)
+                        .background(ringColour.copy(alpha = 0.18f)),
+            )
+        }
+        Button(
+            onClick = onClick,
             shape = CircleShape,
             colors =
                 ButtonDefaults.buttonColors(
                     containerColor =
-                        if (state.isActive) {
+                        if (recording) {
                             MaterialTheme.colorScheme.error
                         } else {
                             MaterialTheme.colorScheme.primary
                         },
                 ),
-            modifier = Modifier.align(Alignment.CenterHorizontally).size(120.dp),
+            modifier = Modifier.size(112.dp),
         ) {
-            Text(if (state.isActive) "Stop" else "Start")
+            Text(
+                text = if (recording) "Stop" else "Start",
+                style = MaterialTheme.typography.titleMedium,
+            )
         }
+    }
+}
+
+@Composable
+private fun SettingsCard(keepScreenOn: Boolean, onKeepScreenOnChange: (Boolean) -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+            SettingRow(
+                title = "Keep screen on",
+                subtitle = "While this screen is open",
+                checked = keepScreenOn,
+                onCheckedChange = onKeepScreenOnChange,
+            )
+            FloatingWindowToggle()
+        }
+    }
+}
+
+@Composable
+private fun SettingRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 
@@ -343,31 +479,30 @@ private fun FloatingWindowToggle() {
             }
         }
 
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("Floating button")
-        Switch(
-            checked = showing,
-            onCheckedChange = { wanted ->
-                if (!wanted) {
-                    context.startService(
-                        Intent(context, FloatingWindowService::class.java)
-                            .setAction(FloatingWindowService.ACTION_HIDE),
-                    )
-                    showing = false
-                    return@Switch
-                }
-                if (Settings.canDrawOverlays(context)) {
-                    context.startService(Intent(context, FloatingWindowService::class.java))
-                    showing = true
-                } else {
-                    overlayPermission.launch(
-                        Intent(
-                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                            Uri.parse("package:${context.packageName}"),
-                        ),
-                    )
-                }
-            },
-        )
-    }
+    SettingRow(
+        title = "Floating button",
+        subtitle = "Tap to record from inside any app",
+        checked = showing,
+        onCheckedChange = { wanted ->
+            if (!wanted) {
+                context.startService(
+                    Intent(context, FloatingWindowService::class.java)
+                        .setAction(FloatingWindowService.ACTION_HIDE),
+                )
+                showing = false
+                return@SettingRow
+            }
+            if (Settings.canDrawOverlays(context)) {
+                context.startService(Intent(context, FloatingWindowService::class.java))
+                showing = true
+            } else {
+                overlayPermission.launch(
+                    Intent(
+                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:${context.packageName}"),
+                    ),
+                )
+            }
+        },
+    )
 }

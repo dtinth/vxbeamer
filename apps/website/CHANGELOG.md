@@ -1,5 +1,17 @@
 # website
 
+## 0.3.0
+
+### Minor Changes
+
+- a2cf8ce: Add keyboard shortcuts to the web app: `c` copies the latest finished transcript, `r` toggles recording, and holding Space is push-to-talk (starts on press, stops and copies automatically once the transcript finishes on release). Shortcuts are ignored while typing in a text field.
+
+### Patch Changes
+
+- Updated dependencies [4908569]
+- Updated dependencies [4806697]
+  - vxasr@0.3.0
+
 ## 0.2.0
 
 ### Patch Changes

@@ -13,6 +13,11 @@ import {
   OPENROUTER_DEFAULT_MODEL,
   type OpenRouterProviderConfig,
 } from "./openrouter.ts";
+import {
+  createMetaMuseProvider,
+  META_MUSE_DEFAULT_MODEL,
+  type MetaMuseProviderConfig,
+} from "./meta-muse.ts";
 import { createMockProvider } from "./mock.ts";
 
 export const qwenProviderDefinition: ProviderDefinition = defineProvider<QwenProviderConfig>({
@@ -183,6 +188,27 @@ export const openRouterProviderDefinition: ProviderDefinition =
     },
   });
 
+export const metaProviderDefinition: ProviderDefinition = defineProvider<MetaMuseProviderConfig>({
+  id: "meta",
+  label: "Meta (Realtime Voice Transcribe)",
+  // The same model OpenRouter offers as `meta/muse-voice-transcribe-1.0`, but
+  // spoken to directly: Meta's own endpoint is a genuine realtime stream with
+  // partial transcripts, where OpenRouter's is batch-only (see ./meta-muse.ts).
+  models: [META_MUSE_DEFAULT_MODEL],
+  // A real streaming protocol, not yet fast-dump tested against
+  // testdata/OBSERVATIONS.md — defaults to realtime pacing until it earns this
+  // the same way the others did.
+  supportsFastDump: false,
+  resolveConfig(env) {
+    const apiKey = env.META_API_KEY;
+    if (!apiKey) return { ok: false, missing: ["META_API_KEY"] };
+    return { ok: true, config: { apiKey } };
+  },
+  create(config, model) {
+    return createMetaMuseProvider({ ...config, model });
+  },
+});
+
 export const mockProviderDefinition: ProviderDefinition = defineProvider<Record<string, never>>({
   id: "mock",
   label: "Mock (canned transcript, no network)",
@@ -203,6 +229,7 @@ export const builtinProviderDefinitions: readonly ProviderDefinition[] = [
   bytePlusProviderDefinition,
   openAIProviderDefinition,
   openRouterProviderDefinition,
+  metaProviderDefinition,
   mockProviderDefinition,
 ];
 

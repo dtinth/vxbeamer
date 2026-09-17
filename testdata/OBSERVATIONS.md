@@ -293,7 +293,19 @@ Run **2026-08-23**, not 2026-07-16 like the rest of this file. A single HTTP end
 
 `microsoft/mai-transcribe-2` costs about a third of `1.5`, but made two small errors that `1.5` did not (dtinth/vxbeamer#86). Not yet added as a configuration — the drop in accuracy needs a decision first.
 
-`meta/muse-voice-transcribe-1.0` is the cleanest transcript of every OpenRouter model tried so far on this fixture, and costs under half of `mai-transcribe-1.5`. Not yet added as a configuration — the drop-in decision needs dtinth's call.
+`meta/muse-voice-transcribe-1.0` is the cleanest transcript of every OpenRouter model tried so far on this fixture, and costs under half of `mai-transcribe-1.5`. Added as the OpenRouter provider's default (dtinth/vxbeamer#86).
+
+---
+
+## Meta (direct realtime API)
+
+Run **2026-09-18**. Same model as the OpenRouter entry above (`muse-voice-transcribe-1.0`), spoken to directly over `wss://api.meta.ai/v1/asr/realtime` instead of through OpenRouter's batch wrapper — see `../packages/vxasr/src/providers/meta-muse.ts`. `PUSH_TO_TALK` mode, `PCM_16KHZ`, no `languageBias`.
+
+| output                                                                                                                                                                                                                                                                                                            | usage                                                                                                         | wall  | first partial |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ----- | ------------- |
+| `โปรเจกต์นี้เขียนด้วยภาษา TypeScript ใช้เฟรมเวิร์กชื่อ Alessia โดย deploy ไปที่ Railway และใช้ MongoDB Atlas เป็นผู้ให้บริการฐานข้อมูล` — two misses the OpenRouter batch route on the same model did not make: `เฟรมเวิร์ก` (transliterated) instead of `framework` in Latin, and `Elysia` came out as `Alessia` | $0.0005 (10 s billed, rounded up from the clip's 9.218 s — coarser than OpenRouter's fractional-cost billing) | 5.1 s | 2.4 s         |
+
+Genuine streaming partials, unlike every OpenRouter model above (batch-only, no partials at all) — 24 partial updates arrived before the final. But the transcript itself is a regression from the batch route on this one clip: same underlying model, worse output. Not clear yet whether that is `PUSH_TO_TALK` mode specifically, missing `languageBias`, or just this endpoint's own defaults differing from whatever OpenRouter's wrapper sends — one run is not a verdict. Added as a configuration anyway (`meta/muse-voice-transcribe-1.0`, raw only) since the realtime partials are the whole reason this provider exists; the OpenRouter route stays available as a separate configuration for whichever a future eval favors.
 
 ---
 

@@ -33,6 +33,8 @@ export { createOpenAIProvider, OPENAI_DEFAULT_MODEL } from "./providers/openai.t
 export type { OpenAIProviderConfig } from "./providers/openai.ts";
 export { createOpenRouterProvider, OPENROUTER_DEFAULT_MODEL } from "./providers/openrouter.ts";
 export type { OpenRouterProviderConfig } from "./providers/openrouter.ts";
+export { createMetaMuseProvider, META_MUSE_DEFAULT_MODEL } from "./providers/meta-muse.ts";
+export type { MetaMuseProviderConfig } from "./providers/meta-muse.ts";
 export { withGroqEnhancement } from "./providers/groq-enhancement.ts";
 export type { GroqEnhancementConfig } from "./providers/groq-enhancement.ts";
 export { createMockProvider } from "./providers/mock.ts";
@@ -51,6 +53,7 @@ export {
   builtinProviderDefinitions,
   bytePlusProviderDefinition,
   createDefaultProviderRegistry,
+  metaProviderDefinition,
   mockProviderDefinition,
   openAIProviderDefinition,
   openRouterProviderDefinition,

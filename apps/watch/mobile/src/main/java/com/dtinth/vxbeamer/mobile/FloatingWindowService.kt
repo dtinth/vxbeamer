@@ -58,6 +58,8 @@ class FloatingWindowService : Service() {
     private var recordButton: View? = null
     private var levelBar: View? = null
     private var transcriptView: TextView? = null
+    private var transcriptParams: WindowManager.LayoutParams? = null
+    private var transcriptAttached = false
 
     private var session: TranscriptionSession? = null
     private var sessionJob: Job? = null
@@ -88,10 +90,17 @@ class FloatingWindowService : Service() {
 
     private fun teardown() {
         session?.requestStop()
-        rootView?.let { runCatching { windowManager.removeView(it) } }
-        rootView = null
+        removeWindows()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
+    }
+
+    private fun removeWindows() {
+        transcriptView?.let { if (transcriptAttached) runCatching { windowManager.removeView(it) } }
+        transcriptAttached = false
+        transcriptView = null
+        rootView?.let { runCatching { windowManager.removeView(it) } }
+        rootView = null
     }
 
     // --- The window itself ---
@@ -104,14 +113,14 @@ class FloatingWindowService : Service() {
                 setPadding(dp(10), dp(10), dp(10), dp(10))
                 background =
                     GradientDrawable().apply {
-                        cornerRadius = dp(20).toFloat()
+                        cornerRadius = dp(24).toFloat()
                         setColor(Color.argb(235, 28, 28, 30))
                     }
             }
 
         val button =
             View(this).apply {
-                layoutParams = LinearLayout.LayoutParams(dp(56), dp(56))
+                layoutParams = LinearLayout.LayoutParams(dp(BUTTON_DP), dp(BUTTON_DP))
                 background = buttonBackground(recording = false)
             }
         recordButton = button
@@ -120,19 +129,19 @@ class FloatingWindowService : Service() {
         val levelTrack =
             FrameLayout(this).apply {
                 layoutParams =
-                    LinearLayout.LayoutParams(dp(56), dp(4)).apply { topMargin = dp(8) }
+                    LinearLayout.LayoutParams(dp(BUTTON_DP), dp(5)).apply { topMargin = dp(8) }
                 background =
                     GradientDrawable().apply {
-                        cornerRadius = dp(2).toFloat()
+                        cornerRadius = dp(3).toFloat()
                         setColor(Color.argb(90, 255, 255, 255))
                     }
             }
         val level =
             View(this).apply {
-                layoutParams = FrameLayout.LayoutParams(dp(56), dp(4))
+                layoutParams = FrameLayout.LayoutParams(dp(BUTTON_DP), dp(5))
                 background =
                     GradientDrawable().apply {
-                        cornerRadius = dp(2).toFloat()
+                        cornerRadius = dp(3).toFloat()
                         setColor(Color.rgb(120, 220, 140))
                     }
                 scaleX = 0f
@@ -141,19 +150,6 @@ class FloatingWindowService : Service() {
         levelBar = level
         levelTrack.addView(level)
         container.addView(levelTrack)
-
-        val transcript =
-            TextView(this).apply {
-                layoutParams =
-                    LinearLayout.LayoutParams(dp(180), LinearLayout.LayoutParams.WRAP_CONTENT)
-                        .apply { topMargin = dp(8) }
-                setTextColor(Color.WHITE)
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-                maxLines = 3
-                visibility = View.GONE
-            }
-        transcriptView = transcript
-        container.addView(transcript)
 
         val params =
             WindowManager.LayoutParams(
@@ -174,6 +170,58 @@ class FloatingWindowService : Service() {
 
         rootView = container
         windowManager.addView(container, params)
+        buildTranscriptWindow()
+    }
+
+    /**
+     * The transcript lives in its own window rather than inside the button's.
+     * Growing and shrinking text in the same window resizes it, which moves
+     * the button out from under the user's finger mid-recording
+     * (dtinth/vxbeamer#86). A separate window lets the text come and go
+     * without the button ever changing size or position.
+     */
+    private fun buildTranscriptWindow() {
+        val transcript =
+            TextView(this).apply {
+                setTextColor(Color.WHITE)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+                maxLines = 4
+                setPadding(dp(12), dp(8), dp(12), dp(8))
+                background =
+                    GradientDrawable().apply {
+                        cornerRadius = dp(12).toFloat()
+                        setColor(Color.argb(235, 28, 28, 30))
+                    }
+            }
+        transcriptView = transcript
+
+        val params =
+            WindowManager.LayoutParams(
+                dp(TRANSCRIPT_WIDTH_DP),
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                overlayWindowType(),
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                PixelFormat.TRANSLUCENT,
+            ).apply { gravity = Gravity.TOP or Gravity.START }
+        transcriptParams = params
+
+        transcriptAttached = false
+        transcript.visibility = View.GONE
+        windowManager.addView(transcript, params)
+        transcriptAttached = true
+        positionTranscript()
+    }
+
+    /** Keeps the transcript window just below the button as it is dragged. */
+    private fun positionTranscript() {
+        val buttonParams = layoutParams ?: return
+        val params = transcriptParams ?: return
+        val view = transcriptView ?: return
+        params.x = buttonParams.x
+        params.y = buttonParams.y + dp(BUTTON_DP + 40)
+        if (transcriptAttached) runCatching { windowManager.updateViewLayout(view, params) }
     }
 
     /**
@@ -210,6 +258,7 @@ class FloatingWindowService : Service() {
                         params.x = startX + dx.roundToInt()
                         params.y = startY + dy.roundToInt()
                         runCatching { windowManager.updateViewLayout(rootView, params) }
+                        positionTranscript()
                     }
                     return true
                 }
@@ -255,6 +304,7 @@ class FloatingWindowService : Service() {
                     this.text = text.orEmpty()
                     visibility = if (text.isNullOrEmpty()) View.GONE else View.VISIBLE
                 }
+                positionTranscript()
             }
         }
         scope.launch {
@@ -311,8 +361,7 @@ class FloatingWindowService : Service() {
     override fun onDestroy() {
         session?.requestStop()
         sessionJob?.cancel()
-        rootView?.let { runCatching { windowManager.removeView(it) } }
-        rootView = null
+        removeWindows()
         isShowing = false
         scope.cancel()
         super.onDestroy()
@@ -325,6 +374,8 @@ class FloatingWindowService : Service() {
 
         private const val NOTIFICATION_ID = 3
         private const val CHANNEL_ID = "floating_window"
+        private const val BUTTON_DP = 72
+        private const val TRANSCRIPT_WIDTH_DP = 240
 
         /** Whether the window is up, for the activity's own toggle to reflect. */
         @Volatile

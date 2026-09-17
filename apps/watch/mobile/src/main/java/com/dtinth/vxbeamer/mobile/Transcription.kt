@@ -45,11 +45,15 @@ class TranscriptionSession(private val context: Context) {
     @Volatile private var stopRequested = false
     private var finalReceived: CompletableDeferred<Unit>? = null
 
+    /** Identifies this session to [Transcription], and is also the
+     *  `reference_id` the backend echoes back on this recording's message. */
+    private val sessionId = UUID.randomUUID().toString()
+
     fun requestStop() {
         stopRequested = true
         val current = Transcription.state.value
         if (current is Transcription.State.Recording) {
-            Transcription.publish(Transcription.State.Finishing(current.text))
+            Transcription.publish(sessionId, Transcription.State.Finishing(current.text))
         }
     }
 
@@ -59,7 +63,7 @@ class TranscriptionSession(private val context: Context) {
         var eventSource: EventSource? = null
         var error: String? = null
         finalReceived = CompletableDeferred()
-        Transcription.publish(Transcription.State.Recording(text = null))
+        Transcription.beginSession(sessionId)
         try {
             // AuthStore's construction touches the Android Keystore
             // (EncryptedSharedPreferences) — deliberately inside this try so a
@@ -68,9 +72,8 @@ class TranscriptionSession(private val context: Context) {
             val authStore = AuthStore(context)
             if (!authStore.isSignedIn) error("Not signed in")
             val accessToken = authStore.currentAccessToken()
-            val referenceId = UUID.randomUUID().toString()
-            webSocket = BackendWebSocket.connect(authStore.backendUrl, accessToken, referenceId)
-            eventSource = watchTranscript(authStore.backendUrl, accessToken, referenceId)
+            webSocket = BackendWebSocket.connect(authStore.backendUrl, accessToken, sessionId)
+            eventSource = watchTranscript(authStore.backendUrl, accessToken, sessionId)
             captureAndStream(webSocket)
             webSocket.stop()
             // The final transcript can arrive slightly after the socket closes
@@ -82,10 +85,14 @@ class TranscriptionSession(private val context: Context) {
             webSocket?.abort()
         } finally {
             eventSource?.cancel()
-            Transcription.publishLevel(0f)
-            Transcription.publish(
-                if (error != null) Transcription.State.Error(error) else Transcription.State.Idle,
-            )
+            // Keeps a copied transcript on screen rather than blanking it the
+            // instant the recording ends — but only this session's own.
+            val ending =
+                when {
+                    error != null -> Transcription.State.Error(error)
+                    else -> Transcription.state.value as? Transcription.State.Copied ?: Transcription.State.Idle
+                }
+            Transcription.endSession(sessionId, ending)
         }
     }
 
@@ -115,7 +122,7 @@ class TranscriptionSession(private val context: Context) {
             while (!stopRequested) {
                 val read = audioRecord.read(readBuffer, 0, readBuffer.size)
                 if (read <= 0) break
-                Transcription.publishLevel(levelOf(readBuffer, read))
+                Transcription.publishLevel(sessionId, levelOf(readBuffer, read))
                 webSocket.send(readBuffer.copyOf(read))
             }
         } finally {
@@ -176,6 +183,7 @@ class TranscriptionSession(private val context: Context) {
      * had to account for (dtinth/vxbeamer#86).
      */
     private fun handleSseEvent(event: JSONObject, referenceId: String) {
+        if (Transcription.currentSession != sessionId) return
         val messages =
             when (event.optString("type")) {
                 "created", "updated" -> listOfNotNull(event.optJSONObject("message"))
@@ -189,7 +197,7 @@ class TranscriptionSession(private val context: Context) {
         val final = message.optString("final", "")
         if (final.isNotEmpty()) {
             copyToClipboard(final)
-            Transcription.publish(Transcription.State.Copied(final))
+            Transcription.publish(sessionId, Transcription.State.Copied(final))
             if (finalReceived?.isCompleted == false) finalReceived?.complete(Unit)
             return
         }
@@ -197,9 +205,9 @@ class TranscriptionSession(private val context: Context) {
         val partial = message.optString("partial", "")
         when (val current = Transcription.state.value) {
             is Transcription.State.Recording ->
-                Transcription.publish(Transcription.State.Recording(partial.ifEmpty { current.text }))
+                Transcription.publish(sessionId, Transcription.State.Recording(partial.ifEmpty { current.text }))
             is Transcription.State.Finishing ->
-                Transcription.publish(Transcription.State.Finishing(partial.ifEmpty { current.text }))
+                Transcription.publish(sessionId, Transcription.State.Finishing(partial.ifEmpty { current.text }))
             else -> Unit
         }
     }
@@ -248,11 +256,47 @@ object Transcription {
     private val _audioLevel = MutableStateFlow(0f)
     val audioLevel: StateFlow<Float> = _audioLevel.asStateFlow()
 
-    internal fun publish(state: State) {
+    /**
+     * The only session allowed to publish right now.
+     *
+     * `/sse` carries every message on the account, not just this device's, and
+     * a session's stream stays open through a grace period after its own
+     * recording ends. Without this, a late event — a stale listener, or
+     * another device's recording arriving mid-session — could publish a
+     * transcript that has nothing to do with the recording being shown
+     * (dtinth/vxbeamer#86). Per-event `referenceId` filtering already scopes
+     * *which* message a session reads; this scopes *which session* may speak.
+     */
+    @Volatile private var currentSessionId: String? = null
+
+    internal val currentSession: String?
+        get() = currentSessionId
+
+    internal fun beginSession(sessionId: String) {
+        currentSessionId = sessionId
+        _state.value = State.Recording(text = null)
+    }
+
+    internal fun endSession(sessionId: String, state: State) {
+        if (currentSessionId != sessionId) return
+        currentSessionId = null
+        _audioLevel.value = 0f
         _state.value = state
     }
 
-    internal fun publishLevel(level: Float) {
+    internal fun publish(sessionId: String, state: State) {
+        if (currentSessionId != sessionId) return
+        _state.value = state
+    }
+
+    internal fun publishLevel(sessionId: String, level: Float) {
+        if (currentSessionId != sessionId) return
         _audioLevel.value = level
+    }
+
+    /** Used by a service that failed before a session ever began. */
+    internal fun publishStandalone(state: State) {
+        if (currentSessionId != null) return
+        _state.value = state
     }
 }

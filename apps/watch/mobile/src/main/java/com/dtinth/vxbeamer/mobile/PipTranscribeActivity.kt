@@ -80,7 +80,7 @@ class PipTranscribeActivity : ComponentActivity() {
     }
 
     private fun toggleRecording() {
-        val recording = PipRecordingService.state.value !is PipRecordingService.State.Idle
+        val recording = PipRecordingService.state.value.isActive
         val action = if (recording) PipRecordingService.ACTION_STOP else PipRecordingService.ACTION_START
         startService(Intent(this, PipRecordingService::class.java).setAction(action))
     }
@@ -91,7 +91,7 @@ class PipTranscribeActivity : ComponentActivity() {
      *  reachable. */
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        if (PipRecordingService.state.value !is PipRecordingService.State.Idle) {
+        if (PipRecordingService.state.value.isActive) {
             enterPictureInPictureMode(buildPipParams())
         }
     }
@@ -102,7 +102,7 @@ class PipTranscribeActivity : ComponentActivity() {
     }
 
     private fun buildPipParams(): PictureInPictureParams {
-        val recording = PipRecordingService.state.value !is PipRecordingService.State.Idle
+        val recording = PipRecordingService.state.value.isActive
         val icon =
             Icon.createWithResource(
                 this,
@@ -173,6 +173,7 @@ private fun TranscribeScreen(onToggle: () -> Unit) {
                 is PipRecordingService.State.Idle -> "Tap to speak"
                 is PipRecordingService.State.Recording -> s.text?.takeIf { it.isNotEmpty() } ?: "Listening…"
                 is PipRecordingService.State.Finishing -> s.text?.takeIf { it.isNotEmpty() } ?: "Finishing…"
+                is PipRecordingService.State.Error -> "Failed: ${s.message}"
             }
         Text(label)
 
@@ -184,7 +185,7 @@ private fun TranscribeScreen(onToggle: () -> Unit) {
                 if (hasMic) onToggle() else micPermission.launch(Manifest.permission.RECORD_AUDIO)
             },
         ) {
-            Text(if (state is PipRecordingService.State.Idle) "Start" else "Stop")
+            Text(if (state.isActive) "Stop" else "Start")
         }
 
         Row(verticalAlignment = Alignment.CenterVertically) {

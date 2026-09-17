@@ -10,8 +10,10 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.drawable.Icon
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.util.Rational
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
@@ -85,7 +87,7 @@ class PipTranscribeActivity : ComponentActivity() {
         // after the recording finishes on its own (dtinth/vxbeamer#86).
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                PipRecordingService.state.collect {
+                Transcription.state.collect {
                     if (isInPictureInPictureMode) setPictureInPictureParams(buildPipParams())
                 }
             }
@@ -99,7 +101,7 @@ class PipTranscribeActivity : ComponentActivity() {
     }
 
     private fun toggleRecording() {
-        val recording = PipRecordingService.state.value.isActive
+        val recording = Transcription.state.value.isActive
         val action = if (recording) PipRecordingService.ACTION_STOP else PipRecordingService.ACTION_START
         startService(Intent(this, PipRecordingService::class.java).setAction(action))
     }
@@ -110,7 +112,7 @@ class PipTranscribeActivity : ComponentActivity() {
      *  reachable. */
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        if (PipRecordingService.state.value.isActive) {
+        if (Transcription.state.value.isActive) {
             enterPictureInPictureMode(buildPipParams())
         }
     }
@@ -122,7 +124,7 @@ class PipTranscribeActivity : ComponentActivity() {
     }
 
     private fun buildPipParams(): PictureInPictureParams {
-        val recording = PipRecordingService.state.value.isActive
+        val recording = Transcription.state.value.isActive
         val icon =
             Icon.createWithResource(
                 this,
@@ -168,7 +170,7 @@ class PipTranscribeActivity : ComponentActivity() {
             ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
                 PackageManager.PERMISSION_GRANTED
         if (!hasMic) return
-        if (!PipRecordingService.state.value.isActive) toggleRecording()
+        if (!Transcription.state.value.isActive) toggleRecording()
         enterPictureInPictureMode(buildPipParams())
     }
 
@@ -192,7 +194,7 @@ class PipTranscribeActivity : ComponentActivity() {
 @Composable
 private fun TranscribeScreen(onToggle: () -> Unit, compact: Boolean) {
     val context = LocalContext.current
-    val state by PipRecordingService.state.collectAsState()
+    val state by Transcription.state.collectAsState()
     var keepScreenOn by remember { mutableStateOf(false) }
 
     val micPermission =
@@ -219,10 +221,11 @@ private fun TranscribeScreen(onToggle: () -> Unit, compact: Boolean) {
 
     val label =
         when (val s = state) {
-            is PipRecordingService.State.Idle -> "Tap to speak"
-            is PipRecordingService.State.Recording -> s.text?.takeIf { it.isNotEmpty() } ?: "Listening…"
-            is PipRecordingService.State.Finishing -> s.text?.takeIf { it.isNotEmpty() } ?: "Finishing…"
-            is PipRecordingService.State.Error -> "Failed: ${s.message}"
+            is Transcription.State.Idle -> "Tap to speak"
+            is Transcription.State.Recording -> s.text?.takeIf { it.isNotEmpty() } ?: "Listening…"
+            is Transcription.State.Finishing -> s.text?.takeIf { it.isNotEmpty() } ?: "Finishing…"
+            is Transcription.State.Copied -> "Copied: ${s.text}"
+            is Transcription.State.Error -> "Failed: ${s.message}"
         }
 
     // A PiP window does not deliver touches to its content — Android routes a
@@ -269,6 +272,61 @@ private fun TranscribeScreen(onToggle: () -> Unit, compact: Boolean) {
             Switch(checked = keepScreenOn, onCheckedChange = { keepScreenOn = it })
         }
 
+        FloatingWindowToggle()
+
         Text("Leave this screen while recording to shrink it into a corner. Tap the window there to reveal its stop button.")
+    }
+}
+
+/**
+ * Switches the always-on-top record button on and off.
+ *
+ * The overlay permission is requested here rather than at install time
+ * because it is a Settings screen trip, not a normal runtime dialog — and
+ * because the window is opt-in by design: "draw over other apps" is what
+ * banking apps suppress, so it should not exist unless asked for
+ * (dtinth/vxbeamer#86).
+ */
+@Composable
+private fun FloatingWindowToggle() {
+    val context = LocalContext.current
+    var showing by remember { mutableStateOf(FloatingWindowService.isShowing) }
+
+    // Re-reads the permission on return from Settings; the result itself
+    // carries nothing, since the grant lands in Settings.canDrawOverlays.
+    val overlayPermission =
+        rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            if (Settings.canDrawOverlays(context)) {
+                context.startService(Intent(context, FloatingWindowService::class.java))
+                showing = true
+            }
+        }
+
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("Floating button")
+        Switch(
+            checked = showing,
+            onCheckedChange = { wanted ->
+                if (!wanted) {
+                    context.startService(
+                        Intent(context, FloatingWindowService::class.java)
+                            .setAction(FloatingWindowService.ACTION_HIDE),
+                    )
+                    showing = false
+                    return@Switch
+                }
+                if (Settings.canDrawOverlays(context)) {
+                    context.startService(Intent(context, FloatingWindowService::class.java))
+                    showing = true
+                } else {
+                    overlayPermission.launch(
+                        Intent(
+                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:${context.packageName}"),
+                        ),
+                    )
+                }
+            },
+        )
     }
 }

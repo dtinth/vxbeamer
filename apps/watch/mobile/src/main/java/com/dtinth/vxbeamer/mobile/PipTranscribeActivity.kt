@@ -151,8 +151,41 @@ class PipTranscribeActivity : ComponentActivity() {
         super.onDestroy()
     }
 
+    /**
+     * Launched by [ToggleTileService] to start a recording: the tile itself
+     * cannot, since a microphone foreground service may not be started from
+     * the background. Starting here gives that a real foreground context,
+     * then goes straight to PiP so the user is left where they were rather
+     * than staring at this screen (dtinth/vxbeamer#86).
+     */
+    private fun handleAutoStart(intent: Intent?) {
+        if (intent?.getBooleanExtra(EXTRA_AUTO_START, false) != true) return
+        // Consume it, or returning to this activity later re-triggers a start.
+        intent.removeExtra(EXTRA_AUTO_START)
+        // Without the mic the service would start and immediately stop, and
+        // PiP would hide the very screen able to ask for the permission.
+        val hasMic =
+            ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
+                PackageManager.PERMISSION_GRANTED
+        if (!hasMic) return
+        if (!PipRecordingService.state.value.isActive) toggleRecording()
+        enterPictureInPictureMode(buildPipParams())
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleAutoStart(intent)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        handleAutoStart(intent)
+    }
+
     companion object {
         const val ACTION_TOGGLE = "com.dtinth.vxbeamer.mobile.action.TOGGLE_PIP_RECORDING"
+        const val EXTRA_AUTO_START = "auto_start"
     }
 }
 

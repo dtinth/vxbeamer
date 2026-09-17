@@ -78,7 +78,14 @@ class PipRecordingService : Service() {
             return
         }
 
-        startForegroundCompat(buildNotification("Listening…"))
+        try {
+            startForegroundCompat(buildNotification("Listening…"))
+        } catch (t: Throwable) {
+            Log.e(TAG, "Could not start the foreground recording notification", t)
+            _state.value = State.Error(t.message ?: t.javaClass.simpleName)
+            stopSelf()
+            return
+        }
         stopSignal = false
         _state.value = State.Recording(text = null)
         job = scope.launch { runSession() }
@@ -91,17 +98,18 @@ class PipRecordingService : Service() {
     }
 
     private suspend fun runSession() {
-        val authStore = AuthStore(this)
-        if (!authStore.isSignedIn) {
-            finish("Not signed in")
-            return
-        }
-
         var webSocket: BackendWebSocket? = null
         var eventSource: EventSource? = null
         var error: String? = null
         finalReceived = CompletableDeferred()
         try {
+            // AuthStore's construction touches the Android Keystore
+            // (EncryptedSharedPreferences) — deliberately inside this try,
+            // not run ahead of it, so a Keystore failure surfaces the same
+            // way every other failure here does instead of crashing the
+            // service uncaught.
+            val authStore = AuthStore(this)
+            if (!authStore.isSignedIn) error("Not signed in")
             val accessToken = authStore.currentAccessToken()
             val referenceId = UUID.randomUUID().toString()
             webSocket = BackendWebSocket.connect(authStore.backendUrl, accessToken, referenceId)

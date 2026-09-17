@@ -1,4 +1,5 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect } from "@playwright/test";
+import { startRecordingAndGetItsCard } from "./support.ts";
 
 const BACKEND_URL = "http://localhost:8788";
 const E2E_API_KEY = "e2e-test-api-key";
@@ -37,31 +38,8 @@ test.beforeEach(async ({ page }) => {
   await expect(page.locator('[title="connected"]')).toBeVisible({ timeout: 10_000 });
 });
 
-/**
- * Starts a fresh recording via `r` and returns a locator scoped to *its own*
- * card, by the bubble's own `data-message-id` rather than DOM position.
- *
- * The backend keeps one in-memory log per subject, and every test here signs
- * in as the same one (like recording.spec.ts) — so an earlier test's already-
- * finished card, whose permanent text is the same canned "Good morning…"
- * transcript, can still be on screen. A position-based `.last()` right after
- * pressing `r` can match *that* old card instead of the new recording, since
- * the new one may not have mounted yet — waiting for the card count to grow
- * fixes that at start time, but `.last()` stays positional for every
- * assertion after, including ones evaluated well after the new card exists.
- * Pinning to the id it was assigned the moment it appeared removes that
- * ambiguity for the rest of the test, however many cards end up on screen.
- */
-async function startRecordingAndGetItsCard(page: Page) {
-  const before = await page.locator(".message-card").count();
-  await page.keyboard.press("r");
-  await expect(page.locator(".message-card")).toHaveCount(before + 1, { timeout: 10_000 });
-  const messageId = await page.locator("[data-message-id]").last().getAttribute("data-message-id");
-  return page.locator(`[data-message-id="${messageId}"]`);
-}
-
 test("`r` toggles recording the same as clicking the button", async ({ page }) => {
-  const card = await startRecordingAndGetItsCard(page);
+  const card = await startRecordingAndGetItsCard(page, () => page.keyboard.press("r"));
   await expect(page.getByLabel("Stop recording")).toBeVisible({ timeout: 10_000 });
   await expect(card.getByText("Good morning")).toBeVisible({ timeout: 10_000 });
 
@@ -78,7 +56,7 @@ test("`c` copies the latest finished transcript, same as clicking its bubble", a
 }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
 
-  const card = await startRecordingAndGetItsCard(page);
+  const card = await startRecordingAndGetItsCard(page, () => page.keyboard.press("r"));
   await expect(card.getByText("Good morning")).toBeVisible({ timeout: 10_000 });
   await page.keyboard.press("r");
   await expect(card.getByText("quarterly results and our plans for the next quarter")).toBeVisible({
@@ -98,13 +76,8 @@ test("holding Space is push-to-talk: starts on press, stops and auto-copies on r
 }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
 
-  const before = await page.locator(".message-card").count();
-  await page.keyboard.down("Space");
+  const card = await startRecordingAndGetItsCard(page, () => page.keyboard.down("Space"));
   await expect(page.getByLabel("Stop recording")).toBeVisible({ timeout: 10_000 });
-  await expect(page.locator(".message-card")).toHaveCount(before + 1, { timeout: 10_000 });
-  // Pinned by id, not DOM position — see startRecordingAndGetItsCard's doc.
-  const messageId = await page.locator("[data-message-id]").last().getAttribute("data-message-id");
-  const card = page.locator(`[data-message-id="${messageId}"]`);
   await expect(card.getByText("Good morning")).toBeVisible({ timeout: 10_000 });
 
   await page.keyboard.up("Space");

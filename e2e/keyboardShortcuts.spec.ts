@@ -1,8 +1,7 @@
 import { test, expect } from "@playwright/test";
-import { startRecordingAndGetItsCard } from "./support.ts";
+import { signInAsFreshSubject, startRecordingAndGetItsCard } from "./support.ts";
 
 const BACKEND_URL = "http://localhost:8788";
-const E2E_API_KEY = "e2e-test-api-key";
 
 test.beforeEach(async ({ page }) => {
   // Same fake getUserMedia as recording.spec.ts, so a keyboard-triggered
@@ -20,22 +19,11 @@ test.beforeEach(async ({ page }) => {
     };
   });
 
-  const tokenRes = await page.request.post(`${BACKEND_URL}/auth/token`, {
-    data: { api_key: E2E_API_KEY },
-  });
-  const { access_token: accessToken } = (await tokenRes.json()) as { access_token: string };
-
-  await page.goto("/");
-  await page.evaluate(
-    ({ backendUrl, token }) => {
-      localStorage.setItem("vxbeamer_backend_url", backendUrl);
-      localStorage.setItem("vxbeamer_access_token", token);
-      localStorage.setItem("vxbeamer_refresh_token", "dummy-refresh-token");
-    },
-    { backendUrl: BACKEND_URL, token: accessToken },
-  );
-  await page.reload();
-  await expect(page.locator('[title="connected"]')).toBeVisible({ timeout: 10_000 });
+  // Each test signs in as its own private, never-reused subject (see
+  // signInAsFreshSubject's doc in support.ts) rather than sharing one across
+  // every test in this file, so no test ever inherits another's leftover
+  // message-cards regardless of run order.
+  await signInAsFreshSubject(page, BACKEND_URL);
 });
 
 test("`r` toggles recording the same as clicking the button", async ({ page }) => {

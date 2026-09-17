@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { storyboard, startRecordingAndGetItsCard } from "./support.ts";
+import { signInAsFreshSubject, storyboard, startRecordingAndGetItsCard } from "./support.ts";
 
 const BACKEND_URL = "http://localhost:8788";
 const E2E_API_KEY = "e2e-test-api-key";
@@ -86,11 +86,14 @@ test("records audio and displays transcript from mock ASR", async ({ page }) => 
   // Start recording
   const recordButton = page.getByLabel("Start recording");
   await storyboard.capture("Ready to record", recordButton);
-  // The backend keeps one in-memory log per subject and every e2e test signs
-  // in as the same one, so an earlier test's finished card — carrying the
-  // same canned "Good morning…" transcript — can still be on screen. Scope to
-  // this recording's own card by id (see startRecordingAndGetItsCard's doc)
-  // rather than matching the text anywhere on the page.
+  // This is the one test in the suite that still signs in via the shared
+  // `"e2e"` API-key subject (it's deliberately exercising that exchange
+  // above) — nothing else in the suite touches that subject, so its history
+  // is exclusively this test's own. Still scope to this recording's own card
+  // by id (see startRecordingAndGetItsCard's doc) rather than matching text
+  // anywhere on the page, since a repeated local run against a reused dev
+  // server can leave this same subject's earlier "Good morning…" card on
+  // screen.
   const card = await startRecordingAndGetItsCard(page, () => recordButton.click());
 
   // Wait for partial transcript to appear
@@ -123,28 +126,12 @@ test("evaluates a finished recording against the configured model set", async ({
   });
 
   // --- Sign in and record, so there is a retained clip to replay ---
-  const tokenRes = await page.request.post(`${BACKEND_URL}/auth/token`, {
-    data: { api_key: E2E_API_KEY },
-  });
-  const { access_token: accessToken } = (await tokenRes.json()) as { access_token: string };
+  // Its own private, never-reused subject (see signInAsFreshSubject's doc in
+  // support.ts) — not the shared "e2e" one the other test in this file uses
+  // to exercise the real API-key exchange — so nothing else in the suite can
+  // ever leave a leftover card on this test's screen.
+  await signInAsFreshSubject(page, BACKEND_URL);
 
-  await page.goto("/");
-  await page.evaluate(
-    ({ backendUrl, token }) => {
-      localStorage.setItem("vxbeamer_backend_url", backendUrl);
-      localStorage.setItem("vxbeamer_access_token", token);
-      localStorage.setItem("vxbeamer_refresh_token", "dummy-refresh-token");
-    },
-    { backendUrl: BACKEND_URL, token: accessToken },
-  );
-  await page.reload();
-  await expect(page.locator('[title="connected"]')).toBeVisible({ timeout: 10_000 });
-
-  // The backend keeps one in-memory log per subject and both tests sign in as
-  // the same one, so an earlier test's message may still be on screen. Scope
-  // to this recording's own card by id (see startRecordingAndGetItsCard's
-  // doc) — page-wide text, or even a positional `.last()`, is ambiguous the
-  // moment a second card carries the same mock transcript.
   const card = await startRecordingAndGetItsCard(page, () =>
     page.getByLabel("Start recording").click(),
   );

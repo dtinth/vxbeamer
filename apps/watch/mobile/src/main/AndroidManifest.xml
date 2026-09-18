@@ -63,10 +63,14 @@
              sidesteps a restriction — a tap on the overlay happens with the
              app in the background, where a microphone service may not be
              started. See RecorderService's own doc comment. -->
+        <!-- Both types: it claims the microphone while recording, and only
+             dataSync when it is up purely to drain the upload queue — a
+             microphone-typed service needs RECORD_AUDIO granted and throws
+             without it. -->
         <service
             android:name=".RecorderService"
             android:exported="false"
-            android:foregroundServiceType="microphone" />
+            android:foregroundServiceType="microphone|dataSync" />
 
         <!-- Toggling from inside any other app, without the "draw over other
              apps" permission banking apps suppress. See ToggleTileService's

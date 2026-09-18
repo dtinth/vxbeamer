@@ -9,7 +9,8 @@ class RetentionPolicyTest {
         id: String,
         createdAt: Long,
         status: RecordingStatus = RecordingStatus.DONE,
-    ) = Recording(id = id, createdAt = createdAt, status = status)
+        attempts: Int = 0,
+    ) = Recording(id = id, createdAt = createdAt, status = status, attempts = attempts)
 
     @Test
     fun `entries beyond the cap are dropped, newest kept`() {
@@ -43,13 +44,46 @@ class RetentionPolicyTest {
         // to upload — deleting its audio would strand it permanently.
         val stale = recording("ancient-pending", createdAt = 1, status = RecordingStatus.PENDING)
         val uploading = recording("ancient-uploading", createdAt = 2, status = RecordingStatus.UPLOADING)
+        val capturing = recording("ancient-capturing", createdAt = 3, status = RecordingStatus.CAPTURING)
         val newer = (10..RetentionPolicy.MAX_ENTRIES + 5).map { recording("r$it", it.toLong()) }
 
-        val plan = RetentionPolicy.plan(newer + listOf(stale, uploading))
+        val plan = RetentionPolicy.plan(newer + listOf(stale, uploading, capturing))
 
         val droppedIds = plan.dropAudioFor.map { it.id }
         assertTrue(stale.id !in droppedIds)
         assertTrue(uploading.id !in droppedIds)
+        assertTrue(capturing.id !in droppedIds)
+    }
+
+    @Test
+    fun `audio is kept for a failure that will be retried`() {
+        // Retention runs on every recording, so an old failure would lose its
+        // audio while keeping its Retry button — which could then only ever
+        // fail with a missing file.
+        val retryable = recording("old-failure", createdAt = 1, status = RecordingStatus.FAILED, attempts = 1)
+        val newer = (10..RetentionPolicy.MAX_ENTRIES).map { recording("r$it", it.toLong()) }
+
+        val plan = RetentionPolicy.plan(newer + retryable)
+
+        assertTrue(retryable.id !in plan.dropAudioFor.map { it.id })
+    }
+
+    @Test
+    fun `audio is reclaimed once a failure has run out of attempts`() {
+        // It can still be retried by hand, but not indefinitely at the cost of
+        // holding megabytes of PCM for something that has failed three times.
+        val exhausted =
+            recording(
+                "given-up",
+                createdAt = 1,
+                status = RecordingStatus.FAILED,
+                attempts = UploadPolicy.MAX_ATTEMPTS,
+            )
+        val newer = (10..RetentionPolicy.MAX_ENTRIES).map { recording("r$it", it.toLong()) }
+
+        val plan = RetentionPolicy.plan(newer + exhausted)
+
+        assertTrue(exhausted.id in plan.dropAudioFor.map { it.id })
     }
 
     @Test

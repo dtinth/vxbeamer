@@ -71,6 +71,45 @@ class RecordingStoreTest {
     }
 
     @Test
+    fun `an empty recording is dropped even once an upload has claimed it`() {
+        // The live upload stamps UPLOADING before the user can lift a finger,
+        // so this is the *realistic* state at this point — gating the cleanup
+        // on CAPTURING meant it never ran, and a stray tap left an entry that
+        // could only burn attempts timing out against silence.
+        store.beginRecording("a", now = 100)
+        store.update("a") { it.copy(status = RecordingStatus.UPLOADING) }
+
+        store.finishCapture("a")
+
+        assertNull(store.get("a"))
+    }
+
+    @Test
+    fun `the audio file exists as soon as the recording does`() {
+        // The uploader starts tailing it immediately and would otherwise race
+        // the microphone's slower setup and fail before a word was spoken.
+        val recording = store.beginRecording("a", now = 100)
+
+        assertTrue(store.audioFile(recording).exists())
+    }
+
+    @Test
+    fun `an in-memory update is published but not persisted`() {
+        // Transcript partials arrive several times a second and are worth
+        // nothing after a restart.
+        val recording = store.beginRecording("a", now = 100)
+        writeAudio(recording, milliseconds = 500)
+        store.finishCapture("a")
+
+        store.updateInMemory("a") { it.copy(transcript = "partial so far") }
+
+        assertEquals("partial so far", store.get("a")?.transcript)
+        val reopened = RecordingStore(directory)
+        reopened.load()
+        assertNull(reopened.get("a")?.transcript)
+    }
+
+    @Test
     fun `finishing capture does not disturb an upload already in flight`() {
         // The normal path: an upload tails the file while capture runs, so by
         // the time capture ends the uploader already owns the status. Stamping

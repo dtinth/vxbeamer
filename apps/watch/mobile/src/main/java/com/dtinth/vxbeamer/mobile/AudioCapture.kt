@@ -48,8 +48,12 @@ object AudioCapture {
                 AudioFormat.ENCODING_PCM_16BIT,
                 minBuffer * MIN_BUFFER_MULTIPLIER,
             )
-        check(recorder.state == AudioRecord.STATE_INITIALIZED) {
-            "Could not open the microphone"
+        if (recorder.state != AudioRecord.STATE_INITIALIZED) {
+            // Released before throwing, or a failure here holds a microphone
+            // session that makes the next attempt fail the same way — a
+            // self-sustaining outage (dtinth/vxbeamer#86).
+            recorder.release()
+            error("Could not open the microphone")
         }
 
         val buffer = ByteArray(CHUNK_BYTES)
@@ -65,11 +69,32 @@ object AudioCapture {
                     output.flush()
                     onLevel(AudioLevel.of(buffer, read))
                 }
+                drain(recorder, buffer, output)
             }
         } finally {
             runCatching { recorder.stop() }
             recorder.release()
             onLevel(0f)
         }
+    }
+
+    /**
+     * Writes out what the hardware already captured but has not handed over
+     * yet.
+     *
+     * The capture loop stops the moment the flag flips, while the buffer is
+     * sized at [MIN_BUFFER_MULTIPLIER] times the platform minimum — so up to
+     * a few hundred milliseconds of already-recorded audio can still be
+     * sitting there. Dropping it truncated the end of every recording, and
+     * unlike audio that reached the file, nothing could recover it
+     * afterwards (dtinth/vxbeamer#86).
+     */
+    private fun drain(recorder: AudioRecord, buffer: ByteArray, output: java.io.OutputStream) {
+        while (true) {
+            val read = recorder.read(buffer, 0, buffer.size, AudioRecord.READ_NON_BLOCKING)
+            if (read <= 0) break
+            output.write(buffer, 0, read)
+        }
+        output.flush()
     }
 }

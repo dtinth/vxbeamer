@@ -1,12 +1,13 @@
 package com.dtinth.vxbeamer.mobile
 
 import android.util.Log
-import java.io.File
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
 import okhttp3.sse.EventSource
 import okhttp3.sse.EventSourceListener
 import okhttp3.sse.EventSources
@@ -36,9 +37,23 @@ class TranscriptionUploader(
      * while it is true, reaching the end of the file means "wait", not
      * "done".
      */
-    suspend fun upload(recording: Recording, isCapturing: () -> Boolean) {
+    suspend fun upload(recording: Recording, captureFinished: () -> Boolean) {
+        val attempt = recording.attempts + 1
+        // A *new* reference id per attempt, not the recording's own. The
+        // backend makes a fresh message for every `/ws` connect while keeping
+        // whatever reference id it was given, so reusing one let a previous
+        // attempt's events land on this one: an abandoned attempt's
+        // "client disconnected" error would arrive mid-retry and fail a
+        // perfectly healthy upload (dtinth/vxbeamer#86).
+        val referenceId = "${recording.id}#$attempt"
+
         store.update(recording.id) {
-            it.copy(status = RecordingStatus.UPLOADING, attempts = it.attempts + 1, error = null)
+            it.copy(
+                status = RecordingStatus.UPLOADING,
+                attempts = attempt,
+                lastAttemptAt = System.currentTimeMillis(),
+                error = null,
+            )
         }
 
         var socket: BackendWebSocket? = null
@@ -49,11 +64,11 @@ class TranscriptionUploader(
             val accessToken = authStore.currentAccessToken()
             val backendUrl = authStore.backendUrl
             socket = BackendWebSocket.connect(
-                BackendUrls.webSocket(backendUrl, accessToken, recording.id, clientId),
+                BackendUrls.webSocket(backendUrl, accessToken, referenceId, clientId),
             )
-            events = watch(backendUrl, accessToken, recording.id, transcript)
+            events = watch(backendUrl, accessToken, referenceId, recording.id, transcript)
 
-            streamFile(store.audioFile(recording), socket, isCapturing)
+            PcmTail.stream(store.audioFile(recording), captureFinished) { socket.send(it) }
             socket.stop()
 
             val result =
@@ -70,6 +85,12 @@ class TranscriptionUploader(
                 is TranscriptUpdate.Failed -> fail(recording, result.message)
                 is TranscriptUpdate.Partial -> fail(recording, "No final transcript arrived")
             }
+        } catch (cancellation: CancellationException) {
+            // Not a failure: the queue is shutting down or this upload was
+            // superseded. Leaving the status alone lets `reconcile` put it
+            // back in the queue on the next start.
+            socket?.abort()
+            throw cancellation
         } catch (t: Throwable) {
             Log.e(TAG, "Upload failed for ${recording.id}", t)
             socket?.abort()
@@ -83,47 +104,11 @@ class TranscriptionUploader(
         store.update(recording.id) { it.copy(status = RecordingStatus.FAILED, error = message) }
     }
 
-    /**
-     * Sends the file's bytes, waiting for more while capture is still
-     * running. Chunks are capped at [MAX_SPEED_MULTIPLIER] times real time:
-     * a live recording paces itself because the bytes are not there yet, but
-     * a backlog item would otherwise dump minutes of audio at once, which
-     * not every ASR provider behind the backend tolerates.
-     */
-    private suspend fun streamFile(
-        file: File,
-        socket: BackendWebSocket,
-        isCapturing: () -> Boolean,
-    ) {
-        val buffer = ByteArray(CHUNK_BYTES)
-        var offset = 0L
-        val minimumChunkIntervalMs = (CHUNK_BYTES / PCM_BYTES_PER_MS) / MAX_SPEED_MULTIPLIER
-
-        file.inputStream().use { stream ->
-            while (true) {
-                val available = file.length() - offset
-                if (available <= 0) {
-                    if (!isCapturing()) break
-                    delay(WAIT_FOR_AUDIO_MS)
-                    continue
-                }
-                val read = stream.read(buffer)
-                if (read <= 0) {
-                    if (!isCapturing()) break
-                    delay(WAIT_FOR_AUDIO_MS)
-                    continue
-                }
-                offset += read
-                socket.send(if (read == buffer.size) buffer.copyOf() else buffer.copyOf(read))
-                delay(minimumChunkIntervalMs.toLong())
-            }
-        }
-    }
-
     private fun watch(
         backendUrl: String,
         accessToken: String,
         referenceId: String,
+        recordingId: String,
         transcript: CompletableDeferred<TranscriptUpdate>,
     ): EventSource {
         val request =
@@ -135,10 +120,23 @@ class TranscriptionUploader(
                     when (val update = TranscriptEvents.parse(data, referenceId)) {
                         is TranscriptUpdate.Final, is TranscriptUpdate.Failed ->
                             transcript.complete(update)
+                        // In memory only: partials arrive several times a
+                        // second and are worthless after a restart.
                         is TranscriptUpdate.Partial ->
-                            store.update(referenceId) { it.copy(transcript = update.text) }
+                            store.updateInMemory(recordingId) { it.copy(transcript = update.text) }
                         null -> Unit
                     }
+                }
+
+                override fun onFailure(eventSource: EventSource, t: Throwable?, response: Response?) {
+                    // Without this the transcript can never arrive and the
+                    // upload just burns the whole timeout before reporting a
+                    // misleading "timed out".
+                    transcript.complete(
+                        TranscriptUpdate.Failed(
+                            t?.message ?: "Lost the connection while waiting for the transcript",
+                        ),
+                    )
                 }
             },
         )
@@ -146,9 +144,6 @@ class TranscriptionUploader(
 
     companion object {
         private const val TAG = "TranscriptionUploader"
-        private const val CHUNK_BYTES = 3200 // 100 ms at 16 kHz / 16-bit / mono
-        private const val WAIT_FOR_AUDIO_MS = 40L
-        private const val MAX_SPEED_MULTIPLIER = 8
         private const val FINAL_TIMEOUT_MS = 30_000L
 
         private val client = OkHttpClient()

@@ -12,7 +12,14 @@ class UploadPolicyTest {
         status: RecordingStatus,
         createdAt: Long = 0,
         attempts: Int = 0,
-    ) = Recording(id = id, createdAt = createdAt, status = status, attempts = attempts)
+        lastAttemptAt: Long = 0,
+    ) = Recording(
+        id = id,
+        createdAt = createdAt,
+        status = status,
+        attempts = attempts,
+        lastAttemptAt = lastAttemptAt,
+    )
 
     @Test
     fun `the oldest pending recording goes first`() {
@@ -69,7 +76,33 @@ class UploadPolicyTest {
                 recording("fine", RecordingStatus.DONE),
             )
 
-        assertEquals(listOf("retryable"), UploadPolicy.automaticRetries(recordings).map { it.id })
+        val due = UploadPolicy.automaticRetries(recordings, now = 10 * 60_000)
+
+        assertEquals(listOf("retryable"), due.map { it.id })
+    }
+
+    @Test
+    fun `a failure is left alone until its backoff has passed`() {
+        val justFailed =
+            listOf(recording("a", RecordingStatus.FAILED, attempts = 1, lastAttemptAt = 1_000))
+
+        // Retrying immediately would spend the whole budget inside the first
+        // minute of being out of signal.
+        assertTrue(UploadPolicy.automaticRetries(justFailed, now = 2_000).isEmpty())
+        assertEquals(1, UploadPolicy.automaticRetries(justFailed, now = 1_000 + 30_000).size)
+    }
+
+    @Test
+    fun `each attempt waits longer than the last`() {
+        val first = UploadPolicy.backoffMs(1)
+        val second = UploadPolicy.backoffMs(2)
+        val third = UploadPolicy.backoffMs(3)
+
+        assertTrue(second > first)
+        assertTrue(third > second)
+        // Enough cover to survive a stretch with no signal, rather than
+        // giving up half a minute after the user stopped speaking.
+        assertTrue("total cover was ${first + second + third} ms", first + second + third >= 5 * 60_000)
     }
 
     @Test
@@ -81,6 +114,18 @@ class UploadPolicyTest {
         assertFalse(UploadPolicy.canRetry(recording("d", RecordingStatus.UPLOADING)))
     }
 
+    @Test
+    fun `a queued recording with no attempts left is offered a manual retry`() {
+        // Nothing picks this up on its own, so without the button it would
+        // sit in the queue forever.
+        val stalled =
+            recording("a", RecordingStatus.PENDING, attempts = UploadPolicy.MAX_ATTEMPTS)
+
+        assertTrue(UploadPolicy.isStalled(stalled))
+        assertTrue(UploadPolicy.canRetry(stalled))
+        assertFalse(UploadPolicy.isStalled(recording("b", RecordingStatus.PENDING, attempts = 1)))
+    }
+
     // --- Repairing state a dead process left behind ---
 
     @Test
@@ -89,6 +134,21 @@ class UploadPolicyTest {
             UploadPolicy.reconcile(listOf(recording("a", RecordingStatus.UPLOADING))) { 1000 }
 
         assertEquals(RecordingStatus.PENDING, recovered.single().status)
+    }
+
+    @Test
+    fun `an interrupted upload does not spend an attempt`() {
+        // The attempt never reached a verdict — the process died. Counting it
+        // could reload a recording as PENDING with the budget gone, which
+        // nothing picks up and no Retry button is offered for: stranded, and
+        // still counted as work by the foreground service.
+        val killed =
+            listOf(recording("a", RecordingStatus.UPLOADING, attempts = UploadPolicy.MAX_ATTEMPTS))
+
+        val recovered = UploadPolicy.reconcile(killed) { 1000 }
+
+        assertEquals(0, recovered.single().attempts)
+        assertEquals("a", UploadPolicy.nextToUpload(recovered)?.id)
     }
 
     @Test

@@ -277,6 +277,7 @@ private fun TransmitterScreen(onToggle: () -> Unit, compact: Boolean) {
             modifier = Modifier.weight(1f),
             onCopy = { Recorder.copyToClipboard(it) },
             onRetry = { Recorder.retry(it) },
+            onDiscard = { Recorder.discard(it) },
         )
 
         RecordButton(
@@ -305,6 +306,7 @@ private fun History(
     modifier: Modifier = Modifier,
     onCopy: (String) -> Unit,
     onRetry: (String) -> Unit,
+    onDiscard: (String) -> Unit,
 ) {
     if (recordings.isEmpty()) {
         Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -327,6 +329,7 @@ private fun History(
                 capturing = recording.id == capturingId,
                 onCopy = onCopy,
                 onRetry = onRetry,
+                onDiscard = onDiscard,
             )
         }
     }
@@ -338,6 +341,7 @@ private fun HistoryRow(
     capturing: Boolean,
     onCopy: (String) -> Unit,
     onRetry: (String) -> Unit,
+    onDiscard: (String) -> Unit,
 ) {
     val transcript = recording.transcript
     Card(
@@ -386,6 +390,11 @@ private fun HistoryRow(
                     if (!transcript.isNullOrEmpty()) {
                         TextButton(onClick = { onCopy(transcript) }) { Text("Copy") }
                     }
+                    if (recording.status != RecordingStatus.DONE) {
+                        // Otherwise a recording that will never succeed can
+                        // only be waited out by retention.
+                        TextButton(onClick = { onDiscard(recording.id) }) { Text("Discard") }
+                    }
                 }
             }
         }
@@ -415,7 +424,7 @@ private fun statusLabel(recording: Recording, capturing: Boolean): String =
         else ->
             when (recording.status) {
                 RecordingStatus.CAPTURING -> "Recording"
-                RecordingStatus.PENDING -> "Queued"
+                RecordingStatus.PENDING -> if (UploadPolicy.isStalled(recording)) "Needs a retry" else "Queued"
                 RecordingStatus.UPLOADING -> "Transcribing"
                 RecordingStatus.DONE -> "Sent"
                 RecordingStatus.FAILED -> "Failed"

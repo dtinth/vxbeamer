@@ -34,9 +34,9 @@ import kotlinx.coroutines.launch
 
 /**
  * Setup and sign-in. Recording does not happen here — that is
- * [PipTranscribeActivity] for the phone's own mic, and
- * [RelayListenerService] for audio relayed from the watch, which the system
- * wakes on its own (dtinth/vxbeamer#86).
+ * [TransmitterActivity] for the phone's own mic, and [RelayListenerService]
+ * for audio relayed from the watch, which the system wakes on its own
+ * (dtinth/vxbeamer#86).
  */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -93,7 +93,7 @@ private fun SignInScreen() {
 
         if (signedIn) {
             SignedInCard(
-                onTranscribe = { context.startActivity(Intent(context, PipTranscribeActivity::class.java)) },
+                onTranscribe = { context.startActivity(Intent(context, TransmitterActivity::class.java)) },
                 onSignOut = {
                     authStore.signOut()
                     signedIn = false

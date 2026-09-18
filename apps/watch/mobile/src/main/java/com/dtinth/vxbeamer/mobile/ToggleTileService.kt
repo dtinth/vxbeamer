@@ -9,32 +9,21 @@ import android.service.quicksettings.TileService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
 /**
  * A Quick Settings tile that toggles a recording from inside any other app —
  * swipe down, tap, speak (dtinth/vxbeamer#86).
  *
- * This exists because the picture-in-picture window cannot be a control: a
- * PiP window never delivers touches to its own content, so reaching its
- * action costs a tap to reveal plus a tap to press, and the controls hide
- * themselves again. The alternatives were worse:
- *
- * - **"Draw over other apps"**: the permission Android 12+ lets any app
- *   suppress via `setHideOverlayWindows`, which banking apps do.
- * - **An accessibility shortcut**: worse still in Thailand specifically —
- *   banking apps there refuse to run at all while *any* accessibility
- *   service is enabled, not merely while one is on screen.
- *
- * A tile needs no permission at all and no app can suppress it.
+ * Kept alongside the floating button because the two fail differently: an
+ * overlay can be suppressed by a banking app on Android 12+, a tile cannot
+ * be suppressed by anything, and the tile costs no permission at all. An
+ * accessibility shortcut was ruled out as worse than either — Thai banking
+ * apps refuse to run while *any* accessibility service is enabled.
  *
  * **Starting has to go through the activity.** A microphone foreground
- * service cannot be started from the background, and `onClick` runs with the
- * app in the background — so starting launches [PipTranscribeActivity] with
- * [PipTranscribeActivity.EXTRA_AUTO_START], which starts the capture from a
- * real foreground context and drops straight into PiP. Stopping has no such
- * restriction and is sent to the service directly.
+ * service cannot be started from the background, and `onClick` runs there.
+ * Stopping has no such restriction and goes straight to the service.
  */
 class ToggleTileService : TileService() {
     private var watchJob: Job? = null
@@ -42,12 +31,10 @@ class ToggleTileService : TileService() {
 
     override fun onStartListening() {
         super.onStartListening()
+        Recorder.initialize(this)
         // The tile is only visible while listening, so this is also the only
-        // window in which it is worth following the service's state.
-        watchJob =
-            scope.launch {
-                Transcription.state.collect { render() }
-            }
+        // window in which its state is worth following.
+        watchJob = scope.launch { Recorder.capturingId.collect { render() } }
     }
 
     override fun onStopListening() {
@@ -58,24 +45,23 @@ class ToggleTileService : TileService() {
 
     override fun onClick() {
         super.onClick()
-        if (Transcription.state.value.isActive) {
-            startService(
-                Intent(this, PipRecordingService::class.java).setAction(PipRecordingService.ACTION_STOP),
-            )
+        Recorder.initialize(this)
+        if (Recorder.isCapturing) {
+            RecorderService.send(this, RecorderService.ACTION_STOP_CAPTURE)
             return
         }
         launchForStart()
     }
 
     // The deprecated `Intent` overload only throws on Android 14+, which the
-    // branch below never reaches — and it is still the only variant that
-    // exists on the older versions this app supports (minSdk 26).
+    // branch below never reaches — and it is the only variant that exists on
+    // the older versions this app supports (minSdk 26).
     @SuppressLint("StartActivityAndCollapseDeprecated")
     private fun launchForStart() {
         val intent =
-            Intent(this, PipTranscribeActivity::class.java)
+            Intent(this, TransmitterActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                .putExtra(PipTranscribeActivity.EXTRA_AUTO_START, true)
+                .putExtra(TransmitterActivity.EXTRA_AUTO_START, true)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             startActivityAndCollapse(
                 PendingIntent.getActivity(
@@ -93,7 +79,7 @@ class ToggleTileService : TileService() {
 
     private fun render() {
         val tile = qsTile ?: return
-        val active = Transcription.state.value.isActive
+        val active = Recorder.isCapturing
         tile.state = if (active) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
         tile.label = getString(R.string.tile_label)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {

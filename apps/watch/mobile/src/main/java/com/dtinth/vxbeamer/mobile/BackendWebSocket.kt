@@ -4,7 +4,7 @@ import java.util.UUID
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
-import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -14,13 +14,14 @@ import okio.ByteString.Companion.toByteString
 
 /**
  * A thin wrapper around vxbeamer's `/ws` — the same endpoint and wire
- * protocol the browser uses (raw PCM binary frames, a `{"type":"stop"}`
- * text frame to finish), so this app has nothing of its own to keep in sync
- * with the backend (dtinth/vxbeamer#86). One socket per recording; no
- * retry, since a session this short is not worth the retry logic
- * `recordingConnection.ts` has for the browser's own, much longer-lived
- * connections — a failed connect here just ends the relay and the watch
- * app's own recording along with it.
+ * protocol the browser uses (raw PCM binary frames, a `{"type":"stop"}` text
+ * frame to finish), so this app has nothing of its own to keep in sync with
+ * the backend (dtinth/vxbeamer#86).
+ *
+ * One socket per upload, and no retry here: retrying is
+ * [TranscriptionUploader]'s business, because the audio is on disk and a
+ * failed attempt can simply be run again later. The URL is built by
+ * [BackendUrls], which is where the `ws`/`wss` scheme trap is documented.
  */
 class BackendWebSocket private constructor(private val socket: WebSocket) {
     fun send(chunk: ByteArray) {
@@ -41,27 +42,9 @@ class BackendWebSocket private constructor(private val socket: WebSocket) {
         private val client = OkHttpClient()
 
         /** Suspends until the socket is open or the connect fails. */
-        suspend fun connect(backendUrl: String, accessToken: String, referenceId: String): BackendWebSocket =
+        suspend fun connect(url: HttpUrl): BackendWebSocket =
             suspendCoroutine { continuation ->
-                val httpUrl = backendUrl.toHttpUrl()
-                // Mirrors buildBackendSocketUrl in apps/website/src/backendSocket.ts:
-                // replace the whole path with `/ws`, drop any inherited query,
-                // then set these params fresh. Unlike the browser's own
-                // WebSocket API, OkHttp's upgrades a plain http/https request
-                // to a socket internally — HttpUrl only ever accepts an
-                // http/https scheme and throws IllegalArgumentException on
-                // "ws"/"wss" (confirmed on real hardware, dtinth/vxbeamer#86),
-                // so the scheme is left as whatever `backendUrl` already is.
-                val wsUrl =
-                    httpUrl.newBuilder()
-                        .encodedPath("/ws")
-                        .query(null)
-                        .addQueryParameter("access_token", accessToken)
-                        .addQueryParameter("reference_id", referenceId)
-                        .addQueryParameter("client_id", CLIENT_ID)
-                        .build()
-
-                val request = Request.Builder().url(wsUrl).build()
+                val request = Request.Builder().url(url).build()
                 val listener =
                     object : WebSocketListener() {
                         var resumed = false
@@ -83,8 +66,8 @@ class BackendWebSocket private constructor(private val socket: WebSocket) {
 
         /** One id per process, mirroring the web app's own per-page-load
          *  `CLIENT_ID` (`recordingConnection.ts`) — lets a sticky-session
-         *  provider like qwen-omni recognise repeat relays from this app as
+         *  provider like qwen-omni recognise repeat uploads from this app as
          *  the same caller, if one ever runs behind it. */
-        private val CLIENT_ID = UUID.randomUUID().toString()
+        val CLIENT_ID: String = UUID.randomUUID().toString()
     }
 }

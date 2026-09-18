@@ -32,6 +32,19 @@ jobs:
       - name: Lint
         run: ./gradlew lintDebug --console=plain
 
+      # Plain JVM tests — the domain logic is deliberately free of Android
+      # APIs, so this needs no emulator and runs in seconds.
+      - name: Test
+        run: ./gradlew testDebugUnitTest --console=plain
+
+      - name: Upload test report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: vxbeamer-transmitter-test-report
+          path: apps/watch/mobile/build/reports/tests/testDebugUnitTest/
+          if-no-files-found: ignore
+
       - name: Build debug APKs
         run: ./gradlew assembleDebug --console=plain
 

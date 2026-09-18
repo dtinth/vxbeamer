@@ -8,7 +8,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- The always-on-top record button, switched on and off by the user from
-         PipTranscribeActivity — see FloatingWindowService's doc comment. -->
+         TransmitterActivity — see FloatingWindow's own doc comment. -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <application
@@ -46,29 +46,25 @@
             </intent-filter>
         </service>
 
-        <!-- "Transcribe anywhere" — the phone's own mic, no watch involved.
-             supportsPictureInPicture lets this activity shrink into a
-             square corner window while a recording is running; see
-             PipTranscribeActivity's own doc comment. -->
+        <!-- Recording and the history list. supportsPictureInPicture lets
+             it shrink into a square corner window mid-recording; see
+             TransmitterActivity's own doc comment. -->
         <activity
-            android:name=".PipTranscribeActivity"
+            android:name=".TransmitterActivity"
             android:exported="false"
+            android:launchMode="singleTask"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|uiMode"
             android:resizeableActivity="true"
             android:supportsPictureInPicture="true"
             android:theme="@style/Theme.Vxbeamer" />
 
+        <!-- One service for the microphone, the upload queue and the floating
+             button: there is one of each, driven by several surfaces. It also
+             sidesteps a restriction — a tap on the overlay happens with the
+             app in the background, where a microphone service may not be
+             started. See RecorderService's own doc comment. -->
         <service
-            android:name=".PipRecordingService"
-            android:exported="false"
-            android:foregroundServiceType="microphone" />
-
-        <!-- Owns the mic itself rather than delegating to PipRecordingService:
-             a tap on an overlay happens with the app in the background, where
-             a microphone service may not be started. See the service's own
-             doc comment. -->
-        <service
-            android:name=".FloatingWindowService"
+            android:name=".RecorderService"
             android:exported="false"
             android:foregroundServiceType="microphone" />
 

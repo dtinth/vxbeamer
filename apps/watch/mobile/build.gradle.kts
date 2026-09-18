@@ -53,4 +53,10 @@ dependencies {
     implementation(libs.androidx.security.crypto)
     implementation(libs.okhttp)
     implementation(libs.okhttp.sse)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
+    // The domain logic under test is deliberately free of Android APIs, so it
+    // runs on a plain JVM — no emulator, and fast enough to run on every push.
+    testImplementation(libs.json)
 }

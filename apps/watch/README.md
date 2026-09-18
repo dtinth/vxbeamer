@@ -10,32 +10,36 @@ Two separate Android apps live here, in one Gradle project:
   mic (16 kHz / 16-bit / mono, the exact format vxbeamer's own `/ws` already
   expects) and streams it to the phone over Bluetooth, using the Wear OS
   Data Layer's `ChannelClient`. Tap again to stop.
-- **`mobile/`** — runs on the paired phone. Two independent ways to get
-  audio into vxbeamer:
-  - Watch relay, with no screen interaction needed once signed in. Woken
-    automatically by the system the moment the watch opens a stream (a
-    `WearableListenerService`, so no notification or battery cost while
-    idle). Reads the raw audio from that stream and forwards it straight to
-    vxbeamer's `/ws`, the same protocol the browser uses, then sends the
-    normal stop message once the watch closes its side.
-  - "Transcribe anywhere" — the phone's own mic, no watch involved
-    (`PipTranscribeActivity`, with the recording itself in
-    `TranscriptionSession`, shared with the floating window). The finished
-    transcript is copied to the clipboard automatically, watched over
-    `/sse` — the same events the web app reacts to.
+- **`mobile/`** — runs on the paired phone. Records from its own
+  microphone, and receives audio relayed from the watch.
 
-    Three ways to reach it, because none of them is best everywhere:
+  **Recording never waits for the network.** Audio goes to local storage as
+  it is spoken, and uploading is a separate, retryable thing that happens to
+  it afterwards — the same shape as a voice memo. Tapping stop is instant
+  whatever the connection is doing, nothing is lost when an upload fails,
+  and a bad transcript can be transcribed again from the audio still on the
+  device.
 
-    |                     | Reach             | Notes                                                                                                                                                       |
-    | ------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-    | Full screen         | Open the app      | Record button at the bottom, in thumb reach                                                                                                                 |
-    | Floating button     | One tap, anywhere | Draggable, live transcript and level meter. Uses "draw over other apps", which banking apps can suppress on Android 12+, so it is opt-in and switchable off |
-    | Quick Settings tile | Swipe down, tap   | No permission, and no app can suppress it                                                                                                                   |
+  In the normal case the two run at once: the uploader tails the file while
+  the microphone is still writing it, so a transcript arrives as promptly as
+  it would from a live socket. The same code path run later against a
+  finished file is a retry.
 
-    Leaving the app mid-recording drops it into a square picture-in-picture
-    window. That window is a **status readout, not a control** — a PiP
-    window never delivers touches to its content, so its stop button is the
-    `RemoteAction` revealed by tapping it.
+  Three ways to start, because none of them is best everywhere:
+
+  |                     | Reach             | Notes                                                                                                                                                       |
+  | ------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | Full screen         | Open the app      | Record button at the bottom, in thumb reach, above the history                                                                                              |
+  | Floating button     | One tap, anywhere | Draggable, live transcript and level meter. Uses "draw over other apps", which banking apps can suppress on Android 12+, so it is opt-in and switchable off |
+  | Quick Settings tile | Swipe down, tap   | No permission, and no app can suppress it                                                                                                                   |
+
+  Leaving the app mid-recording drops it into a square picture-in-picture
+  window. That window is a **status readout, not a control** — a PiP window
+  never delivers touches to its content, so its stop button is the
+  `RemoteAction` revealed by tapping it.
+
+  Watch audio goes through the same store, so relayed recordings get the
+  same history and the same retry as local ones.
 
 Sign-in reuses the desktop app's own flow: the phone app opens your browser,
 you sign in, the hosted web app shows a short code, and you paste that code
@@ -56,6 +60,34 @@ that was found on device), but treat it as untested.
 This is developed in a sandbox with no emulator (no hardware
 virtualization), so anything not listed as verified above has only been
 checked for `assembleDebug` and `lintDebug` passing.
+
+## Design
+
+| Piece                                          | Job                                                                |
+| ---------------------------------------------- | ------------------------------------------------------------------ |
+| `Recording`, `UploadPolicy`, `RetentionPolicy` | What a recording is, what gets uploaded next, what gets kept       |
+| `RecordingStore`                               | Audio files and the index on disk                                  |
+| `AudioCapture`                                 | Microphone to file. Knows nothing about the network                |
+| `TranscriptionUploader`                        | File to `/ws`, and `/sse` back. Knows nothing about the microphone |
+| `Recorder`                                     | Ties those together and owns the queue                             |
+| `RecorderService`                              | Keeps it alive in the background; hosts the floating button        |
+
+The split is what makes the tests possible: everything in the first four
+rows is free of Android APIs, so it runs on a plain JVM.
+
+## Tests
+
+```bash
+cd apps/watch
+./gradlew testDebugUnitTest
+```
+
+Unit tests, no emulator, seconds to run — and they run in CI on every push.
+They cover the parts where being wrong is quiet: URL building (a swapped
+`ws`/`wss` scheme shipped once and took a device and a logcat to find), the
+`/sse` event filtering that decides whether a transcript is _yours_, the
+upload and retention rules, crash recovery, and the store's behaviour across
+a restart.
 
 ## Prerequisites
 

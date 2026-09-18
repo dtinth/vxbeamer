@@ -32,6 +32,13 @@ object BackendUrls {
             .addQueryParameter("client_id", clientId)
             .build()
 
+    fun configurations(backendUrl: String, accessToken: String): HttpUrl =
+        backendUrl.toHttpUrl().newBuilder()
+            .encodedPath("/asr/configurations")
+            .query(null)
+            .addQueryParameter("access_token", accessToken)
+            .build()
+
     fun serverSentEvents(backendUrl: String, accessToken: String): HttpUrl =
         backendUrl.toHttpUrl().newBuilder()
             .encodedPath("/sse")

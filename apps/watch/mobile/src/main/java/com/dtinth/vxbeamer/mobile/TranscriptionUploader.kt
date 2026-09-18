@@ -1,9 +1,12 @@
 package com.dtinth.vxbeamer.mobile
 
 import android.util.Log
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -68,7 +71,11 @@ class TranscriptionUploader(
             )
             events = watch(backendUrl, accessToken, referenceId, recording.id, transcript)
 
-            PcmTail.stream(store.audioFile(recording), captureFinished) { socket.send(it) }
+            PcmTail.stream(
+                file = store.audioFile(recording),
+                captureFinished = captureFinished,
+                fastDump = fastDumpSupported(backendUrl, accessToken),
+            ) { socket.send(it) }
             socket.stop()
 
             val result =
@@ -142,10 +149,51 @@ class TranscriptionUploader(
         )
     }
 
+    /**
+     * Whether the backend's own provider accepts a whole recording at once.
+     * Asked once and remembered: it cannot change without the backend being
+     * reconfigured, and a failure here must not fail the upload, so an
+     * unreachable backend simply means "pace it".
+     */
+    private suspend fun fastDumpSupported(backendUrl: String, accessToken: String): Boolean {
+        fastDump?.let { return it }
+        val answer =
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    val request =
+                        Request.Builder()
+                            .url(BackendUrls.configurations(backendUrl, accessToken))
+                            .build()
+                    client.newCall(request).execute().use { response ->
+                        if (!response.isSuccessful) return@use false
+                        BackendCapabilities.fastDumpSupported(response.body?.string().orEmpty())
+                    }
+                }.getOrDefault(false)
+            }
+        fastDump = answer
+        return answer
+    }
+
     companion object {
         private const val TAG = "TranscriptionUploader"
         private const val FINAL_TIMEOUT_MS = 30_000L
 
-        private val client = OkHttpClient()
+        /** Remembered across uploads; see [fastDumpSupported]. */
+        @Volatile
+        private var fastDump: Boolean? = null
+
+        /**
+         * No read timeout.
+         *
+         * OkHttp's default is ten seconds, but the backend's `/sse` keepalive
+         * is every fifteen — so any quiet stretch killed the stream. During a
+         * long recording that is guaranteed, and the failure was then sitting
+         * ready the moment the upload finished: pressing stop appeared to
+         * time out instantly (dtinth/vxbeamer#86).
+         */
+        private val client =
+            OkHttpClient.Builder()
+                .readTimeout(0, TimeUnit.MILLISECONDS)
+                .build()
     }
 }

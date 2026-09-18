@@ -18,6 +18,8 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
@@ -43,6 +45,10 @@ class RecorderService : Service() {
     private var started = false
     private var startedWithMicrophone = false
     private var latestStartId = 0
+    private var overlayClearJob: Job? = null
+
+    /** The recording whose result has already been shown and taken away. */
+    private var dismissedResultFor: String? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -116,12 +122,50 @@ class RecorderService : Service() {
                 .collect { (capturingId, recordings) ->
                     val capturing = capturingId != null
                     window?.setRecording(capturing)
-                    window?.setTranscript(overlayText(capturingId, recordings))
+                    showOverlayText(capturingId, recordings)
                     if (started) notify(buildNotification(capturing, recordings))
                     stopIfIdle()
                 }
         }
         scope.launch { Recorder.audioLevel.collect { window?.setLevel(it) } }
+    }
+
+    /**
+     * Shows the overlay's text, and takes a finished one away again.
+     *
+     * A result that stays up forever is in the way — the point of the
+     * overlay is the button, not the transcript, which is on the clipboard
+     * and in the history by then. A failure lingers longer than a success,
+     * since an error nobody sees is worse than one that overstays
+     * (dtinth/vxbeamer#86).
+     */
+    private fun showOverlayText(capturingId: String?, recordings: List<Recording>) {
+        overlayClearJob?.cancel()
+        val latest = recordings.firstOrNull()
+
+        // Once a result has had its time, it stays gone: any later state
+        // change — the queue retrying something else, a notification rebuild —
+        // would otherwise put it back on screen minutes later.
+        if (capturingId == null && latest != null && latest.id == dismissedResultFor) {
+            window?.setTranscript(null)
+            return
+        }
+
+        val text = overlayText(capturingId, recordings)
+        window?.setTranscript(text)
+        if (text == null || capturingId != null || latest == null) return
+
+        val linger =
+            when (latest.status) {
+                RecordingStatus.DONE -> RESULT_LINGER_MS
+                RecordingStatus.FAILED -> FAILURE_LINGER_MS
+                else -> return // Still working; it will be replaced, not cleared.
+            }
+        overlayClearJob = scope.launch {
+            delay(linger)
+            dismissedResultFor = latest.id
+            window?.setTranscript(null)
+        }
     }
 
     /** What the overlay shows: this recording's text while it runs, then the last result. */
@@ -146,10 +190,28 @@ class RecorderService : Service() {
                 context = this,
                 windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager,
                 onTap = { if (Recorder.isCapturing) Recorder.stopCapture() else startCapture() },
+                onLongPress = ::bringAppToFront,
             )
         }
         window?.show()
         isWindowShowing = true
+    }
+
+    /**
+     * Brings the app's own screen forward from a long press on the overlay.
+     *
+     * Allowed from the background because the overlay permission is itself
+     * an exemption from the background-activity-start restrictions — which
+     * is only true while that permission is granted, and it always is here,
+     * since without it there would be no button to long-press
+     * (dtinth/vxbeamer#86).
+     */
+    private fun bringAppToFront() {
+        val intent =
+            Intent(this, TransmitterActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+        runCatching { startActivity(intent) }
+            .onFailure { Log.w(TAG, "Could not bring the app to the front", it) }
     }
 
     private fun hideWindow() {
@@ -286,6 +348,8 @@ class RecorderService : Service() {
         const val ACTION_DRAIN = "com.dtinth.vxbeamer.mobile.action.DRAIN"
 
         private const val TAG = "RecorderService"
+        private const val RESULT_LINGER_MS = 5_000L
+        private const val FAILURE_LINGER_MS = 20_000L
         private const val NOTIFICATION_ID = 2
         private const val CHANNEL_ID = "transmitter"
 

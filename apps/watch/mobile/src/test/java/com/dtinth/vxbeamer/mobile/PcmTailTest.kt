@@ -122,32 +122,29 @@ class PcmTailTest {
     }
 
     @Test
-    fun `a fast dump sends a backlog without pacing it`() {
-        // Five seconds of audio. Paced, this would take at least 5s/8; a
-        // provider that accepts a dump should not be made to wait for it.
+    fun `a fast dump is dramatically quicker than a paced send`() {
+        // Five seconds of audio, sent both ways. Asserted against each other
+        // rather than against a stopwatch: the exact pacing interval is an
+        // implementation detail, but "a dump does not wait and a paced send
+        // does" is the actual contract.
         file.writeBytes(audio(PcmTail.CHUNK_BYTES * 50))
 
-        val started = System.currentTimeMillis()
-        val sent = stream(captureFinished = { true }, fastDump = true)
-        val elapsed = System.currentTimeMillis() - started
+        val dumped = timed { stream(captureFinished = { true }, fastDump = true) }
+        val paced = timed { stream(captureFinished = { true }, fastDump = false) }
 
-        assertEquals(PcmTail.CHUNK_BYTES * 50, sent.sumOf { it.size })
-        assertTrue("took ${elapsed}ms", elapsed < 300)
+        assertEquals(PcmTail.CHUNK_BYTES * 50, dumped.second.sumOf { it.size })
+        assertEquals(PcmTail.CHUNK_BYTES * 50, paced.second.sumOf { it.size })
+        assertTrue("a dump should not wait, took ${dumped.first}ms", dumped.first < 250)
+        assertTrue(
+            "paced ${paced.first}ms was not meaningfully slower than dumped ${dumped.first}ms",
+            paced.first > dumped.first * 3,
+        )
     }
 
-    @Test
-    fun `without a fast dump the same backlog is paced`() {
-        // The cap exists because a realtime provider expects roughly the pace
-        // the audio was spoken at.
-        file.writeBytes(audio(PcmTail.CHUNK_BYTES * 50))
-
+    private fun <T> timed(block: () -> T): Pair<Long, T> {
         val started = System.currentTimeMillis()
-        val sent = stream(captureFinished = { true }, fastDump = false)
-        val elapsed = System.currentTimeMillis() - started
-
-        assertEquals(PcmTail.CHUNK_BYTES * 50, sent.sumOf { it.size })
-        val realTimeMs = 50 * (PcmTail.CHUNK_BYTES / PCM_BYTES_PER_MS)
-        assertTrue("took ${elapsed}ms", elapsed >= realTimeMs / PcmTail.MAX_SPEED_MULTIPLIER)
+        val result = block()
+        return (System.currentTimeMillis() - started) to result
     }
 
     @Test

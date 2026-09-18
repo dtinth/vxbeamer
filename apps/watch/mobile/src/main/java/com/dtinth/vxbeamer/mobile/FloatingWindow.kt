@@ -35,6 +35,7 @@ class FloatingWindow(
     private val context: Context,
     private val windowManager: WindowManager,
     private val onTap: () -> Unit,
+    private val onLongPress: () -> Unit,
 ) {
     private var buttonView: View? = null
     private var recordButton: View? = null
@@ -184,18 +185,30 @@ class FloatingWindow(
     }
 
     /**
-     * A tap toggles recording; a drag moves the window. Told apart by the
-     * system's touch slop, so an imprecise tap is not swallowed as a tiny
-     * drag.
+     * A tap toggles recording, a long press opens the app, and a drag moves
+     * the window.
+     *
+     * Tap and drag are told apart by the system's touch slop, so an imprecise
+     * tap is not swallowed as a tiny drag. The long press uses the system's
+     * own timeout, and cancels the moment a drag starts — moving the button
+     * should never be mistaken for asking to leave (dtinth/vxbeamer#86).
      */
     private inner class DragToMoveOrTap(private val params: WindowManager.LayoutParams) :
         View.OnTouchListener {
         private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+        private val longPressTimeout = ViewConfiguration.getLongPressTimeout().toLong()
         private var startX = 0
         private var startY = 0
         private var touchX = 0f
         private var touchY = 0f
         private var dragging = false
+        private var longPressed = false
+        private var pendingLongPress: Runnable? = null
+
+        private fun cancelLongPress(view: View) {
+            pendingLongPress?.let { view.removeCallbacks(it) }
+            pendingLongPress = null
+        }
 
         override fun onTouch(view: View, event: MotionEvent): Boolean {
             when (event.action) {
@@ -205,12 +218,24 @@ class FloatingWindow(
                     touchX = event.rawX
                     touchY = event.rawY
                     dragging = false
+                    longPressed = false
+                    val runnable =
+                        Runnable {
+                            if (dragging) return@Runnable
+                            longPressed = true
+                            onLongPress()
+                        }
+                    pendingLongPress = runnable
+                    view.postDelayed(runnable, longPressTimeout)
                     return true
                 }
                 MotionEvent.ACTION_MOVE -> {
                     val dx = event.rawX - touchX
                     val dy = event.rawY - touchY
-                    if (!dragging && (abs(dx) > touchSlop || abs(dy) > touchSlop)) dragging = true
+                    if (!dragging && (abs(dx) > touchSlop || abs(dy) > touchSlop)) {
+                        dragging = true
+                        cancelLongPress(view)
+                    }
                     if (dragging) {
                         params.x = startX + dx.roundToInt()
                         params.y = startY + dy.roundToInt()
@@ -220,10 +245,17 @@ class FloatingWindow(
                     return true
                 }
                 MotionEvent.ACTION_UP -> {
-                    if (!dragging) {
+                    cancelLongPress(view)
+                    // A long press has already acted; releasing must not also
+                    // start or stop a recording.
+                    if (!dragging && !longPressed) {
                         view.performClick()
                         onTap()
                     }
+                    return true
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    cancelLongPress(view)
                     return true
                 }
             }

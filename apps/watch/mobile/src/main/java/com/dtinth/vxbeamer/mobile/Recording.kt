@@ -20,6 +20,8 @@ data class Recording(
     val error: String? = null,
     /** Upload attempts so far, for [UploadPolicy]'s retry ceiling. */
     val attempts: Int = 0,
+    /** When the last attempt began, for [UploadPolicy.automaticRetries]' backoff. */
+    val lastAttemptAt: Long = 0,
 ) {
     /** The audio file's name within the store's directory. */
     val audioFileName: String
@@ -68,18 +70,44 @@ object UploadPolicy {
             .minByOrNull { it.createdAt }
     }
 
-    /** Whether a hand-driven retry is worth offering for this recording. */
+    /**
+     * Whether a hand-driven retry is worth offering. Includes a `PENDING`
+     * recording that has run out of automatic attempts: nothing will pick it
+     * up again on its own, so the button is the only way out.
+     */
     fun canRetry(recording: Recording): Boolean =
-        recording.status == RecordingStatus.FAILED || recording.status == RecordingStatus.DONE
+        when (recording.status) {
+            RecordingStatus.FAILED, RecordingStatus.DONE -> true
+            RecordingStatus.PENDING -> recording.attempts >= MAX_ATTEMPTS
+            RecordingStatus.CAPTURING, RecordingStatus.UPLOADING -> false
+        }
+
+    /** Queued, but nothing will send it without being asked. */
+    fun isStalled(recording: Recording): Boolean =
+        recording.status == RecordingStatus.PENDING && recording.attempts >= MAX_ATTEMPTS
 
     /**
-     * Failed recordings worth trying again without being asked. A transient
-     * failure is the common one — no signal, a backend restart — so the
-     * queue re-attempts on its own up to [MAX_ATTEMPTS], and only then waits
-     * to be asked.
+     * Failed recordings due another try, given how long ago they last had
+     * one. A transient failure is the common one — no signal, a backend
+     * restart — so the queue re-attempts on its own up to [MAX_ATTEMPTS].
+     *
+     * Backed off rather than retried on a fixed interval, because the
+     * failure this most needs to survive is being out of signal for a while,
+     * and a flat interval would spend every attempt in the first minute of
+     * it (dtinth/vxbeamer#86).
      */
-    fun automaticRetries(recordings: List<Recording>): List<Recording> =
-        recordings.filter { it.status == RecordingStatus.FAILED && it.attempts < MAX_ATTEMPTS }
+    fun automaticRetries(recordings: List<Recording>, now: Long): List<Recording> =
+        recordings.filter {
+            it.status == RecordingStatus.FAILED &&
+                it.attempts < MAX_ATTEMPTS &&
+                now - it.lastAttemptAt >= backoffMs(it.attempts)
+        }
+
+    /** 30 s, 2 min, 8 min — roughly ten minutes of cover in total. */
+    fun backoffMs(attempts: Int): Long =
+        INITIAL_BACKOFF_MS shl (2 * (attempts - 1).coerceAtLeast(0))
+
+    private const val INITIAL_BACKOFF_MS = 30_000L
 
     /**
      * Repairs state left behind by a process that died mid-flight.
@@ -93,7 +121,14 @@ object UploadPolicy {
     fun reconcile(recordings: List<Recording>, durationOf: (Recording) -> Long): List<Recording> =
         recordings.map { recording ->
             when (recording.status) {
-                RecordingStatus.UPLOADING -> recording.copy(status = RecordingStatus.PENDING)
+                // `attempts` is reset because the attempt never got a verdict —
+                // the process died. Counting it would let a recording reload as
+                // PENDING with the budget spent, which nothing then picks up and
+                // no Retry button is offered for: stranded, and still counted as
+                // "busy" by the foreground service, which could then never stop
+                // (dtinth/vxbeamer#86).
+                RecordingStatus.UPLOADING ->
+                    recording.copy(status = RecordingStatus.PENDING, attempts = 0)
                 RecordingStatus.CAPTURING -> {
                     val duration = durationOf(recording)
                     if (duration > 0) {
@@ -132,11 +167,17 @@ object RetentionPolicy {
         val keep = newestFirst.take(MAX_ENTRIES)
         val dropped = newestFirst.drop(MAX_ENTRIES)
 
-        // Audio is only kept for the newest few, and never dropped from under
-        // a recording that still needs it — one waiting to upload, or being
-        // uploaded right now, has nothing else to send.
+        // Audio is only kept for the newest few, and never dropped from
+        // under a recording that can still be sent: one waiting to upload or
+        // uploading has nothing else to send, and a failure with attempts
+        // left would retry into a file that is no longer there
+        // (dtinth/vxbeamer#86).
         val stillNeedsAudio = { r: Recording ->
-            r.status == RecordingStatus.PENDING || r.status == RecordingStatus.UPLOADING
+            when (r.status) {
+                RecordingStatus.PENDING, RecordingStatus.UPLOADING, RecordingStatus.CAPTURING -> true
+                RecordingStatus.FAILED -> r.attempts < UploadPolicy.MAX_ATTEMPTS
+                RecordingStatus.DONE -> false
+            }
         }
         val audioKeepers = keep.filterIndexed { index, r -> index < MAX_AUDIO_FILES || stillNeedsAudio(r) }
         val dropAudioFor = (keep - audioKeepers.toSet()) + dropped

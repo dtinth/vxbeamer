@@ -6,10 +6,13 @@ import androidx.core.app.NotificationCompat
 import com.google.android.gms.wearable.ChannelClient
 import com.google.android.gms.wearable.Wearable
 import com.google.android.gms.wearable.WearableListenerService
+import android.util.Log
 import java.util.UUID
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
@@ -27,7 +30,14 @@ import kotlinx.coroutines.tasks.await
  * instead of a second, separate upload path that could fail differently.
  */
 class RelayListenerService : WearableListenerService() {
-    private val scope = CoroutineScope(Dispatchers.IO)
+    // SupervisorJob plus a handler: this service is started by the system,
+    // and an uncaught throw in a bare scope takes the whole process down.
+    private val scope =
+        CoroutineScope(
+            SupervisorJob() +
+                Dispatchers.IO +
+                CoroutineExceptionHandler { _, t -> Log.e(TAG, "Relay failed", t) },
+        )
     private var relayJob: Job? = null
 
     override fun onChannelOpened(channel: ChannelClient.Channel) {
@@ -47,12 +57,22 @@ class RelayListenerService : WearableListenerService() {
         val store = Recorder.store
         val recording = store.beginRecording(UUID.randomUUID().toString(), System.currentTimeMillis())
 
-        startForeground(NOTIFICATION_ID, buildNotification())
+        // Inside the try: Android 12+ can refuse a foreground start from
+        // the background, and this service is started by the system with the
+        // app not running — which is the normal path for the whole watch
+        // feature, so throwing here would crash on every watch recording
+        // (dtinth/vxbeamer#86).
         try {
+            runCatching { startForeground(NOTIFICATION_ID, buildNotification()) }
+                .onFailure { Log.w(TAG, "Relaying without a foreground service", it) }
             val channelClient = Wearable.getChannelClient(this)
             val input = channelClient.getInputStream(channel).await()
-            // Written the same way the microphone writes, so an upload can
-            // tail this file while the watch is still speaking into it.
+            // Unlike the phone's own microphone, this is not tailed while
+            // it is being written: the entry is CAPTURING, and the queue only
+            // picks up PENDING. Watch audio therefore starts uploading once
+            // the channel closes, which costs the length of the utterance in
+            // latency and is worth revisiting if the watch is ever the
+            // primary way in (dtinth/vxbeamer#86).
             store.audioFile(recording).outputStream().use { output ->
                 input.use {
                     val buffer = ByteArray(READ_BUFFER_BYTES)
@@ -100,6 +120,8 @@ class RelayListenerService : WearableListenerService() {
     }
 
     companion object {
+        private const val TAG = "RelayListenerService"
+
         // Must match RecordingService.CHANNEL_PATH in the wear module — the
         // two are separate APKs with no shared code module, so this is
         // duplicated rather than shared. Keep both in sync by hand.

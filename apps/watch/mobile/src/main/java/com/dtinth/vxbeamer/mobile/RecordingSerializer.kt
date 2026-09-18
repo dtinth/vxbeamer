@@ -24,6 +24,7 @@ object RecordingSerializer {
                     put(KEY_STATUS, recording.status.name)
                     put(KEY_DURATION_MS, recording.durationMs)
                     put(KEY_ATTEMPTS, recording.attempts)
+                    put(KEY_LAST_ATTEMPT_AT, recording.lastAttemptAt)
                     recording.transcript?.let { put(KEY_TRANSCRIPT, it) }
                     recording.error?.let { put(KEY_ERROR, it) }
                 },
@@ -50,6 +51,7 @@ object RecordingSerializer {
                     transcript = item.optString(KEY_TRANSCRIPT).takeIf { it.isNotEmpty() },
                     error = item.optString(KEY_ERROR).takeIf { it.isNotEmpty() },
                     attempts = item.optInt(KEY_ATTEMPTS),
+                    lastAttemptAt = item.optLong(KEY_LAST_ATTEMPT_AT),
                 ),
             )
         }
@@ -63,4 +65,5 @@ object RecordingSerializer {
     private const val KEY_TRANSCRIPT = "transcript"
     private const val KEY_ERROR = "error"
     private const val KEY_ATTEMPTS = "attempts"
+    private const val KEY_LAST_ATTEMPT_AT = "lastAttemptAt"
 }

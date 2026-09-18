@@ -52,6 +52,13 @@ class RecordingStore(private val directory: File) {
     fun beginRecording(id: String, now: Long): Recording {
         val recording = Recording(id = id, createdAt = now, status = RecordingStatus.CAPTURING)
         synchronized(lock) {
+            // Created here, not by whoever writes the audio: the uploader
+            // starts tailing this file straight away and would otherwise race
+            // the microphone's own slower setup and fail with
+            // FileNotFoundException before a word was spoken
+            // (dtinth/vxbeamer#86).
+            directory.mkdirs()
+            runCatching { audioFile(recording).createNewFile() }
             // Not retained yet: pruning here could delete the audio of a
             // recording that is still being captured into.
             writeLocked(listOf(recording) + _recordings.value)
@@ -73,6 +80,22 @@ class RecordingStore(private val directory: File) {
     }
 
     /**
+     * Like [update], but only publishes — nothing is written to disk.
+     *
+     * For transcript partials, which arrive several times a second and are
+     * worth nothing after a restart. Persisting them re-encoded and rewrote
+     * the whole index that often, under the lock the capture thread also
+     * wants (dtinth/vxbeamer#86).
+     */
+    fun updateInMemory(id: String, transform: (Recording) -> Recording) {
+        synchronized(lock) {
+            val current = _recordings.value
+            if (current.none { it.id == id }) return
+            _recordings.value = current.map { if (it.id == id) transform(it) else it }
+        }
+    }
+
+    /**
      * Capture finished: record the duration from what actually landed on
      * disk, and queue the recording if nothing is already sending it.
      *
@@ -87,9 +110,13 @@ class RecordingStore(private val directory: File) {
             val recording = current.find { it.id == id } ?: return
             val duration = durationMsForPcmBytes(audioFile(recording).length())
 
-            if (duration <= 0 && recording.status == RecordingStatus.CAPTURING) {
+            if (duration <= 0) {
                 // Nothing was captured — a mic that never opened, or a tap so
-                // brief no audio arrived. An entry for it could only ever fail.
+                // brief no audio arrived. Dropped regardless of what status the
+                // live upload has already stamped on it: it always wins that
+                // race, so gating this on CAPTURING never fired, and a stray
+                // tap left an entry that could only burn attempts timing out
+                // against silence (dtinth/vxbeamer#86).
                 audioFile(recording).delete()
                 writeLocked(current.filterNot { it.id == id })
                 return

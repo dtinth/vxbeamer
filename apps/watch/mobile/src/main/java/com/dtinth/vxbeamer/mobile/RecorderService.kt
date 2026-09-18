@@ -12,6 +12,7 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.provider.Settings
+import android.util.Log
 import android.view.WindowManager
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
@@ -40,6 +41,8 @@ class RecorderService : Service() {
     private val scope = CoroutineScope(Dispatchers.Main)
     private var window: FloatingWindow? = null
     private var started = false
+    private var startedWithMicrophone = false
+    private var latestStartId = 0
 
     override fun onCreate() {
         super.onCreate()
@@ -48,7 +51,23 @@ class RecorderService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        ensureForeground()
+        latestStartId = startId
+        val wantsMicrophone =
+            intent?.action == ACTION_START_CAPTURE ||
+                intent?.action == ACTION_TOGGLE_CAPTURE ||
+                intent?.action == ACTION_SHOW_WINDOW ||
+                Recorder.isCapturing
+
+        // The type has to match what the service is actually about to do: a
+        // microphone-typed foreground service needs RECORD_AUDIO granted, and
+        // throws SecurityException without it. Coming up purely to drain the
+        // upload queue — which is what a watch relay does — must therefore
+        // not claim the microphone (dtinth/vxbeamer#86).
+        if (!ensureForeground(microphone = wantsMicrophone && hasMicrophonePermission())) {
+            stopSelf(startId)
+            return START_NOT_STICKY
+        }
+
         when (intent?.action) {
             ACTION_SHOW_WINDOW -> showWindow()
             ACTION_HIDE_WINDOW -> {
@@ -65,16 +84,21 @@ class RecorderService : Service() {
         return START_STICKY
     }
 
+    private fun hasMicrophonePermission(): Boolean =
+        ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+
     /**
      * The mic can be revoked between the UI asking for it and a tap on the
      * overlay or the notification arriving here, so this is checked at the
      * point of use rather than trusted from whoever sent the intent.
      */
     private fun startCapture() {
-        val granted =
-            ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
-                PackageManager.PERMISSION_GRANTED
-        if (!granted) {
+        // Inline rather than via hasMicrophonePermission(): lint only
+        // recognises the check when it can see it at the call site.
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
             stopIfIdle()
             return
         }
@@ -82,25 +106,22 @@ class RecorderService : Service() {
     }
 
     private fun observe() {
-        // One collector over everything the notification and the overlay
-        // reflect, so they can never disagree about the current state.
+        // The level is deliberately not in this collector: it changes ten
+        // times a second, and rebuilding the notification at that rate is
+        // both wasteful and rate-limited by the system (dtinth/vxbeamer#86).
         scope.launch {
-            combine(
-                Recorder.capturingId,
-                Recorder.store.recordings,
-                Recorder.audioLevel,
-            ) { capturingId, recordings, level ->
-                Triple(capturingId, recordings, level)
+            combine(Recorder.capturingId, Recorder.store.recordings) { capturingId, recordings ->
+                capturingId to recordings
             }
-                .collect { (capturingId, recordings, level) ->
+                .collect { (capturingId, recordings) ->
                     val capturing = capturingId != null
                     window?.setRecording(capturing)
-                    window?.setLevel(level)
                     window?.setTranscript(overlayText(capturingId, recordings))
                     if (started) notify(buildNotification(capturing, recordings))
                     stopIfIdle()
                 }
         }
+        scope.launch { Recorder.audioLevel.collect { window?.setLevel(it) } }
     }
 
     /** What the overlay shows: this recording's text while it runs, then the last result. */
@@ -145,23 +166,49 @@ class RecorderService : Service() {
         if (Recorder.isCapturing || isWindowShowing) return
         val busy =
             Recorder.store.recordings.value.any {
-                it.status == RecordingStatus.PENDING || it.status == RecordingStatus.UPLOADING
+                // A recording that has run out of automatic attempts is not
+                // work any more — nothing will pick it up without being asked,
+                // so counting it would hold up a notification forever.
+                when (it.status) {
+                    RecordingStatus.UPLOADING, RecordingStatus.CAPTURING -> true
+                    RecordingStatus.PENDING -> !UploadPolicy.isStalled(it)
+                    RecordingStatus.DONE, RecordingStatus.FAILED -> false
+                }
             }
         if (busy) return
         stopForeground(STOP_FOREGROUND_REMOVE)
         started = false
-        stopSelf()
+        // With the start id, so a startService that arrived while this was
+        // being decided is not silently dropped.
+        stopSelf(latestStartId)
     }
 
-    private fun ensureForeground() {
-        if (started) return
-        started = true
-        val recordings = Recorder.store.recordings.value
-        val notification = buildNotification(Recorder.isCapturing, recordings)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
+    /** False if the system refused, in which case the caller must give up. */
+    private fun ensureForeground(microphone: Boolean): Boolean {
+        if (started && microphone == startedWithMicrophone) return true
+        val notification = buildNotification(Recorder.isCapturing, Recorder.store.recordings.value)
+        val type =
+            if (microphone) {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+            } else {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            }
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(NOTIFICATION_ID, notification, type)
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+            started = true
+            startedWithMicrophone = microphone
+            true
+        } catch (t: Throwable) {
+            // Android 12+ refuses a foreground start from the background in
+            // some states, and a microphone-typed one needs the permission
+            // granted. Crashing here would take the app down for what is a
+            // recoverable "not now".
+            Log.e(TAG, "Could not start in the foreground", t)
+            false
         }
     }
 
@@ -238,6 +285,7 @@ class RecorderService : Service() {
         /** Come up long enough to send whatever is queued, then stop. */
         const val ACTION_DRAIN = "com.dtinth.vxbeamer.mobile.action.DRAIN"
 
+        private const val TAG = "RecorderService"
         private const val NOTIFICATION_ID = 2
         private const val CHANNEL_ID = "transmitter"
 

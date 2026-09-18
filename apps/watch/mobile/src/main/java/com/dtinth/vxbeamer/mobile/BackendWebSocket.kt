@@ -1,6 +1,7 @@
 package com.dtinth.vxbeamer.mobile
 
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
@@ -39,7 +40,19 @@ class BackendWebSocket private constructor(private val socket: WebSocket) {
 
     companion object {
         private const val NORMAL_CLOSURE = 1000
-        private val client = OkHttpClient()
+
+        /**
+         * No read timeout, and a ping to keep the connection alive.
+         *
+         * This socket only ever sends; nothing comes back over it, so
+         * OkHttp's default ten-second read timeout would expire during any
+         * recording longer than that (dtinth/vxbeamer#86).
+         */
+        private val client =
+            OkHttpClient.Builder()
+                .readTimeout(0, TimeUnit.MILLISECONDS)
+                .pingInterval(20, TimeUnit.SECONDS)
+                .build()
 
         /** Suspends until the socket is open or the connect fails. */
         suspend fun connect(url: HttpUrl): BackendWebSocket =

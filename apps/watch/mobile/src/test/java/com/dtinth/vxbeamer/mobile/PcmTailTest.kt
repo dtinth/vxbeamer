@@ -8,6 +8,7 @@ import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -38,11 +39,17 @@ class PcmTailTest {
     private fun audio(bytes: Int, value: Byte = 1) = ByteArray(bytes) { value }
 
     /** Collects what the tail reader sends, with a timeout so a bug that hangs fails instead. */
-    private fun stream(captureFinished: () -> Boolean, whileStreaming: () -> Unit = {}): List<ByteArray> =
+    private fun stream(
+        captureFinished: () -> Boolean,
+        fastDump: Boolean = false,
+        whileStreaming: () -> Unit = {},
+    ): List<ByteArray> =
         runBlocking {
             val sent = java.util.Collections.synchronizedList(mutableListOf<ByteArray>())
             val streaming =
-                async(Dispatchers.IO) { PcmTail.stream(file, captureFinished) { sent += it } }
+                async(Dispatchers.IO) {
+                    PcmTail.stream(file, captureFinished, fastDump) { sent += it }
+                }
             whileStreaming()
             withTimeout(10_000) { streaming.await() }
             sent.toList()
@@ -112,6 +119,35 @@ class PcmTailTest {
 
         assertEquals("the tail was dropped", PcmTail.CHUNK_BYTES, sent.sumOf { it.size })
         assertArrayEquals(audio(PcmTail.CHUNK_BYTES, 7), sent.last())
+    }
+
+    @Test
+    fun `a fast dump sends a backlog without pacing it`() {
+        // Five seconds of audio. Paced, this would take at least 5s/8; a
+        // provider that accepts a dump should not be made to wait for it.
+        file.writeBytes(audio(PcmTail.CHUNK_BYTES * 50))
+
+        val started = System.currentTimeMillis()
+        val sent = stream(captureFinished = { true }, fastDump = true)
+        val elapsed = System.currentTimeMillis() - started
+
+        assertEquals(PcmTail.CHUNK_BYTES * 50, sent.sumOf { it.size })
+        assertTrue("took ${elapsed}ms", elapsed < 300)
+    }
+
+    @Test
+    fun `without a fast dump the same backlog is paced`() {
+        // The cap exists because a realtime provider expects roughly the pace
+        // the audio was spoken at.
+        file.writeBytes(audio(PcmTail.CHUNK_BYTES * 50))
+
+        val started = System.currentTimeMillis()
+        val sent = stream(captureFinished = { true }, fastDump = false)
+        val elapsed = System.currentTimeMillis() - started
+
+        assertEquals(PcmTail.CHUNK_BYTES * 50, sent.sumOf { it.size })
+        val realTimeMs = 50 * (PcmTail.CHUNK_BYTES / PCM_BYTES_PER_MS)
+        assertTrue("took ${elapsed}ms", elapsed >= realTimeMs / PcmTail.MAX_SPEED_MULTIPLIER)
     }
 
     @Test

@@ -32,14 +32,23 @@ object PcmTail {
      * user asked it to stop" — the two are not the same moment, and a writer
      * that is still flushing its last chunk would otherwise be cut off.
      *
-     * Paced to at most [MAX_SPEED_MULTIPLIER] times real time: a live
-     * recording paces itself, because the bytes are not there yet, but a
-     * backlog item would otherwise dump minutes of audio in one go, which
-     * not every ASR provider behind the backend tolerates.
+     * [fastDump] sends with no pacing at all, for a backend whose provider
+     * says it accepts that (see [BackendCapabilities]). Otherwise sending is
+     * capped at [MAX_SPEED_MULTIPLIER] times real time, since a realtime
+     * provider expects roughly the pace the audio was spoken at and a
+     * backlog item would otherwise arrive all at once.
      */
-    suspend fun stream(file: File, captureFinished: () -> Boolean, send: (ByteArray) -> Unit) {
+    suspend fun stream(
+        file: File,
+        captureFinished: () -> Boolean,
+        fastDump: Boolean = false,
+        send: (ByteArray) -> Unit,
+    ) {
         val buffer = ByteArray(CHUNK_BYTES)
-        val minimumChunkIntervalMs = ((CHUNK_BYTES / PCM_BYTES_PER_MS) / MAX_SPEED_MULTIPLIER).toLong()
+        // Pacing only ever bites on a retry or a backlog: a live recording
+        // paces itself, because the bytes are not there yet.
+        val minimumChunkIntervalMs =
+            if (fastDump) 0L else ((CHUNK_BYTES / PCM_BYTES_PER_MS) / MAX_SPEED_MULTIPLIER).toLong()
 
         file.inputStream().use { stream ->
             while (true) {
@@ -53,7 +62,7 @@ object PcmTail {
                 val read = stream.read(buffer)
                 if (read > 0) {
                     send(if (read == buffer.size) buffer.copyOf() else buffer.copyOf(read))
-                    delay(minimumChunkIntervalMs)
+                    if (minimumChunkIntervalMs > 0) delay(minimumChunkIntervalMs)
                     continue
                 }
                 if (finished) break

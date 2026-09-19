@@ -75,6 +75,11 @@ class FloatingWindow(
         view.text = text.orEmpty()
         view.visibility = if (text.isNullOrEmpty()) View.GONE else View.VISIBLE
         positionTranscript()
+        // Its height depends on how many lines the text wrapped to, which is
+        // only known once it has been measured — so place it again then, or
+        // a long transcript near the bottom is positioned as if it were one
+        // line tall.
+        view.post { positionTranscript() }
     }
 
     private fun addButtonWindow() {
@@ -86,7 +91,7 @@ class FloatingWindow(
                 background =
                     GradientDrawable().apply {
                         cornerRadius = dp(24).toFloat()
-                        setColor(Color.argb(235, 28, 28, 30))
+                        setColor(VxbeamerPalette.SURFACE_CONTAINER)
                     }
             }
 
@@ -104,7 +109,7 @@ class FloatingWindow(
                 background =
                     GradientDrawable().apply {
                         cornerRadius = dp(3).toFloat()
-                        setColor(Color.argb(90, 255, 255, 255))
+                        setColor(VxbeamerPalette.OUTLINE_VARIANT)
                     }
             }
         val level =
@@ -113,7 +118,7 @@ class FloatingWindow(
                 background =
                     GradientDrawable().apply {
                         cornerRadius = dp(3).toFloat()
-                        setColor(Color.rgb(120, 220, 140))
+                        setColor(VxbeamerPalette.PRIMARY)
                     }
                 scaleX = 0f
                 pivotX = 0f
@@ -145,7 +150,7 @@ class FloatingWindow(
     private fun addTranscriptWindow() {
         val transcript =
             TextView(context).apply {
-                setTextColor(Color.WHITE)
+                setTextColor(VxbeamerPalette.ON_SURFACE)
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
                 maxLines = 4
                 setPadding(dp(12), dp(8), dp(12), dp(8))
@@ -153,7 +158,7 @@ class FloatingWindow(
                 background =
                     GradientDrawable().apply {
                         cornerRadius = dp(12).toFloat()
-                        setColor(Color.argb(235, 28, 28, 30))
+                        setColor(VxbeamerPalette.SURFACE_CONTAINER)
                     }
             }
         transcriptView = transcript
@@ -175,13 +180,46 @@ class FloatingWindow(
         positionTranscript()
     }
 
+    /**
+     * Keeps the transcript beside the button and on screen.
+     *
+     * It follows the button to whichever half of the screen it has been
+     * dragged to, and flips above it near the bottom — anchored to the left
+     * and always below, it ran off the edge exactly where the button is
+     * easiest to reach (dtinth/vxbeamer#86).
+     */
     private fun positionTranscript() {
         val button = buttonParams ?: return
         val params = transcriptParams ?: return
         val view = transcriptView ?: return
-        params.x = button.x
-        params.y = button.y + dp(BUTTON_DP + 40)
+
+        val screen = screenSize()
+        val buttonWidth = buttonView?.width?.takeIf { it > 0 } ?: dp(BUTTON_DP + 20)
+        val buttonHeight = buttonView?.height?.takeIf { it > 0 } ?: dp(BUTTON_DP + 33)
+        val transcriptWidth = dp(TRANSCRIPT_WIDTH_DP)
+        val transcriptHeight = view.height.takeIf { it > 0 } ?: dp(60)
+
+        // Right edge of the transcript lines up with the button's when the
+        // button is past the middle, rather than spilling off the screen.
+        val onRightHalf = button.x + buttonWidth / 2 > screen.x / 2
+        params.x =
+            if (onRightHalf) (button.x + buttonWidth - transcriptWidth) else button.x
+        params.x = params.x.coerceIn(0, (screen.x - transcriptWidth).coerceAtLeast(0))
+
+        val below = button.y + buttonHeight + dp(8)
+        params.y =
+            if (below + transcriptHeight > screen.y) {
+                (button.y - transcriptHeight - dp(8)).coerceAtLeast(0)
+            } else {
+                below
+            }
+
         if (transcriptAttached) runCatching { windowManager.updateViewLayout(view, params) }
+    }
+
+    private fun screenSize(): android.graphics.Point {
+        val metrics = context.resources.displayMetrics
+        return android.graphics.Point(metrics.widthPixels, metrics.heightPixels)
     }
 
     /**
@@ -266,8 +304,8 @@ class FloatingWindow(
     private fun buttonBackground(recording: Boolean): GradientDrawable =
         GradientDrawable().apply {
             shape = GradientDrawable.OVAL
-            setColor(if (recording) Color.rgb(230, 70, 70) else Color.rgb(240, 240, 245))
-            setStroke(dp(3), Color.argb(70, 255, 255, 255))
+            setColor(if (recording) VxbeamerPalette.ERROR else VxbeamerPalette.PRIMARY)
+            setStroke(dp(3), VxbeamerPalette.OUTLINE_VARIANT)
         }
 
     private fun overlayWindowType(): Int =

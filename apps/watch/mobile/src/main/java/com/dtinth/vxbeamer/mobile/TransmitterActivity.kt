@@ -16,6 +16,7 @@ import android.os.Bundle
 import android.provider.Settings
 import android.util.Rational
 import android.view.WindowManager
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -35,6 +36,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
@@ -49,6 +51,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -278,6 +281,15 @@ private fun TransmitterScreen(onToggle: () -> Unit, compact: Boolean) {
             onCopy = { Recorder.copyToClipboard(it) },
             onRetry = { Recorder.retry(it) },
             onDiscard = { Recorder.discard(it) },
+            onExport = { id ->
+                val intent = WavExport.shareIntent(context, id)
+                if (intent == null) {
+                    Toast.makeText(context, "The audio is no longer on this device", Toast.LENGTH_SHORT)
+                        .show()
+                } else {
+                    context.startActivity(Intent.createChooser(intent, "Export WAV"))
+                }
+            },
         )
 
         RecordButton(
@@ -307,6 +319,7 @@ private fun History(
     onCopy: (String) -> Unit,
     onRetry: (String) -> Unit,
     onDiscard: (String) -> Unit,
+    onExport: (String) -> Unit,
 ) {
     if (recordings.isEmpty()) {
         Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -319,17 +332,40 @@ private fun History(
         return
     }
 
+    // Oldest at the top, newest at the bottom, like a conversation — and
+    // like the web app's own feed. The store is newest-first, so this is the
+    // one place that reverses it (dtinth/vxbeamer#86).
+    val oldestFirst = remember(recordings) { recordings.asReversed() }
+    val listState = rememberLazyListState()
+
+    // Follows the newest entry as it arrives, but only when the user is
+    // already at the bottom — scrolling back to read something older should
+    // not be yanked away by a transcript landing.
+    val atBottom by remember {
+        derivedStateOf {
+            val last = listState.layoutInfo.visibleItemsInfo.lastOrNull()
+            last == null || last.index >= listState.layoutInfo.totalItemsCount - 2
+        }
+    }
+    LaunchedEffect(oldestFirst.size, oldestFirst.lastOrNull()?.transcript) {
+        if (oldestFirst.isNotEmpty() && atBottom) {
+            listState.animateScrollToItem(oldestFirst.lastIndex)
+        }
+    }
+
     LazyColumn(
+        state = listState,
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        items(recordings, key = { it.id }) { recording ->
+        items(oldestFirst, key = { it.id }) { recording ->
             HistoryRow(
                 recording = recording,
                 capturing = recording.id == capturingId,
                 onCopy = onCopy,
                 onRetry = onRetry,
                 onDiscard = onDiscard,
+                onExport = onExport,
             )
         }
     }
@@ -342,6 +378,7 @@ private fun HistoryRow(
     onCopy: (String) -> Unit,
     onRetry: (String) -> Unit,
     onDiscard: (String) -> Unit,
+    onExport: (String) -> Unit,
 ) {
     val transcript = recording.transcript
     Card(
@@ -396,6 +433,13 @@ private fun HistoryRow(
                         TextButton(onClick = { onDiscard(recording.id) }) { Text("Discard") }
                     }
                 }
+            }
+
+            // Offered whenever the audio is still here, including while it is
+            // being captured — a recording that transcribed badly is exactly
+            // the one worth having the WAV of.
+            if (recording.hasAudio) {
+                TextButton(onClick = { onExport(recording.id) }) { Text("Export WAV") }
             }
         }
     }
@@ -497,8 +541,29 @@ private fun SettingsCard(keepScreenOn: Boolean, onKeepScreenOnChange: (Boolean) 
                 onCheckedChange = onKeepScreenOnChange,
             )
             FloatingWindowToggle()
+            StorageLine()
         }
     }
+}
+
+/**
+ * How much audio is being held, against the cap. Worth showing because the
+ * app keeps audio on purpose — it is what makes a retry possible — so the
+ * cost of that should be visible rather than a surprise (dtinth/vxbeamer#86).
+ */
+@Composable
+private fun StorageLine() {
+    val recordings by Recorder.store.recordings.collectAsState()
+    val bytes = remember(recordings) { Recorder.store.audioBytesOnDisk() }
+    val megabytes = bytes / (1024f * 1024f)
+    val cap = RetentionPolicy.MAX_AUDIO_BYTES / (1024 * 1024)
+
+    Text(
+        text = "Audio stored: %.1f MB of %d MB".format(megabytes, cap),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(bottom = 10.dp),
+    )
 }
 
 @Composable

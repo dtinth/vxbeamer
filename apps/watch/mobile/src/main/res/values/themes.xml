@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Vxbeamer" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- Dark, to match the web app's own palette — see VxbeamerTheme. A light
+         parent flashed white for a frame before Compose painted. -->
+    <style name="Theme.Vxbeamer" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/vxbeamer_background</item>
+    </style>
 </resources>

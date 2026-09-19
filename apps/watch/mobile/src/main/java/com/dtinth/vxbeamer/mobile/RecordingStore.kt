@@ -91,7 +91,7 @@ class RecordingStore(private val directory: File) {
         synchronized(lock) {
             val current = _recordings.value
             if (current.none { it.id == id }) return
-            _recordings.value = current.map { if (it.id == id) transform(it) else it }
+            _recordings.value = current.map { if (it.id == id) withAudioFlag(transform(it)) else it }
         }
     }
 
@@ -161,14 +161,28 @@ class RecordingStore(private val directory: File) {
 
     /** Applies [RetentionPolicy], deleting the audio it says is no longer needed. */
     private fun applyRetention(recordings: List<Recording>): List<Recording> {
-        val plan = RetentionPolicy.plan(recordings)
+        val plan = RetentionPolicy.plan(recordings) { audioFile(it).length() }
         for (recording in plan.dropAudioFor) audioFile(recording).delete()
         return plan.keep
     }
 
+    /** Total bytes of audio currently on disk, for the settings screen. */
+    fun audioBytesOnDisk(): Long = _recordings.value.sumOf { audioFile(it).length() }
+
+    /** The recording's audio as a WAV file, or null if it is no longer here. */
+    fun wavBytes(id: String): ByteArray? {
+        val recording = get(id) ?: return null
+        val file = audioFile(recording)
+        if (!file.exists() || file.length() <= 0) return null
+        return runCatching { Wav.encode(file.readBytes()) }.getOrNull()
+    }
+
+    private fun withAudioFlag(recording: Recording): Recording =
+        recording.copy(hasAudio = audioFile(recording).length() > 0)
+
     /** Caller must hold [lock]. */
     private fun writeLocked(recordings: List<Recording>) {
-        val ordered = recordings.sortedByDescending { it.createdAt }
+        val ordered = recordings.sortedByDescending { it.createdAt }.map(::withAudioFlag)
         _recordings.value = ordered
         runCatching {
             directory.mkdirs()

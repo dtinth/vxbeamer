@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Exported WAVs only. Written under cache/exports and shared read-only
+         through the provider, so nothing else in the app's storage — the
+         recordings themselves, the auth tokens — is reachable by whatever
+         app the user shares into. -->
+    <cache-path name="exports" path="exports/" />
+</paths>

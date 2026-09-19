@@ -22,6 +22,14 @@ data class Recording(
     val attempts: Int = 0,
     /** When the last attempt began, for [UploadPolicy.automaticRetries]' backoff. */
     val lastAttemptAt: Long = 0,
+    /**
+     * Whether the audio file is still on disk.
+     *
+     * Derived, not stored: [RecordingStore] stamps it when it publishes, so
+     * the UI can offer Retry and Export without doing file IO of its own,
+     * and retention deleting a file is reflected the moment it happens.
+     */
+    val hasAudio: Boolean = false,
 ) {
     /** The audio file's name within the store's directory. */
     val audioFileName: String
@@ -147,13 +155,24 @@ object UploadPolicy {
 }
 
 /**
- * How much history to keep. Metadata is cheap and worth keeping longer than
- * the audio, which is not: a minute of PCM is about 2 MB, so old audio is
- * dropped well before old entries are (dtinth/vxbeamer#86).
+ * How much history to keep.
+ *
+ * Metadata is cheap and worth keeping far longer than the audio, which is
+ * not: 16 kHz 16-bit mono runs at about 1.9 MB per minute, so a handful of
+ * long recordings would otherwise quietly occupy hundreds of megabytes.
+ * Audio is therefore capped by *total size* rather than by count — what
+ * matters to the device is the megabytes, and a count cannot bound them
+ * when recordings vary from two seconds to ten minutes
+ * (dtinth/vxbeamer#86).
+ *
+ * The cap is a target rather than a guarantee: audio that has not been
+ * transcribed yet is never deleted to stay under it, since that would
+ * destroy the only copy of what was said. A long stretch offline can
+ * therefore exceed it until the queue drains.
  */
 object RetentionPolicy {
     const val MAX_ENTRIES = 50
-    const val MAX_AUDIO_FILES = 20
+    const val MAX_AUDIO_BYTES = 10L * 1024 * 1024
 
     data class Plan(
         /** The entries to keep, newest first. */
@@ -162,26 +181,46 @@ object RetentionPolicy {
         val dropAudioFor: List<Recording>,
     )
 
-    fun plan(recordings: List<Recording>): Plan {
+    /**
+     * [audioSizeOf] gives each recording's audio size in bytes; a recording
+     * whose file is already gone should report 0.
+     */
+    fun plan(recordings: List<Recording>, audioSizeOf: (Recording) -> Long): Plan {
         val newestFirst = recordings.sortedByDescending { it.createdAt }
         val keep = newestFirst.take(MAX_ENTRIES)
         val dropped = newestFirst.drop(MAX_ENTRIES)
 
-        // Audio is only kept for the newest few, and never dropped from
-        // under a recording that can still be sent: one waiting to upload or
-        // uploading has nothing else to send, and a failure with attempts
-        // left would retry into a file that is no longer there
-        // (dtinth/vxbeamer#86).
-        val stillNeedsAudio = { r: Recording ->
+        // Newest audio is kept first, up to the budget. Anything that still
+        // has to be sent is exempt: a recording waiting to upload has nothing
+        // else to send, and a failure with attempts left would retry into a
+        // file that is no longer there.
+        val exempt = { r: Recording ->
             when (r.status) {
                 RecordingStatus.PENDING, RecordingStatus.UPLOADING, RecordingStatus.CAPTURING -> true
                 RecordingStatus.FAILED -> r.attempts < UploadPolicy.MAX_ATTEMPTS
                 RecordingStatus.DONE -> false
             }
         }
-        val audioKeepers = keep.filterIndexed { index, r -> index < MAX_AUDIO_FILES || stillNeedsAudio(r) }
-        val dropAudioFor = (keep - audioKeepers.toSet()) + dropped
 
-        return Plan(keep = keep, dropAudioFor = dropAudioFor)
+        var budget = MAX_AUDIO_BYTES
+        val dropAudioFor = mutableListOf<Recording>()
+        for (recording in keep) {
+            val size = audioSizeOf(recording)
+            if (size <= 0) continue
+            if (exempt(recording)) {
+                // Counted against the budget even though it cannot be
+                // dropped, so an exempt backlog still pushes older audio out
+                // rather than letting the total run past the cap unnoticed.
+                budget -= size
+                continue
+            }
+            if (size <= budget) {
+                budget -= size
+            } else {
+                dropAudioFor += recording
+            }
+        }
+
+        return Plan(keep = keep, dropAudioFor = dropAudioFor + dropped)
     }
 }

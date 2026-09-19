@@ -41,6 +41,12 @@ Two separate Android apps live here, in one Gradle project:
   Watch audio goes through the same store, so relayed recordings get the
   same history and the same retry as local ones.
 
+  Any recording's audio can be exported as a WAV, in the same format the
+  eval fixtures use, for listening to or testing a transcription against.
+  Audio is capped at 10 MB in total, oldest dropped first — except audio
+  that has not been transcribed yet, which is never deleted to stay under
+  the cap, since that would destroy the only copy of what was said.
+
 Sign-in reuses the desktop app's own flow: the phone app opens your browser,
 you sign in, the hosted web app shows a short code, and you paste that code
 back into the phone app. Nothing on the backend or website needed to change

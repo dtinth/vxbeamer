@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The m3-background custom property from apps/website/src/style.css -->
+    <color name="vxbeamer_background">#12140D</color>
+</resources>

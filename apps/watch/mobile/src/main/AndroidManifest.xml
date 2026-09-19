@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- The always-on-top record button, switched on and off by the user from
+         TransmitterActivity — see FloatingWindow's own doc comment. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Vxbeamer">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.Vxbeamer">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- Catches the sign-in redirect the same way the desktop app's
+                 own flow does: the browser lands on vxbeamer's hosted web
+                 app, and the operator copies the code shown there back into
+                 this app by hand (dtinth/vxbeamer#86). No deep link needed. -->
+        </activity>
+
+        <!-- Woken by the system the moment the watch opens a channel, even
+             if this app is not running — see RelayListenerService's own
+             doc comment for why that means no notification is needed until
+             a recording is actually in progress. -->
+        <service
+            android:name=".RelayListenerService"
+            android:exported="true"
+            android:foregroundServiceType="dataSync">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.CHANNEL_EVENT" />
+            </intent-filter>
+        </service>
+
+        <!-- Recording and the history list. supportsPictureInPicture lets
+             it shrink into a square corner window mid-recording; see
+             TransmitterActivity's own doc comment. -->
+        <activity
+            android:name=".TransmitterActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|uiMode"
+            android:resizeableActivity="true"
+            android:supportsPictureInPicture="true"
+            android:theme="@style/Theme.Vxbeamer" />
+
+        <!-- One service for the microphone, the upload queue and the floating
+             button: there is one of each, driven by several surfaces. It also
+             sidesteps a restriction — a tap on the overlay happens with the
+             app in the background, where a microphone service may not be
+             started. See RecorderService's own doc comment. -->
+        <!-- Both types: it claims the microphone while recording, and only
+             dataSync when it is up purely to drain the upload queue — a
+             microphone-typed service needs RECORD_AUDIO granted and throws
+             without it. -->
+        <service
+            android:name=".RecorderService"
+            android:exported="false"
+            android:foregroundServiceType="microphone|dataSync" />
+
+        <!-- Hands an exported WAV to another app without making it world
+             readable. Scoped to cache/exports only — see res/xml/file_paths.xml. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.exports"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+        <!-- Toggling from inside any other app, without the "draw over other
+             apps" permission banking apps suppress. See ToggleTileService's
+             own doc comment for why a tile rather than an overlay or an
+             accessibility shortcut. -->
+        <service
+            android:name=".ToggleTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_mic"
+            android:label="@string/tile_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+    </application>
+</manifest>

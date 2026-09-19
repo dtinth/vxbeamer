@@ -1,0 +1,90 @@
+package com.dtinth.vxbeamer.mobile
+
+import android.annotation.SuppressLint
+import android.app.PendingIntent
+import android.content.Intent
+import android.os.Build
+import android.service.quicksettings.Tile
+import android.service.quicksettings.TileService
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+
+/**
+ * A Quick Settings tile that toggles a recording from inside any other app —
+ * swipe down, tap, speak (dtinth/vxbeamer#86).
+ *
+ * Kept alongside the floating button because the two fail differently: an
+ * overlay can be suppressed by a banking app on Android 12+, a tile cannot
+ * be suppressed by anything, and the tile costs no permission at all. An
+ * accessibility shortcut was ruled out as worse than either — Thai banking
+ * apps refuse to run while *any* accessibility service is enabled.
+ *
+ * **Starting has to go through the activity.** A microphone foreground
+ * service cannot be started from the background, and `onClick` runs there.
+ * Stopping has no such restriction and goes straight to the service.
+ */
+class ToggleTileService : TileService() {
+    private var watchJob: Job? = null
+    private val scope = CoroutineScope(Dispatchers.Main)
+
+    override fun onStartListening() {
+        super.onStartListening()
+        Recorder.initialize(this)
+        // The tile is only visible while listening, so this is also the only
+        // window in which its state is worth following.
+        watchJob = scope.launch { Recorder.capturingId.collect { render() } }
+    }
+
+    override fun onStopListening() {
+        watchJob?.cancel()
+        watchJob = null
+        super.onStopListening()
+    }
+
+    override fun onClick() {
+        super.onClick()
+        Recorder.initialize(this)
+        if (Recorder.isCapturing) {
+            RecorderService.send(this, RecorderService.ACTION_STOP_CAPTURE)
+            return
+        }
+        launchForStart()
+    }
+
+    // The deprecated `Intent` overload only throws on Android 14+, which the
+    // branch below never reaches — and it is the only variant that exists on
+    // the older versions this app supports (minSdk 26).
+    @SuppressLint("StartActivityAndCollapseDeprecated")
+    private fun launchForStart() {
+        val intent =
+            Intent(this, TransmitterActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                .putExtra(TransmitterActivity.EXTRA_AUTO_START, true)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startActivityAndCollapse(
+                PendingIntent.getActivity(
+                    this,
+                    0,
+                    intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                ),
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            startActivityAndCollapse(intent)
+        }
+    }
+
+    private fun render() {
+        val tile = qsTile ?: return
+        val active = Recorder.isCapturing
+        tile.state = if (active) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
+        tile.label = getString(R.string.tile_label)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            tile.subtitle = if (active) "Listening…" else null
+        }
+        tile.updateTile()
+    }
+}

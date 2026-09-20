@@ -376,6 +376,20 @@ Incidental, on clip C: the previous wording returned `Alecia` / `Alesia` /
 `Elysia` across runs, the current wording `Elysia` in all ten. One fixture and
 not what the instruction was aimed at, so noted rather than claimed.
 
+**A first version of the new wording translated English into Thai.** It stated
+the Thai script rule unconditionally, which reads as a claim about the output
+rather than a rule about Thai. Re-run on a 2.0 s English clip, n=10:
+
+| instruction                                     | output in Thai script | transcript                                            |
+| ----------------------------------------------- | --------------------- | ----------------------------------------------------- |
+| `Transcribe … verbatim` (older)                 | 0/10                  | `But it only happens sometimes.`                      |
+| unconditional Thai rule                         | **10/10**             | `แต่มันเกิดขึ้นแค่บางครั้ง` and four other renderings |
+| current, language named + Thai rule conditional | 0/10                  | `But it only happens sometimes.`                      |
+
+The current wording holds every result above on the Thai clips while fixing
+this, so the language clause costs nothing. A prompt that describes the
+expected output in one language will produce that language.
+
 Counting caveat: "spaces between Thai words" counts any space with Thai on
 both sides, but Thai does use spaces at clause boundaries. On clip A the two
 remaining spaces sit around the fillers `เออ` and `อืม`, which is correct

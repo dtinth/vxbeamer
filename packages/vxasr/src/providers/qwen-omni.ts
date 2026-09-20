@@ -62,6 +62,16 @@ const CHUNK_SIZE = 3200; // 100 ms
  * their surrounding spaces (`TypeScript`, `MongoDB Atlas`), which a blunter
  * "no spaces" instruction would have broken.
  *
+ * **Why it names the spoken language, and why the Thai rule is conditional.**
+ * A first version of this wording stated the Thai rule unconditionally, which
+ * reads as a claim about the *output* rather than a rule about Thai — and on
+ * English audio the model then translated into Thai in 10 runs out of 10.
+ * Saying "in the language they are spoken in. Never translate", and making
+ * the Thai rule apply only "when the speaker speaks Thai", takes that to
+ * 0/10 while keeping every result above. A prompt that describes the
+ * expected output in one language will produce that language
+ * (dtinth/vxbeamer#86).
+ *
  * It is a constant rather than part of a configuration's identity because
  * identity is provider + model + post-processing chain (see
  * `../configuration.ts`), and an instruction is none of those. If it were an
@@ -74,11 +84,11 @@ const CHUNK_SIZE = 3200; // 100 ms
  * adapter asks one question.
  */
 export const QWEN_OMNI_TRANSCRIPTION_INSTRUCTIONS =
-  "Write out exactly the words the speaker says, as ordinary written text. " +
+  "Write out exactly the words the speaker says, as ordinary written text, " +
+  "in the language they are spoken in. Never translate. " +
   "Output only those words: no tags, no annotations, no alternatives, no explanations. " +
-  "Write Thai in Thai script with no spaces between Thai words. " +
-  "Keep technical terms and product names in Latin script, separated by single spaces " +
-  "from the surrounding Thai.";
+  "When the speaker speaks Thai, write Thai in Thai script with no spaces between Thai words, " +
+  "keeping technical terms and product names in Latin script.";
 
 /**
  * USD per token. The vendor prices audio input and text input differently —

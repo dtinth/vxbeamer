@@ -174,6 +174,17 @@ test("the instruction asks for written text, never for a transcription", () => {
   expect(QWEN_OMNI_TRANSCRIPTION_INSTRUCTIONS).toContain("Latin");
 });
 
+test("the instruction keeps the spoken language and only conditions on Thai", () => {
+  // A version of this wording stated the Thai rule unconditionally, which
+  // reads as a claim about the output rather than a rule about Thai: English
+  // audio came back translated into Thai in 10 runs out of 10
+  // (dtinth/vxbeamer#86). Both halves of the repair are pinned here.
+  expect(QWEN_OMNI_TRANSCRIPTION_INSTRUCTIONS).toContain("in the language they are spoken in");
+  expect(QWEN_OMNI_TRANSCRIPTION_INSTRUCTIONS).toContain("Never translate");
+  // Conditional, so the instruction never reads as "the output is Thai".
+  expect(QWEN_OMNI_TRANSCRIPTION_INSTRUCTIONS).toContain("When the speaker speaks Thai");
+});
+
 test("the separate transcription sub-service is silenced by naming no model", async () => {
   const vendor = await withVendor();
 

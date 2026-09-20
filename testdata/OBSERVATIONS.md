@@ -346,6 +346,41 @@ Fisher's exact on 3/3 vs 1/3 ≈ **0.4**; this sample does not establish a pacin
 
 Same audio, same configuration, same pacing.
 
+### `qwen3.5-omni-flash-realtime-2026-03-15`, prompt compared, n=10 each
+
+Run **2026-09-20** (dtinth/vxbeamer#86). Three clips, four instructions, ten
+runs each. Two defects counted separately: `<fil>` filler tags with
+slash-separated alternate readings (`Issue/อิชชู`), and spaces inserted
+between Thai words, which Thai does not use.
+
+Clip A is a 13.0 s eval-set recording that reproduces the tags; clip B is a
+2.1 s Thai clip that reproduces the spacing; clip C is `test-audio.bin`, kept
+as a control because its English technical terms _need_ their surrounding
+spaces.
+
+| instruction                                                  | A: tags  | A: alternates | B: spaces        | C: Latin terms |
+| ------------------------------------------------------------ | -------- | ------------- | ---------------- | -------------- |
+| `Transcribe the user's audio verbatim…` (previous)           | 10/10    | 10/10         | 3 per run, 10/10 | preserved      |
+| previous + Thai/Latin script rule                            | 10/10    | 10/10         | 0/10             | preserved      |
+| previous + script rule + "never output tags such as `<fil>`" | 10/10    | 10/10         | —                | preserved      |
+| `Write out exactly the words the speaker says…` (current)    | **0/10** | **0/10**      | **0/10**         | preserved      |
+
+**Forbidding the behaviour did not work.** Adding "never output tags in angle
+brackets such as `<fil>`" to the old wording left it at 10/10. Removing the
+word _transcribe_ did, taking both defects to 0/10 — the working theory being
+that "transcribe … verbatim" selects a transcription-annotation register where
+those tags belong, and naming the token without leaving that register may
+prime it.
+
+Incidental, on clip C: the previous wording returned `Alecia` / `Alesia` /
+`Elysia` across runs, the current wording `Elysia` in all ten. One fixture and
+not what the instruction was aimed at, so noted rather than claimed.
+
+Counting caveat: "spaces between Thai words" counts any space with Thai on
+both sides, but Thai does use spaces at clause boundaries. On clip A the two
+remaining spaces sit around the fillers `เออ` and `อืม`, which is correct
+typography rather than the defect.
+
 ---
 
 ## Errors and timeouts observed

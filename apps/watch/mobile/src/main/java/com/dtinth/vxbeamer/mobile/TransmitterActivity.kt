@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -43,11 +44,13 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -338,7 +341,16 @@ private fun History(
     val oldestFirst = remember(recordings) { recordings.asReversed() }
     val listState = rememberLazyListState()
 
-    // Follows the newest entry as it arrives, but only when the user is
+    val newest = oldestFirst.lastOrNull()
+
+    // Opening the screen shows the newest, not the oldest: what just happened
+    // is the reason to be here. Jumped to rather than animated, so it is
+    // already in place on the first frame (dtinth/vxbeamer#86).
+    LaunchedEffect(Unit) {
+        if (oldestFirst.isNotEmpty()) listState.scrollToItem(oldestFirst.lastIndex)
+    }
+
+    // Follows the newest entry as it arrives, but only while the user is
     // already at the bottom — scrolling back to read something older should
     // not be yanked away by a transcript landing.
     val atBottom by remember {
@@ -347,8 +359,17 @@ private fun History(
             last == null || last.index >= listState.layoutInfo.totalItemsCount - 2
         }
     }
-    LaunchedEffect(oldestFirst.size, oldestFirst.lastOrNull()?.transcript) {
+    LaunchedEffect(oldestFirst.size, newest?.status, newest?.transcript) {
         if (oldestFirst.isNotEmpty() && atBottom) {
+            listState.animateScrollToItem(oldestFirst.lastIndex)
+        }
+    }
+
+    // Starting a recording always goes to the bottom, wherever the user had
+    // scrolled to: they just pressed record, so the new entry is what they
+    // are waiting for.
+    LaunchedEffect(capturingId) {
+        if (capturingId != null && oldestFirst.isNotEmpty()) {
             listState.animateScrollToItem(oldestFirst.lastIndex)
         }
     }
@@ -405,6 +426,13 @@ private fun HistoryRow(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                RecordingMenu(
+                    recording = recording,
+                    onCopy = onCopy,
+                    onRetry = onRetry,
+                    onDiscard = onDiscard,
+                    onExport = onExport,
+                )
             }
 
             if (!transcript.isNullOrEmpty()) {
@@ -416,30 +444,82 @@ private fun HistoryRow(
                     color = MaterialTheme.colorScheme.error,
                 )
             }
+        }
+    }
+}
 
-            if (UploadPolicy.canRetry(recording)) {
-                Row {
-                    TextButton(onClick = { onRetry(recording.id) }) {
-                        // The audio is still on the device, so this really is
-                        // a fresh transcription, not a replayed result.
-                        Text(if (recording.status == RecordingStatus.DONE) "Transcribe again" else "Retry")
-                    }
-                    if (!transcript.isNullOrEmpty()) {
-                        TextButton(onClick = { onCopy(transcript) }) { Text("Copy") }
-                    }
-                    if (recording.status != RecordingStatus.DONE) {
-                        // Otherwise a recording that will never succeed can
-                        // only be waited out by retention.
-                        TextButton(onClick = { onDiscard(recording.id) }) { Text("Discard") }
-                    }
-                }
+/**
+ * The per-recording actions, behind one button.
+ *
+ * They were a row of text buttons, which at three or four of them took more
+ * room than the transcript they belonged to — and most of them are rarely
+ * wanted (dtinth/vxbeamer#86).
+ */
+@Composable
+private fun RowScope.RecordingMenu(
+    recording: Recording,
+    onCopy: (String) -> Unit,
+    onRetry: (String) -> Unit,
+    onDiscard: (String) -> Unit,
+    onExport: (String) -> Unit,
+) {
+    val transcript = recording.transcript
+    val canRetry = UploadPolicy.canRetry(recording)
+    // Nothing to offer: still capturing or uploading, with no audio kept yet.
+    if (!canRetry && transcript.isNullOrEmpty() && !recording.hasAudio) return
+
+    var open by remember { mutableStateOf(false) }
+
+    Box {
+        IconButton(onClick = { open = true }, modifier = Modifier.size(28.dp)) {
+            Text(
+                "⋮",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            if (!transcript.isNullOrEmpty()) {
+                DropdownMenuItem(
+                    text = { Text("Copy") },
+                    onClick = {
+                        open = false
+                        onCopy(transcript)
+                    },
+                )
             }
-
-            // Offered whenever the audio is still here, including while it is
-            // being captured — a recording that transcribed badly is exactly
-            // the one worth having the WAV of.
+            if (canRetry) {
+                DropdownMenuItem(
+                    // The audio is still here, so this really is a fresh
+                    // transcription rather than a replayed result.
+                    text = {
+                        Text(if (recording.status == RecordingStatus.DONE) "Transcribe again" else "Retry")
+                    },
+                    onClick = {
+                        open = false
+                        onRetry(recording.id)
+                    },
+                )
+            }
             if (recording.hasAudio) {
-                TextButton(onClick = { onExport(recording.id) }) { Text("Export WAV") }
+                DropdownMenuItem(
+                    text = { Text("Export WAV") },
+                    onClick = {
+                        open = false
+                        onExport(recording.id)
+                    },
+                )
+            }
+            if (recording.status != RecordingStatus.DONE && canRetry) {
+                // Otherwise a recording that will never succeed can only be
+                // waited out by retention.
+                DropdownMenuItem(
+                    text = { Text("Discard") },
+                    onClick = {
+                        open = false
+                        onDiscard(recording.id)
+                    },
+                )
             }
         }
     }

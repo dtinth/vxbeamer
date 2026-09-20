@@ -155,6 +155,25 @@ test("the session instructs the model to transcribe rather than converse", async
   expect(session.turn_detection).toBe(null);
 });
 
+test("the instruction asks for written text, never for a transcription", () => {
+  // Measured, not stylistic (dtinth/vxbeamer#86). Asking these models to
+  // "transcribe verbatim" put them in a transcription-annotation register:
+  // `<fil>` filler tags and slash-separated alternative readings in 10 runs
+  // out of 10. Forbidding those explicitly did not help; dropping the word
+  // "transcribe" did, taking both to 0/10.
+  //
+  // This is the one property of the wording that carries that result, so it
+  // is pinned here — a later tidy-up back towards "transcribe the audio"
+  // would quietly reintroduce the tags.
+  expect(QWEN_OMNI_TRANSCRIPTION_INSTRUCTIONS.toLowerCase()).not.toContain("transcri");
+
+  // The other half of the same experiment: Thai is written without spaces
+  // between words, while Latin technical terms keep theirs. A blunter "no
+  // spaces" rule broke the second case.
+  expect(QWEN_OMNI_TRANSCRIPTION_INSTRUCTIONS).toContain("Thai");
+  expect(QWEN_OMNI_TRANSCRIPTION_INSTRUCTIONS).toContain("Latin");
+});
+
 test("the separate transcription sub-service is silenced by naming no model", async () => {
   const vendor = await withVendor();
 

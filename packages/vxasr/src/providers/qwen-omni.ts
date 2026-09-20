@@ -38,6 +38,30 @@ const CHUNK_SIZE = 3200; // 100 ms
  * Thai, offering to help design the project described in the clip. So the
  * instruction is load-bearing input, on a par with `input_audio_format`.
  *
+ * **Why it no longer says "transcribe".** Asking these models to "transcribe
+ * verbatim" put them in a transcription-*annotation* register: they emitted
+ * `<fil>` filler tags and slash-separated alternative readings
+ * (`Issue/อิชชู`), and split Thai into space-separated words, which Thai does
+ * not do. Measured over 10 runs per prompt per clip (dtinth/vxbeamer#86):
+ *
+ * | | `<fil>` tags | `a/b` alternates | spaces splitting Thai |
+ * | --- | --- | --- | --- |
+ * | "Transcribe … verbatim" | 10/10 | 10/10 | 3 per run, 10/10 |
+ * | this instruction | 0/10 | 0/10 | 0/10 |
+ *
+ * Notably, *forbidding* the behaviour did not work — adding "never output tags
+ * in angle brackets such as `<fil>`" to the old wording left it at 10/10.
+ * Leaving the register did. Naming the token while still asking to
+ * "transcribe" appears to keep the model in the annotation style, and may
+ * prime the very token it is told to avoid. So the wording below is load-
+ * bearing in a second way: it asks for *written text*, never for a
+ * transcript.
+ *
+ * The script rule is Thai-specific because this app's audio is, and because
+ * the failure it fixes is: the same run confirmed Latin technical terms keep
+ * their surrounding spaces (`TypeScript`, `MongoDB Atlas`), which a blunter
+ * "no spaces" instruction would have broken.
+ *
  * It is a constant rather than part of a configuration's identity because
  * identity is provider + model + post-processing chain (see
  * `../configuration.ts`), and an instruction is none of those. If it were an
@@ -50,7 +74,11 @@ const CHUNK_SIZE = 3200; // 100 ms
  * adapter asks one question.
  */
 export const QWEN_OMNI_TRANSCRIPTION_INSTRUCTIONS =
-  "Transcribe the user's audio verbatim. Output only the transcript, nothing else.";
+  "Write out exactly the words the speaker says, as ordinary written text. " +
+  "Output only those words: no tags, no annotations, no alternatives, no explanations. " +
+  "Write Thai in Thai script with no spaces between Thai words. " +
+  "Keep technical terms and product names in Latin script, separated by single spaces " +
+  "from the surrounding Thai.";
 
 /**
  * USD per token. The vendor prices audio input and text input differently —

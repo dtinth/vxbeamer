@@ -118,31 +118,46 @@ export const builtinConfigurations: readonly ConfigurationSpec[] = [
   // OpenAI does not publish dated variants of it the way DashScope does, so
   // there is nothing to pin to — same situation as BytePlus's mode ids.
   { provider: "openai", label: "OpenAI gpt-live-transcribe (raw)" },
-  // The cleanest transcript of every OpenRouter model compared on the test
-  // fixture so far, at under half the cost of the previous default
-  // (dtinth/vxbeamer#86). Declared raw only: it is a plain transcription
-  // endpoint with no post-processing chain to enhance. Leads the provider's
-  // model list, so it is the default — no explicit `model` here, same as
-  // every other provider's top slot.
-  { provider: "openrouter", label: "OpenRouter Muse Voice Transcribe (raw)" },
-  // The previous default, tried live alongside 18 sibling OpenRouter STT
-  // models on the test fixture (dtinth/vxbeamer#86). Still worth keeping —
-  // given an explicit `model` now, so its configuration id stays
-  // `openrouter/microsoft/mai-transcribe-1.5` regardless of which model
-  // leads the provider's own list.
-  {
-    provider: "openrouter",
-    model: "microsoft/mai-transcribe-1.5",
-    label: "OpenRouter MAI-Transcribe-1.5 (raw)",
-  },
-  // Tried live the same way once released (dtinth/vxbeamer#86): about a third
-  // of `1.5`'s cost, but made two small transcription errors on the same
-  // fixture that `1.5` did not — a second choice, not a replacement.
+  // Every OpenRouter entry names its model explicitly, including the one that
+  // is currently the provider's default. Relying on omission would tie a
+  // configuration id to whichever model happens to lead the list, so
+  // reordering that list — which has now happened twice — would silently
+  // rename a configuration and orphan any vote cast for it
+  // (dtinth/vxbeamer#86).
+  //
+  // Declared raw only, all three: a plain transcription endpoint with no
+  // post-processing chain to enhance.
+  //
+  // `mai-transcribe-2` leads on speed and cost, measured head to head rather
+  // than inferred — see the models list in `./providers/builtin.ts`.
   {
     provider: "openrouter",
     model: "microsoft/mai-transcribe-2",
     label: "OpenRouter MAI-Transcribe-2 (raw)",
   },
+  // Held the default on transcript quality until it was timed: four times
+  // slower than the other two, and the worst of the three on the clip that
+  // finally compared them directly.
+  {
+    provider: "openrouter",
+    model: "meta/muse-voice-transcribe-1.0",
+    label: "OpenRouter Muse Voice Transcribe (raw)",
+  },
+  // The original choice, from a live comparison of 19 OpenRouter STT models
+  // on the test fixture (dtinth/vxbeamer#86).
+  {
+    provider: "openrouter",
+    model: "microsoft/mai-transcribe-1.5",
+    label: "OpenRouter MAI-Transcribe-1.5 (raw)",
+  },
+  // Paxa Labs, tried live on the same fixtures (dtinth/vxbeamer#86). The only
+  // model compared there that needed no instruction to behave: no filler
+  // tags, no spaces inserted between Thai words, no English translated into
+  // Thai, and byte-identical output across repeated runs. Batch, like
+  // OpenRouter, and about four times the price of `mai-transcribe-2` for
+  // near-identical speed — a real trade rather than a replacement, which is
+  // why it is offered alongside rather than as the default.
+  { provider: "paxa", label: "Paxa STT Lite (raw)" },
   // The same model as the OpenRouter default above, spoken to directly
   // (dtinth/vxbeamer#86): Meta's own endpoint streams genuine partial
   // transcripts, where OpenRouter's is a batch upload with no partials.

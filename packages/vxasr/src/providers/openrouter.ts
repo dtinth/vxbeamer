@@ -18,7 +18,9 @@ import { writeWav } from "../audio.ts";
  * Compared live against sibling OpenRouter STT models on the same fixture
  * `testdata/OBSERVATIONS.md` uses (dtinth/vxbeamer#86); `mai-transcribe-1.5`,
  * `mai-transcribe-2`, and `muse-voice-transcribe-1.0` are the ones declared
- * as configurations so far.
+ * as configurations so far. `mai-transcribe-2` leads because it was the
+ * fastest and cheapest of the three once they were timed rather than only
+ * read — see the note on the models list in `./builtin.ts`.
  */
 export interface OpenRouterProviderConfig {
   apiKey: string;
@@ -29,7 +31,7 @@ export interface OpenRouterProviderConfig {
 
 const DEFAULT_BASE_URL = "https://openrouter.ai/api/v1/audio/transcriptions";
 
-export const OPENROUTER_DEFAULT_MODEL = "meta/muse-voice-transcribe-1.0";
+export const OPENROUTER_DEFAULT_MODEL = "microsoft/mai-transcribe-2";
 
 interface OpenRouterTranscriptionResponse {
   text?: string;

@@ -205,10 +205,13 @@ test("the default catalogue offers each real model, enhanced only where that hel
     // Raw only, like the Qwen Omni models — tried live, and it renders
     // loanwords in Latin unprompted, so a `+groq` sibling has nothing to add.
     "openai/gpt-live-transcribe",
-    // Raw only: a plain batch transcription endpoint, nothing to enhance.
+    // Raw only: plain batch transcription endpoints, nothing to enhance.
+    // Ordered as declared, which is also fastest-first after they were timed
+    // against each other rather than only read (dtinth/vxbeamer#86).
+    "openrouter/microsoft/mai-transcribe-2",
     "openrouter/meta/muse-voice-transcribe-1.0",
     "openrouter/microsoft/mai-transcribe-1.5",
-    "openrouter/microsoft/mai-transcribe-2",
+    "paxa/paxa-stt-lite-v1-preview",
     "meta/muse-voice-transcribe-1.0",
     "mock/mock",
   ]);
@@ -240,6 +243,9 @@ test("no configuration names a floating model id", () => {
     // just spoken to directly — nothing to date here that OpenRouter's own
     // exemption doesn't already cover.
     if (configuration.providerId === "meta") continue;
+    // Paxa publishes one id for this endpoint, carrying its own `-preview`
+    // rather than a date, so there is no dated snapshot to pin to.
+    if (configuration.providerId === "paxa") continue;
     expect(configuration.model).toMatch(/-\d{4}-\d{2}-\d{2}$/);
   }
 });

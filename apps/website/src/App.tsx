@@ -16,6 +16,7 @@ import { SettingsSheet } from "./components/SettingsSheet.tsx";
 import { DesktopAuthCode } from "./components/DesktopAuthCode.tsx";
 import { handleCallback } from "./oidc.ts";
 import { attachKeyboardShortcuts } from "./keyboardShortcuts.ts";
+import { attachAutoCopy } from "./autoCopy.ts";
 
 export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -28,6 +29,7 @@ export function App() {
   // lifetime, not scoped to any single child, since it acts on whichever
   // record button and message bubbles are on screen right now.
   useEffect(() => attachKeyboardShortcuts(), []);
+  useEffect(() => attachAutoCopy(), []);
 
   // Handle OIDC callback on mount
   useEffect(() => {

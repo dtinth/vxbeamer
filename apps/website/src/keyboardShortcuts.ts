@@ -1,8 +1,6 @@
 import { $activeRecordingReferenceId, $visibleMessages } from "./store.ts";
-import {
-  isMessageCopyable,
-  selectLatestCopyableMessageId,
-} from "./components/messageFeedScroll.ts";
+import { copyWhenFinalized } from "./autoCopy.ts";
+import { selectLatestCopyableMessageId } from "./components/messageFeedScroll.ts";
 
 /**
  * How long a guarded record-button click is given to actually change
@@ -56,22 +54,6 @@ function clickMessageBubble(messageId: string): void {
 }
 
 /**
- * Only for a bubble click triggered by a store notification (push-to-talk's
- * auto-copy once a message finalizes) rather than directly inside a trusted
- * key event. The notification fires synchronously, a tick ahead of the React
- * commit it triggers, so clicking the bubble immediately hits its *previous*
- * render, whose `handleClick` closure still sees the old, not-yet-copyable
- * message and silently no-ops. A macrotask guarantees React has committed
- * the new render (and rebound the click handler to the finalized message)
- * before the click lands. `c` doesn't need this: it always runs after the
- * message's own text is already visible, which only happens once React has
- * already committed the render this reads from.
- */
-function clickMessageBubbleAfterRender(messageId: string): void {
-  setTimeout(() => clickMessageBubble(messageId), 0);
-}
-
-/**
  * Wires up `c` (copy the latest finished transcript), `r` (toggle
  * recording), and hold-Space (push-to-talk — start on press, stop and
  * auto-copy on release), by simulating clicks on the same button and
@@ -86,23 +68,7 @@ export function attachKeyboardShortcuts(): () => void {
     | { phase: "active"; referenceId: string };
 
   let state: PushToTalkState = { phase: "idle" };
-  let unwatchFinalize: (() => void) | null = null;
   let cancelPendingToggle: (() => void) | null = null;
-
-  const stopWatchingFinalize = () => {
-    unwatchFinalize?.();
-    unwatchFinalize = null;
-  };
-
-  const watchForFinalize = (referenceId: string) => {
-    stopWatchingFinalize();
-    unwatchFinalize = $visibleMessages.subscribe((messages) => {
-      const target = Array.from(messages.values()).find((m) => m.referenceId === referenceId);
-      if (!target || !isMessageCopyable(target)) return;
-      stopWatchingFinalize();
-      clickMessageBubbleAfterRender(target.id);
-    });
-  };
 
   /**
    * Clicks the record button, then waits for `$activeRecordingReferenceId`
@@ -168,7 +134,10 @@ export function attachKeyboardShortcuts(): () => void {
     if ($activeRecordingReferenceId.get() === referenceId) {
       clickRecordButtonGuarded(() => undefined);
     }
-    watchForFinalize(referenceId);
+    // Push-to-talk copies on release whatever the auto-copy setting says —
+    // that is the gesture's whole point. `copyWhenFinalized` is idempotent,
+    // so when the setting is also on, the two do not race to copy twice.
+    copyWhenFinalized(referenceId);
   };
 
   const onKeyDown = (event: KeyboardEvent) => {
@@ -207,7 +176,6 @@ export function attachKeyboardShortcuts(): () => void {
   return () => {
     window.removeEventListener("keydown", onKeyDown);
     window.removeEventListener("keyup", onKeyUp);
-    stopWatchingFinalize();
     cancelPendingToggle?.();
   };
 }

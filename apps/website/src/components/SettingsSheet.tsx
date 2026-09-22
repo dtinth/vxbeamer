@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useStore } from "@nanostores/react";
 import {
   $audioProcessingMode,
+  $autoCopy,
   $backendUrl,
   $desktopSwipeBehavior,
   $recordingButtonSize,
@@ -13,6 +14,7 @@ import {
   setBackendUrl,
   clearSessionToken,
   setAudioProcessingMode,
+  setAutoCopy,
   setDesktopSwipeBehavior,
   setRecordingButtonSize,
   setTranscriptListMode,
@@ -37,6 +39,7 @@ export function SettingsSheet({ open: controlledOpen, onOpenChange }: SettingsSh
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const backendUrl = useStore($backendUrl);
   const audioProcessingMode = useStore($audioProcessingMode);
+  const autoCopy = useStore($autoCopy);
   const desktopSwipeBehavior = useStore($desktopSwipeBehavior);
   const transcriptListMode = useStore($transcriptListMode);
   const recordingButtonSize = useStore($recordingButtonSize);
@@ -144,6 +147,24 @@ export function SettingsSheet({ open: controlledOpen, onOpenChange }: SettingsSh
             <option value="on">On</option>
             <option value="off">Off</option>
           </select>
+        </div>
+
+        <div className="space-y-1.5">
+          <span className="text-xs font-medium text-(--m3-on-surface-variant) uppercase tracking-wider">
+            Auto copy
+          </span>
+          <select
+            value={autoCopy ? "on" : "off"}
+            onChange={(e) => setAutoCopy(e.target.value === "on")}
+            className="w-full bg-(--m3-surface-container-highest) rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-(--m3-outline) appearance-none"
+          >
+            <option value="off">Off</option>
+            <option value="on">Copy my transcripts when they finish</option>
+          </select>
+          <p className="text-xs text-(--m3-on-surface-variant)">
+            Only recordings made on this device. Holding Space always copies on release, whatever
+            this is set to.
+          </p>
         </div>
 
         <div className="space-y-1.5">

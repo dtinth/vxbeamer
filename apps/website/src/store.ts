@@ -33,6 +33,7 @@ const WAKE_LOCK_KEY = "vxbeamer_wake_lock";
 const AUDIO_PROCESSING_KEY = "vxbeamer_audio_processing";
 const DESKTOP_SWIPE_BEHAVIOR_KEY = "vxbeamer_desktop_swipe_behavior";
 const TRANSCRIPT_LIST_MODE_KEY = "vxbeamer_transcript_list_mode";
+const AUTO_COPY_KEY = "vxbeamer_auto_copy";
 const RECORDING_BUTTON_SIZE_KEY = "vxbeamer_recording_button_size";
 const TOKEN_CHECK_INTERVAL_SECONDS = 60; // Check every minute if we need to refresh
 // Keep locally triggered swipes pending long enough for the matching SSE echo to arrive.
@@ -101,6 +102,22 @@ function loadDesktopSwipeBehavior(): DesktopSwipeBehavior {
 }
 
 export const $desktopSwipeBehavior = atom<DesktopSwipeBehavior>(loadDesktopSwipeBehavior());
+
+/**
+ * Copy a finished transcript to the clipboard without being asked.
+ *
+ * Only ever applies to a recording made on *this* client: the feed also
+ * carries recordings from every other signed-in device, and silently
+ * replacing the clipboard with something said on a different phone would be
+ * both surprising and hard to trace (dtinth/vxbeamer#86). Off by default,
+ * since taking over the clipboard is not something to opt a user into.
+ */
+export const $autoCopy = atom<boolean>(localStorage.getItem(AUTO_COPY_KEY) === "on");
+
+export function setAutoCopy(enabled: boolean): void {
+  $autoCopy.set(enabled);
+  localStorage.setItem(AUTO_COPY_KEY, enabled ? "on" : "off");
+}
 
 export function setWakeLockMode(mode: WakeLockMode): void {
   $wakeLockMode.set(mode);

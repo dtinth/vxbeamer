@@ -34,6 +34,8 @@ export type { OpenAIProviderConfig } from "./providers/openai.ts";
 export { createOpenRouterProvider, OPENROUTER_DEFAULT_MODEL } from "./providers/openrouter.ts";
 export type { OpenRouterProviderConfig } from "./providers/openrouter.ts";
 export { createMetaMuseProvider, META_MUSE_DEFAULT_MODEL } from "./providers/meta-muse.ts";
+export { createPaxaProvider, PAXA_DEFAULT_MODEL } from "./providers/paxa.ts";
+export type { PaxaProviderConfig } from "./providers/paxa.ts";
 export type { MetaMuseProviderConfig } from "./providers/meta-muse.ts";
 export { withGroqEnhancement } from "./providers/groq-enhancement.ts";
 export type { GroqEnhancementConfig } from "./providers/groq-enhancement.ts";
@@ -55,6 +57,7 @@ export {
   createDefaultProviderRegistry,
   metaProviderDefinition,
   mockProviderDefinition,
+  paxaProviderDefinition,
   openAIProviderDefinition,
   openRouterProviderDefinition,
   qwenOmniProviderDefinition,

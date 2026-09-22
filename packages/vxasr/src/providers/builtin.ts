@@ -18,6 +18,7 @@ import {
   META_MUSE_DEFAULT_MODEL,
   type MetaMuseProviderConfig,
 } from "./meta-muse.ts";
+import { createPaxaProvider, PAXA_DEFAULT_MODEL, type PaxaProviderConfig } from "./paxa.ts";
 import { createMockProvider } from "./mock.ts";
 
 export const qwenProviderDefinition: ProviderDefinition = defineProvider<QwenProviderConfig>({
@@ -161,18 +162,26 @@ export const openRouterProviderDefinition: ProviderDefinition =
     id: "openrouter",
     label: "OpenRouter",
     // Each tried live against the real endpoint on the same fixture
-    // testdata/OBSERVATIONS.md uses (dtinth/vxbeamer#86). `mai-transcribe-1.5`
-    // led originally; `muse-voice-transcribe-1.0` replaced it as the default
-    // (this list's first entry) once it came back as the cleanest transcript
-    // seen yet, at under half the cost. `mai-transcribe-2` costs about a
-    // third of `1.5`'s price but made two small transcription errors `1.5`
-    // did not, so it stays a second choice rather than a replacement.
+    // testdata/OBSERVATIONS.md uses (dtinth/vxbeamer#86). The order has
+    // changed twice, and the second time is the instructive one:
+    // `mai-transcribe-1.5` led originally, then `muse-voice-transcribe-1.0`
+    // took the lead on transcript quality alone — and was later found to be
+    // **four times slower** than the others (3.9 s vs 0.95 s on a 13 s clip)
+    // and the worst transcript of the three when they were finally compared
+    // head to head. It had never been timed.
+    //
+    // `mai-transcribe-2` now leads: fastest, cheapest, and its transcript on
+    // that clip was identical to the best of them. The two small errors that
+    // once kept it a second choice turned out to be shared by every model
+    // that gets the rest of the fixture right, so they no longer separate it
+    // from anything.
+    //
     // Add another id here once it has been run against that fixture too —
-    // same discipline every other provider's models list follows.
+    // and timed, not only read.
     models: [
       OPENROUTER_DEFAULT_MODEL,
+      "meta/muse-voice-transcribe-1.0",
       "microsoft/mai-transcribe-1.5",
-      "microsoft/mai-transcribe-2",
     ],
     // A batch HTTP call, not a realtime stream — every audio chunk is only
     // ever buffered client-side, so no pace at which `sendAudio` is called
@@ -209,6 +218,36 @@ export const metaProviderDefinition: ProviderDefinition = defineProvider<MetaMus
   },
 });
 
+export const paxaProviderDefinition: ProviderDefinition = defineProvider<PaxaProviderConfig>({
+  id: "paxa",
+  label: "Paxa Labs (Speech-to-Text)",
+  // One model, which is all the vendor publishes for this endpoint. The id
+  // carries its own `-preview` rather than a date, so there is no dated
+  // snapshot to pin to — same situation as BytePlus's mode ids.
+  models: [PAXA_DEFAULT_MODEL],
+  // A batch HTTP call, not a realtime stream — audio is buffered client-side
+  // either way, so no send pace can violate anything the vendor sees.
+  supportsFastDump: true,
+  resolveConfig(env) {
+    const apiKey = env.PAXA_API_KEY;
+    if (!apiKey) return { ok: false, missing: ["PAXA_API_KEY"] };
+    return {
+      ok: true,
+      config: {
+        apiKey,
+        // `spoken` vs `written` changes how numbers and repeated words are
+        // written. Left to the vendor's default unless an operator asks,
+        // because the difference is invisible on clips without numbers and
+        // picking one for everybody would be a guess (dtinth/vxbeamer#86).
+        convention: env.PAXA_CONVENTION === "written" ? "written" : undefined,
+      },
+    };
+  },
+  create(config, model) {
+    return createPaxaProvider({ ...config, model });
+  },
+});
+
 export const mockProviderDefinition: ProviderDefinition = defineProvider<Record<string, never>>({
   id: "mock",
   label: "Mock (canned transcript, no network)",
@@ -230,6 +269,7 @@ export const builtinProviderDefinitions: readonly ProviderDefinition[] = [
   openAIProviderDefinition,
   openRouterProviderDefinition,
   metaProviderDefinition,
+  paxaProviderDefinition,
   mockProviderDefinition,
 ];
 

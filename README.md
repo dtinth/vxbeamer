@@ -107,6 +107,7 @@ services:
       - OPENAI_API_KEY
       - OPENROUTER_API_KEY
       - META_API_KEY
+      - PAXA_API_KEY
       - OIDC_DISCOVERY_URL
       - OIDC_CLIENT_ID
       - OIDC_SECRET
@@ -122,15 +123,17 @@ services:
 | `GROQ_API_KEY`         | No       | Groq API key for gpt-oss-120b post-processing; enables the `+groq` configurations                                                                        |
 | `ASR_CONFIGURATION`    | No       | Default configuration id (default: derived from `ASR_PROVIDER`/`ASR_MODEL`/`GROQ_API_KEY`)                                                               |
 | `ASR_CONFIGURATIONS`   | No       | Comma-separated configurations clients may select (default: every configuration with credentials)                                                        |
-| `ASR_PROVIDER`         | No       | Provider for the derived default: `qwen` (default), `qwen-omni`, `byteplus`, `openai`, `openrouter`, `meta`, or `mock`                                   |
+| `ASR_PROVIDER`         | No       | Provider for the derived default: `qwen` (default), `qwen-omni`, `byteplus`, `openai`, `openrouter`, `meta`, `paxa`, or `mock`                           |
 | `ASR_MODEL`            | No       | Model for the derived default (default: the provider's own default model)                                                                                |
 | `BYTEPLUS_API_KEY`     | No       | BytePlus key; enables the `byteplus` configurations                                                                                                      |
 | `BYTEPLUS_LANGUAGE`    | No       | BytePlus language hint, e.g. `th-TH` (default: unset — Mandarin/English only)                                                                            |
 | `BYTEPLUS_RESOURCE_ID` | No       | BytePlus resource id (default: `volc.seedasr.sauc.duration`)                                                                                             |
 | `BYTEPLUS_BASE_URL`    | No       | BytePlus endpoint base, without the mode path segment                                                                                                    |
 | `OPENAI_API_KEY`       | No       | OpenAI key; enables the `openai` (`gpt-live-transcribe`) configuration                                                                                   |
-| `OPENROUTER_API_KEY`   | No       | OpenRouter key; enables the `openrouter` configurations (`meta/muse-voice-transcribe-1.0`, `microsoft/mai-transcribe-1.5`, `microsoft/mai-transcribe-2`) |
+| `OPENROUTER_API_KEY`   | No       | OpenRouter key; enables the `openrouter` configurations (`microsoft/mai-transcribe-2`, `meta/muse-voice-transcribe-1.0`, `microsoft/mai-transcribe-1.5`) |
 | `META_API_KEY`         | No       | Meta key; enables the `meta` (`muse-voice-transcribe-1.0`, direct realtime API) configuration                                                            |
+| `PAXA_API_KEY`         | No       | Paxa Labs key; enables the `paxa` configuration                                                                                                          |
+| `PAXA_CONVENTION`      | No       | `written` to render numbers as digits and use the Thai repetition mark (default: the vendor's `spoken`)                                                  |
 | `OIDC_DISCOVERY_URL`   | No       | OIDC provider discovery URL (alternative to API keys)                                                                                                    |
 | `OIDC_CLIENT_ID`       | No       | OIDC client ID (default: `vxbeamer-mobile`)                                                                                                              |
 | `OIDC_AUDIENCE`        | No       | Expected token audience (default: same as client ID)                                                                                                     |
@@ -219,9 +222,10 @@ A configuration is a provider, a model, and the post-processing chain applied to
 | `byteplus/bigmodel_nostream`                       | `BYTEPLUS_API_KEY`                  |
 | `byteplus/bigmodel_nostream+groq`                  | `BYTEPLUS_API_KEY`, `GROQ_API_KEY`  |
 | `openai/gpt-live-transcribe`                       | `OPENAI_API_KEY`                    |
+| `openrouter/microsoft/mai-transcribe-2`            | `OPENROUTER_API_KEY`                |
 | `openrouter/meta/muse-voice-transcribe-1.0`        | `OPENROUTER_API_KEY`                |
 | `openrouter/microsoft/mai-transcribe-1.5`          | `OPENROUTER_API_KEY`                |
-| `openrouter/microsoft/mai-transcribe-2`            | `OPENROUTER_API_KEY`                |
+| `paxa/paxa-stt-lite-v1-preview`                    | `PAXA_API_KEY`                      |
 | `meta/muse-voice-transcribe-1.0`                   | `META_API_KEY`                      |
 | `mock/mock`                                        | nothing                             |
 
@@ -229,9 +233,11 @@ Every Qwen model id is a dated snapshot, not a floating one — the vendor repoi
 
 BytePlus exposes two modes at two endpoints, and only `bigmodel_nostream` accepts a language — the bi-directional `bigmodel` mode covers Mandarin, English and a few Chinese dialects and nothing else, so on any other language it returns confident nonsense. Only `bigmodel_nostream` is offered as a configuration for that reason; the provider still serves `bigmodel` for deployments in those languages. Set `BYTEPLUS_LANGUAGE` (e.g. `th-TH`) or BytePlus falls back to that same Chinese/English default set. Note that `bigmodel_nostream` returns results only after 15 s of audio or the final packet, so it emits few or no partials — it is accuracy-tuned rather than low-latency.
 
-OpenRouter is a batch HTTP endpoint fanning out to many backing vendors under one key, not a live socket like every other provider here — the whole clip is sent as one file once recording stops, so it produces no partial transcript. `microsoft/mai-transcribe-1.5` was the first model chosen as a configuration, after comparing 19 OpenRouter STT models on the same fixture `testdata/OBSERVATIONS.md` uses. `microsoft/mai-transcribe-2` was added alongside it later: about a third of `1.5`'s cost, but slightly less accurate on that same fixture, so it stayed a second option rather than a replacement. `meta/muse-voice-transcribe-1.0` replaced `1.5` as the provider's default after coming back as the cleanest transcript of any OpenRouter model tried on that fixture, at under half `1.5`'s cost — `1.5` is still offered, just no longer the default.
+OpenRouter is a batch HTTP endpoint fanning out to many backing vendors under one key, not a live socket like every other provider here — the whole clip is sent as one file once recording stops, so it produces no partial transcript. Three models are declared, each tried live on the same fixture `testdata/OBSERVATIONS.md` uses. `microsoft/mai-transcribe-2` is the default: when the three were finally timed against each other rather than compared on transcript alone, it was the fastest and the cheapest, and its transcript matched the best of them. `meta/muse-voice-transcribe-1.0` held the default before that on transcript quality, and turned out to be four times slower than the others; `microsoft/mai-transcribe-1.5` was the original pick from a comparison of 19 models.
 
 The `meta` provider speaks to that same `muse-voice-transcribe-1.0` model directly over Meta's own realtime WebSocket endpoint instead of through OpenRouter's batch wrapper, so it is the only configuration of this model that actually streams partial transcripts. Live-tried against the same fixture (`testdata/OBSERVATIONS.md`): the transcript came back slightly less accurate than the OpenRouter route for this same model on that one clip, and usage is billed in whole seconds rounded up rather than OpenRouter's fractional cost — a genuine tradeoff, not a strict upgrade, which is why both configurations are kept.
+
+Paxa Labs is a batch endpoint too, but takes JSON with the audio base64-encoded rather than a multipart upload. It is the only model compared in `testdata/OBSERVATIONS.md` that needed no instruction to behave: no filler tags, no spaces inserted between Thai words, no English translated into Thai, and byte-identical output across repeated runs of every clip. It costs roughly four times `mai-transcribe-2` for near-identical speed, so it is offered alongside rather than as a default. `PAXA_CONVENTION=written` renders numbers as digits and uses the Thai repetition mark; the vendor's default spells them as spoken.
 
 Ids contain `+`, which decodes to a space in a query string, so clients must URL-encode them — `URLSearchParams` does this automatically. The OpenRouter configuration id also contains `/` (the router's own model naming, e.g. `microsoft/mai-transcribe-1.5`), which needs no special handling in a query string value.
 

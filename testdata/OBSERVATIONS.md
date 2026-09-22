@@ -309,6 +309,74 @@ Genuine streaming partials, unlike every OpenRouter model above (batch-only, no 
 
 ---
 
+## Paxa Labs
+
+Run **2026-09-22** (dtinth/vxbeamer#86). `POST https://api.paxalabs.com/v1/stt`,
+`Authorization: Bearer`, JSON body with the audio base64-encoded — a batch
+call, no pacing, no partials. Model `paxa-stt-lite-v1-preview`. Four clips,
+both `convention` values, 3 runs each.
+
+| clip                    | output                                                                                                                                  |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| English, 2.0 s          | `But it only happens sometimes.`                                                                                                        |
+| Thai, 2.1 s             | `เห็นด้วยตามที่แนะนำครับผม`                                                                                                             |
+| eval-set, 13.0 s        | `เออมันจะมี issue นึงที่เกี่ยวกับ sandbox provider อืมคิดว่ามีอะไรที่ต้องเคาะไหมในนั้น`                                                 |
+| `test-audio.bin`, 9.2 s | `โพรเจกต์นี้เขียนด้วยภาษา TypeScript ใช้เฟรมเวิร์กชื่อ Elysia โดย deploy ไปที่ Railways และใช้ MongoDB Atlas เป็นผู้ให้บริการฐานข้อมูล` |
+
+**Byte-identical across all three runs of every clip** — 1 distinct output
+out of 3, everywhere. For comparison, `qwen3.5-omni-flash-realtime` gave 5–10
+distinct out of 10 on the same clips.
+
+It is also the only model compared in this file that needed no instruction to
+avoid the defects the others have: no filler tags, no spaces between Thai
+words, no English translated into Thai, and `Elysia` correct every run. Two
+small misses on `test-audio.bin`, both shared with `mai-transcribe-2`:
+`โพรเจกต์` for `โปรเจกต์`, and `Railways` for `Railway`.
+
+`convention=spoken` and `convention=written` produced **identical** output on
+all four clips. Per the vendor they differ on numbers (`1,250บาท` vs
+`พันสองร้อยห้าสิบบาท`) and the repetition mark `ๆ`, and none of these clips
+contains a number, a unit, or a repeated word — so this is a gap in the
+fixtures, not a finding about the modes.
+
+Cost: 8.33 credits per minute, 10,000 credits for ฿329 → **฿16.45/hour**
+(~$0.47 at ฿35/USD).
+
+---
+
+## Batch providers, timing compared
+
+Run **2026-09-22** (dtinth/vxbeamer#86). All four are batch HTTP endpoints, so
+this is like for like. Interleaved — each iteration calls all four back to
+back, so network drift lands on every provider equally rather than on whoever
+happened to run during it. 8 runs each, wall time of the whole call.
+
+| provider                         | 2 s clip (median) | 13 s clip (median) | cost/hour  |
+| -------------------------------- | ----------------- | ------------------ | ---------- |
+| `paxa-stt-lite-v1-preview`       | **568 ms**        | **900 ms**         | $0.470     |
+| `microsoft/mai-transcribe-2`     | 850 ms            | 952 ms             | **$0.109** |
+| `microsoft/mai-transcribe-1.5`   | 1407 ms           | 1682 ms            | $0.391     |
+| `meta/muse-voice-transcribe-1.0` | 1834 ms           | 3856 ms            | $0.181     |
+
+Timing is from this machine, whose route and bandwidth are its own; the
+ordering is the finding, not the absolute figures. Costs are normalised from
+the per-request figures recorded above against the 9.218 s fixture.
+
+**`muse-voice-transcribe-1.0` was the OpenRouter default until this run.** It
+had been chosen on transcript quality on one fixture and never timed: it is
+four times slower than the other two, and produced the worst transcript of the
+three here (`อีสชู` for `issue`, and Thai transliteration where the others
+keep `sandbox provider` in Latin). `mai-transcribe-2` replaced it as the
+default — fastest, cheapest, and its 13 s transcript was identical to Paxa's.
+
+Latency by clip length, Paxa alone, 10 runs each: 0.5 s → 384 ms, 2 s → 433 ms,
+5 s → 568 ms, 13 s → 622 ms. Fitting those gives **~408 ms fixed plus ~18 ms
+per second of audio** — overhead-dominated, so 26× the audio costs 1.6× the
+time. (Measured in isolation; the interleaved figures above are higher, which
+is why they are the ones quoted for comparison.)
+
+---
+
 ## Typhoon (SCB 10X)
 
 Run **2026-09-12**. Same OpenAI-compatible transcription shape as OpenRouter: `POST https://api.opentyphoon.ai/v1/audio/transcriptions`, `Authorization: Bearer`, `multipart/form-data` with `model` and `file`. One request, no pacing, no partials (dtinth/vxbeamer#86).

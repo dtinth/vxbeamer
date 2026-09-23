@@ -11,6 +11,9 @@
  *   vowel stays with the consonant it sits on.
  * - Spaces and punctuation are not tokens. Random spacing between Thai words,
  *   upper/lower case and a trailing full stop are therefore not errors.
+ *   Whitespace between two Thai characters is removed before the clusters
+ *   are formed, so even a space that splits a tone mark from its consonant is
+ *   not an error.
  *
  * A reference can give alternatives, `{โปรเจกต์|project}`, for text that has
  * more than one correct spelling. A transcript is scored against the
@@ -51,20 +54,55 @@ const THAI = /\p{Script=Thai}/u;
 const WORD = /[\p{L}\p{N}\p{M}]/u;
 const graphemes = new Intl.Segmenter("th", { granularity: "grapheme" });
 
+/**
+ * `text` with the whitespace between two Thai characters removed, and for each
+ * character of the result, where it was in `text`. Thai does not separate
+ * words with spaces, so such a space carries no meaning, and a transcript that
+ * puts one after every character (detaching the tone marks and vowels from
+ * their consonants) must still form the same grapheme clusters.
+ */
+function joinThai(text: string): { joined: string; origin: number[] } {
+  let joined = "";
+  const origin: number[] = [];
+  for (let i = 0; i < text.length; i++) {
+    if (/\s/u.test(text[i]!)) {
+      const before = joined.at(-1);
+      let next = i;
+      while (next < text.length && /\s/u.test(text[next]!)) next++;
+      if (before && THAI.test(before) && next < text.length && THAI.test(text[next]!)) {
+        i = next - 1;
+        continue;
+      }
+    }
+    joined += text[i];
+    origin.push(i);
+  }
+  return { joined, origin };
+}
+
 export function tokenize(text: string): Token[] {
+  const { joined, origin } = joinThai(text);
+  // Offsets in `text`: a token that absorbed a removed space still spans it.
+  const at = (index: number) => origin[index]!;
+  const until = (end: number) => origin[end - 1]! + 1;
+
   const tokens: Token[] = [];
   let word: { start: number; end: number } | undefined;
   const endWord = () => {
     if (!word) return;
-    tokens.push({ text: normalise(text.slice(word.start, word.end)), ...word });
+    tokens.push({
+      text: normalise(joined.slice(word.start, word.end)),
+      start: at(word.start),
+      end: until(word.end),
+    });
     word = undefined;
   };
 
-  for (const { segment, index } of graphemes.segment(text)) {
+  for (const { segment, index } of graphemes.segment(joined)) {
     const end = index + segment.length;
     if (THAI.test(segment)) {
       endWord();
-      tokens.push({ text: normalise(segment), start: index, end });
+      tokens.push({ text: normalise(segment), start: at(index), end: until(end) });
     } else if (WORD.test(segment)) {
       if (word) word.end = end;
       else word = { start: index, end };

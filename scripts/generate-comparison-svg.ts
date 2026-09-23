@@ -49,12 +49,8 @@ function estimateWidth(text: string): number {
   return em * FONT;
 }
 
-function rowHeight(result: ScoreResult, transcript: string, model: string): number {
-  const deleted = result.segments
-    .filter((segment) => segment.kind === "deleted")
-    .map((segment) => segment.text)
-    .join("");
-  const transcriptLines = Math.ceil(estimateWidth(transcript + deleted) / (TRANSCRIPT_W - 16));
+function rowHeight(transcript: string, model: string): number {
+  const transcriptLines = Math.ceil(estimateWidth(transcript) / (TRANSCRIPT_W - 16));
   const modelLines = Math.ceil(estimateWidth(model) / (MODEL_W - 16)) + 1; // + the route line
   return Math.max(transcriptLines, modelLines, 2) * LINE + CELL_PAD_Y * 2;
 }
@@ -62,12 +58,16 @@ function rowHeight(result: ScoreResult, transcript: string, model: string): numb
 const escape = (text: string) =>
   text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
+/**
+ * The model's own output and nothing else: text the model left out still
+ * counts as an error in the score, but is not shown (dtinth/vxbeamer#86).
+ */
 function renderTranscript(result: ScoreResult): string {
   return result.segments
     .map((segment) => {
       const text = escape(segment.text);
       if (segment.kind === "separator") return text;
-      if (segment.kind === "deleted") return `<del>${text}</del>`;
+      if (segment.kind === "deleted") return "";
       return segment.status === "correct"
         ? `<b class="ok">${text}</b>`
         : `<b class="bad">${text}</b>`;
@@ -85,7 +85,7 @@ const FOOTER_H =
   12 +
   18 * (1 + Math.ceil(estimateWidth(`Accepted reference: ${data.reference}`) / FOOTER_TEXT_W)) +
   PAD;
-const bodyHeights = rows.map((row) => rowHeight(row.score, row.transcript, row.model));
+const bodyHeights = rows.map((row) => rowHeight(row.transcript, row.model));
 const H = HEADER_H + TABLE_HEAD_H + bodyHeights.reduce((sum, h) => sum + h, 0) + FOOTER_H;
 
 const tableRows = rows
@@ -116,11 +116,10 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" 
         b { font-weight: 400; border-radius: 3px; }
         .ok { color: #116329; background: #dafbe1; }
         .bad { color: #a40e26; background: #ffcecb; text-decoration: underline wavy #cf222e; }
-        del { color: #a40e26; opacity: 0.7; }
       </style>
       <h1>Thai speech recognition: one clip, ${rows.length} models</h1>
-      <p>Score = 100% − mixed error rate (each Latin word and each Thai character is one token; spaces, punctuation and case are ignored).</p>
-      <p><b class="ok">Green</b> = correct. <b class="bad">Red</b> = wrong or extra. <del>Struck out</del> = missing. One run per model, so a score is one sample, not an average.</p>
+      <p>Score = 100% − mixed error rate (each Latin word and each Thai character is one token; whitespace, punctuation and case are ignored).</p>
+      <p><b class="ok">Green</b> = correct. <b class="bad">Red</b> = wrong or extra. Missing text is not shown, but counts as an error. One run per model, so a score is one sample, not an average.</p>
       <table>
         <colgroup><col style="width:${MODEL_W}px" /><col style="width:${TRANSCRIPT_W}px" /><col style="width:${SCORE_W}px" /></colgroup>
         <tr><th>Model</th><th>Transcript</th><th style="text-align:right">Score</th></tr>${tableRows}

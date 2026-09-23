@@ -1,6 +1,6 @@
 {
   "audio": "testdata/test-audio.bin",
-  "reference": "{โปรเจกต์|โพรเจกต์|โปรเจ็กต์|โปรเจค|โปรเจ็ค|project}นี้เขียนด้วยภาษา TypeScript ใช้{เฟรมเวิร์ก|เฟรมเวิร์ค|framework}ชื่อ Elysia โดย{deploy|ดีพลอย}ไปที่ Railway และใช้{MongoDB|Mongo DB} Atlas เป็นผู้ให้บริการฐานข้อมูล",
+  "reference": "{โปรเจกต์|โพรเจกต์|โปรเจ็กต์|โปรเจค|โปรเจ็ค|project}นี้เขียนด้วยภาษา {TypeScript|ไทป์สคริปต์} ใช้{เฟรมเวิร์ก|เฟรมเวิร์ค|framework}ชื่อ {Elysia|เอลิเซีย} โดย {deploy|ดีพลอย} ไปที่ {Railway|เรลเวย์} และใช้ {MongoDB|Mongo DB|มองโกดีบี} {Atlas|แอตลาส|แอทลาส} เป็นผู้ให้บริการฐานข้อมูล",
   "source": "testdata/OBSERVATIONS.md — one run per model, copied exactly",
   "results": [
     {

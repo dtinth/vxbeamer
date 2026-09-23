@@ -14,6 +14,15 @@ test("spaces, punctuation and case are not tokens", () => {
   expect(texts("เป็น ผู้ ให้ บริการ")).toEqual(texts("เป็นผู้ให้บริการ"));
 });
 
+test("a space that splits a Thai cluster is ignored too, and the token keeps its place in the text", () => {
+  // Every character space-separated, as one model returned it.
+  expect(texts("น ี ้ ใ ช ้ Railway")).toEqual(texts("นี้ใช้ Railway"));
+  const [first] = tokenize("น ี ้");
+  expect(first).toEqual({ text: "นี้", start: 0, end: 5 });
+  // Between Thai and Latin, the space still separates.
+  expect(texts("ใช้ Railway ไป")).toEqual(["ใ", "ช้", "railway", "ไ", "ป"]);
+});
+
 test("alternatives expand to every combination", () => {
   expect(expandAlternatives("{a|b} x {c|d}")).toEqual(["a x c", "a x d", "b x c", "b x d"]);
   expect(expandAlternatives("no groups")).toEqual(["no groups"]);

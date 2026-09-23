@@ -1,5 +1,23 @@
 # vxasr
 
+## 0.3.0
+
+### Minor Changes
+
+- 4908569: Add a `meta` provider that speaks to Meta's realtime speech-to-text WebSocket endpoint directly, offering `muse-voice-transcribe-1.0` (the same model already available through the OpenRouter provider) with genuine streaming partial transcripts, which the OpenRouter route cannot provide since it is batch-only. Tried live against the same fixture as every other provider here: the transcript came back slightly less accurate than the OpenRouter route for this model, and usage is billed in whole seconds rounded up rather than OpenRouter's fractional cost — both configurations of this model are kept rather than one replacing the other.
+- 4806697: Add `meta/muse-voice-transcribe-1.0` as an OpenRouter configuration and make it the provider's default, replacing `mai-transcribe-1.5`. Tried live against the same fixture as every other OpenRouter model here: the cleanest transcript seen yet, at under half the cost. `mai-transcribe-1.5` is still offered as a configuration, just no longer the default.
+- f7e3fad: Add a `paxa` provider for Paxa Labs' speech-to-text endpoint, and make `microsoft/mai-transcribe-2` the OpenRouter default in place of `meta/muse-voice-transcribe-1.0`.
+
+  The default changed because the three OpenRouter models had been compared on transcript quality but never timed. Measured head to head, `muse-voice-transcribe-1.0` is four times slower than the other two (3.9 s vs 0.95 s on a 13 s clip) and produced the worst transcript of the three; `mai-transcribe-2` is the fastest and cheapest, with an identical transcript. Every OpenRouter configuration now names its model explicitly, so reordering that list can no longer rename a configuration id.
+
+  Paxa is batch, like OpenRouter, but takes JSON with base64 audio. It is the only model in `testdata/OBSERVATIONS.md` that needed no instruction to avoid filler tags, Thai word-spacing and English-to-Thai translation, and it returned byte-identical output across repeated runs. At roughly four times `mai-transcribe-2`'s price for near-identical speed it is offered alongside rather than as a default.
+
+- fbfdbf0: Change the Qwen Omni instruction so the model writes plain text rather than an annotated transcription. Asking it to "transcribe verbatim" produced `<fil>` filler tags, slash-separated alternate readings, and Thai split into space-separated words, in 10 runs out of 10; forbidding those explicitly did not help, while dropping the word "transcribe" took all three to 0 out of 10. The new wording also states the Thai and Latin script rules, which a blunter instruction would have broken. Measured over three clips, ten runs each — see `testdata/OBSERVATIONS.md`.
+
+### Patch Changes
+
+- 5dcb94b: Stop the Qwen Omni instruction translating English into Thai. The previous wording stated its Thai script rule unconditionally, which reads as a claim about the output rather than a rule about Thai — English audio came back translated in 10 runs out of 10. The instruction now names the spoken language explicitly and applies the Thai rule only when Thai is spoken, which takes that to 0 out of 10 while keeping the tag and spacing fixes intact.
+
 ## 0.2.0
 
 ### Minor Changes

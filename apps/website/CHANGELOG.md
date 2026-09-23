@@ -1,5 +1,25 @@
 # website
 
+## 0.3.0
+
+### Minor Changes
+
+- a2cf8ce: Add keyboard shortcuts to the web app: `c` copies the latest finished transcript, `r` toggles recording, and holding Space is push-to-talk (starts on press, stops and copies automatically once the transcript finishes on release). Shortcuts are ignored while typing in a text field.
+- 599bc1f: Add an auto-copy setting: when on, a transcript is copied to the clipboard as soon as it finishes, however the recording was stopped — the record button, the `r` shortcut, or releasing Space.
+
+  Only recordings made on this device are copied. The feed carries every signed-in device's messages, so "the transcript that just finished" is not the same thing as "the transcript I just recorded"; the watcher is keyed to a reference id this client minted when it started recording. Off by default, since taking over the clipboard is not something to opt someone into.
+
+  Push-to-talk keeps copying on release regardless of the setting, and now shares the same waiting logic rather than carrying its own copy of it.
+
+### Patch Changes
+
+- Updated dependencies [4908569]
+- Updated dependencies [4806697]
+- Updated dependencies [f7e3fad]
+- Updated dependencies [5dcb94b]
+- Updated dependencies [fbfdbf0]
+  - vxasr@0.3.0
+
 ## 0.2.0
 
 ### Patch Changes

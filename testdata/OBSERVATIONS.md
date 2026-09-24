@@ -342,6 +342,35 @@ fixtures, not a finding about the modes.
 Cost: 8.33 credits per minute, 10,000 credits for ฿329 → **฿16.45/hour**
 (~$0.47 at ฿35/USD).
 
+### Realtime WebSocket
+
+Run **2026-09-24** (dtinth/vxbeamer#86). `wss://api.paxalabs.com/v1/stt/live`,
+`Authorization: Bearer` on the upgrade request, model
+`paxa-stt-lite-realtime-v1-preview`. A `start` JSON frame, raw binary PCM, then
+`{"type":"end"}`. See `../packages/vxasr/src/providers/paxa-realtime.ts`.
+
+| test                                  | result                                                                                                |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `end` → final, realtime pacing, n=6   | **52–58 ms**. The vendor detects the end of speech, so the final often arrives before the audio ends. |
+| recording cut at 5 s, mid-speech      | final 327 ms after `end`, with the text up to the cut                                                 |
+| fast dump                             | accepted: 0.7 s for the 9.2 s clip, 1.0 s for a 21.4 s clip                                           |
+| audio before `started`, 100 ms frames | both accepted (the docs show 20 ms frames)                                                            |
+| wrong key                             | HTTP 401 on the upgrade                                                                               |
+| 3 s of silence                        | `done` with `turns: 0`                                                                                |
+| partials                              | about one each 3 s                                                                                    |
+
+**A pause starts a new turn**, and each turn gets its own final `transcript`
+frame: a 3 s pause between two copies of the clip gave `turn: 1` and
+`turn: 2`. The adapter joins the turns into one final.
+
+Transcript as the batch endpoint, except for `Railway`/`Railways`: with
+realtime pacing, 6 of 8 finals had `Railway`; batch and fast dump had
+`Railways` every time. Too few runs to call it an effect of pacing.
+
+Charged at **12.5 credits/min** against 8.33 for batch, for the whole
+connection, silence included: the 21.4 s two-turn run was charged 21.4 s.
+**฿24.68/hour** (~$0.71 at ฿35/USD).
+
 ---
 
 ## Batch providers, timing compared

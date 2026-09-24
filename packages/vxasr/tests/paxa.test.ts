@@ -6,6 +6,7 @@ import {
   createDefaultConfigurationCatalogue,
   createDefaultProviderRegistry,
   PAXA_DEFAULT_MODEL,
+  PAXA_REALTIME_DEFAULT_MODEL,
 } from "../src/index.ts";
 import { run, trackVendors } from "./streamingSessionHarness.ts";
 
@@ -173,13 +174,16 @@ test("the provider needs PAXA_API_KEY and defaults to the lite model", () => {
   expect(registry.get("paxa")?.defaultModel).toBe(PAXA_DEFAULT_MODEL);
 });
 
-test("the paxa configuration is offered raw, never enhanced", () => {
+test("the paxa configurations are offered raw, never enhanced", () => {
   const catalogue = createDefaultConfigurationCatalogue();
 
   const paxa = catalogue.list().filter((c) => c.providerId === "paxa");
 
   // Nothing to tidy: it already renders Thai without inter-word spaces and
   // keeps Latin technical terms in Latin, unprompted.
-  expect(paxa.map((c) => c.id)).toEqual([`paxa/${PAXA_DEFAULT_MODEL}`]);
-  expect(paxa[0]?.postProcessing).toEqual([]);
+  expect(paxa.map((c) => c.id)).toEqual([
+    `paxa/${PAXA_DEFAULT_MODEL}`,
+    `paxa/${PAXA_REALTIME_DEFAULT_MODEL}`,
+  ]);
+  expect(paxa.map((c) => c.postProcessing)).toEqual([[], []]);
 });

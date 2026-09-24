@@ -19,6 +19,7 @@ import {
   type MetaMuseProviderConfig,
 } from "./meta-muse.ts";
 import { createPaxaProvider, PAXA_DEFAULT_MODEL, type PaxaProviderConfig } from "./paxa.ts";
+import { createPaxaRealtimeProvider, PAXA_REALTIME_DEFAULT_MODEL } from "./paxa-realtime.ts";
 import { createMockProvider } from "./mock.ts";
 
 export const qwenProviderDefinition: ProviderDefinition = defineProvider<QwenProviderConfig>({
@@ -221,12 +222,13 @@ export const metaProviderDefinition: ProviderDefinition = defineProvider<MetaMus
 export const paxaProviderDefinition: ProviderDefinition = defineProvider<PaxaProviderConfig>({
   id: "paxa",
   label: "Paxa Labs (Speech-to-Text)",
-  // One model, which is all the vendor publishes for this endpoint. The id
+  // The batch model and its realtime sibling: two endpoints, one key. Each id
   // carries its own `-preview` rather than a date, so there is no dated
   // snapshot to pin to — same situation as BytePlus's mode ids.
-  models: [PAXA_DEFAULT_MODEL],
-  // A batch HTTP call, not a realtime stream — audio is buffered client-side
-  // either way, so no send pace can violate anything the vendor sees.
+  models: [PAXA_DEFAULT_MODEL, PAXA_REALTIME_DEFAULT_MODEL],
+  // Batch buffers client-side, so no send pace can violate anything the
+  // vendor sees. Realtime was fast-dump tested live: a whole 9.2 s clip sent
+  // at once came back in 0.7 s with the same transcript (dtinth/vxbeamer#86).
   supportsFastDump: true,
   resolveConfig(env) {
     const apiKey = env.PAXA_API_KEY;
@@ -244,7 +246,9 @@ export const paxaProviderDefinition: ProviderDefinition = defineProvider<PaxaPro
     };
   },
   create(config, model) {
-    return createPaxaProvider({ ...config, model });
+    return model === PAXA_REALTIME_DEFAULT_MODEL
+      ? createPaxaRealtimeProvider({ ...config, model })
+      : createPaxaProvider({ ...config, model });
   },
 });
 

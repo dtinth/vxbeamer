@@ -212,6 +212,7 @@ test("the default catalogue offers each real model, enhanced only where that hel
     "openrouter/meta/muse-voice-transcribe-1.0",
     "openrouter/microsoft/mai-transcribe-1.5",
     "paxa/paxa-stt-lite-v1-preview",
+    "paxa/paxa-stt-lite-realtime-v1-preview",
     "meta/muse-voice-transcribe-1.0",
     "mock/mock",
   ]);
@@ -243,8 +244,9 @@ test("no configuration names a floating model id", () => {
     // just spoken to directly — nothing to date here that OpenRouter's own
     // exemption doesn't already cover.
     if (configuration.providerId === "meta") continue;
-    // Paxa publishes one id for this endpoint, carrying its own `-preview`
-    // rather than a date, so there is no dated snapshot to pin to.
+    // Paxa publishes one id per endpoint (batch and realtime), each carrying
+    // its own `-preview` rather than a date, so there is no dated snapshot to
+    // pin to.
     if (configuration.providerId === "paxa") continue;
     expect(configuration.model).toMatch(/-\d{4}-\d{2}-\d{2}$/);
   }

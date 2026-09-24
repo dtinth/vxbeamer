@@ -43,7 +43,7 @@ export const PAXA_DEFAULT_MODEL = "paxa-stt-lite-v1-preview";
  * as approximate in a way the others are not.
  */
 const PAXA_CREDITS_PER_SECOND = 8.33 / 60;
-const PAXA_USD_PER_CREDIT = 329 / 10_000 / 35;
+export const PAXA_USD_PER_CREDIT = 329 / 10_000 / 35;
 
 interface PaxaResponse {
   text?: string;

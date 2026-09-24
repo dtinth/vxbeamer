@@ -158,6 +158,15 @@ export const builtinConfigurations: readonly ConfigurationSpec[] = [
   // near-identical speed — a real trade rather than a replacement, which is
   // why it is offered alongside rather than as the default.
   { provider: "paxa", label: "Paxa STT Lite (raw)" },
+  // Its realtime sibling (dtinth/vxbeamer#86): the final arrives about 55 ms
+  // after the recording ends, against 0.6–0.9 s for the batch call, because
+  // the vendor detects the end of speech itself. It costs 1.5× the batch
+  // rate, and the whole connection is charged, silence included.
+  {
+    provider: "paxa",
+    model: "paxa-stt-lite-realtime-v1-preview",
+    label: "Paxa STT Lite Realtime (raw)",
+  },
   // The same model as the OpenRouter default above, spoken to directly
   // (dtinth/vxbeamer#86): Meta's own endpoint streams genuine partial
   // transcripts, where OpenRouter's is a batch upload with no partials.

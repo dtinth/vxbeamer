@@ -36,6 +36,11 @@ export type { OpenRouterProviderConfig } from "./providers/openrouter.ts";
 export { createMetaMuseProvider, META_MUSE_DEFAULT_MODEL } from "./providers/meta-muse.ts";
 export { createPaxaProvider, PAXA_DEFAULT_MODEL } from "./providers/paxa.ts";
 export type { PaxaProviderConfig } from "./providers/paxa.ts";
+export {
+  createPaxaRealtimeProvider,
+  PAXA_REALTIME_DEFAULT_MODEL,
+} from "./providers/paxa-realtime.ts";
+export type { PaxaRealtimeProviderConfig } from "./providers/paxa-realtime.ts";
 export type { MetaMuseProviderConfig } from "./providers/meta-muse.ts";
 export { withGroqEnhancement } from "./providers/groq-enhancement.ts";
 export type { GroqEnhancementConfig } from "./providers/groq-enhancement.ts";

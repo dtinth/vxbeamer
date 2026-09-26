@@ -41,6 +41,8 @@ export {
   PAXA_REALTIME_DEFAULT_MODEL,
 } from "./providers/paxa-realtime.ts";
 export type { PaxaRealtimeProviderConfig } from "./providers/paxa-realtime.ts";
+export { createGeminiLiveProvider, GEMINI_LIVE_DEFAULT_MODEL } from "./providers/gemini-live.ts";
+export type { GeminiLiveProviderConfig } from "./providers/gemini-live.ts";
 export type { MetaMuseProviderConfig } from "./providers/meta-muse.ts";
 export { withGroqEnhancement } from "./providers/groq-enhancement.ts";
 export type { GroqEnhancementConfig } from "./providers/groq-enhancement.ts";
@@ -63,6 +65,7 @@ export {
   metaProviderDefinition,
   mockProviderDefinition,
   paxaProviderDefinition,
+  geminiProviderDefinition,
   openAIProviderDefinition,
   openRouterProviderDefinition,
   qwenOmniProviderDefinition,

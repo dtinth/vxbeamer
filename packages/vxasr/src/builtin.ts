@@ -150,6 +150,14 @@ export const builtinConfigurations: readonly ConfigurationSpec[] = [
     model: "microsoft/mai-transcribe-1.5",
     label: "OpenRouter MAI-Transcribe-1.5 (raw)",
   },
+  // Gemini 3.5 Transcribe as a batch call (dtinth/vxbeamer#86): accurate and
+  // cheap ($0.18/hour), but 4–6 s per request whatever the clip length. The
+  // `gemini` configuration below streams the same model.
+  {
+    provider: "openrouter",
+    model: "google/gemini-3.5-transcribe",
+    label: "OpenRouter Gemini 3.5 Transcribe (raw)",
+  },
   // Paxa Labs, tried live on the same fixtures (dtinth/vxbeamer#86). The only
   // model compared there that needed no instruction to behave: no filler
   // tags, no spaces inserted between Thai words, no English translated into
@@ -173,6 +181,11 @@ export const builtinConfigurations: readonly ConfigurationSpec[] = [
   // Declared raw only, same reasoning as the OpenRouter entry: a plain
   // transcription endpoint with no post-processing chain to enhance.
   { provider: "meta", label: "Meta Realtime Muse Voice Transcribe (raw)" },
+  // Gemini 3.5 Transcribe Live, in push-to-talk mode with smart
+  // transcription (dtinth/vxbeamer#86): partials about each 0.5 s, and the
+  // final 0.3–0.6 s after the audio ends. The same model is also offered
+  // through OpenRouter, above.
+  { provider: "gemini", label: "Gemini 3.5 Transcribe Live (raw)" },
   { provider: "mock", label: "Mock (canned transcript, no network)" },
 ];
 

@@ -108,6 +108,7 @@ services:
       - OPENROUTER_API_KEY
       - META_API_KEY
       - PAXA_API_KEY
+      - GEMINI_API_KEY
       - OIDC_DISCOVERY_URL
       - OIDC_CLIENT_ID
       - OIDC_SECRET
@@ -116,30 +117,31 @@ services:
 
 ### Environment variables
 
-| Variable               | Required | Description                                                                                                                                              |
-| ---------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DASHSCOPE_API_KEY`    | Yes      | Alibaba Cloud DashScope key for Qwen3-ASR-Flash and Qwen Omni Realtime                                                                                   |
-| `API_KEYS`             | No       | Comma-separated `sub:secret` pairs for API key exchange                                                                                                  |
-| `GROQ_API_KEY`         | No       | Groq API key for gpt-oss-120b post-processing; enables the `+groq` configurations                                                                        |
-| `ASR_CONFIGURATION`    | No       | Default configuration id (default: derived from `ASR_PROVIDER`/`ASR_MODEL`/`GROQ_API_KEY`)                                                               |
-| `ASR_CONFIGURATIONS`   | No       | Comma-separated configurations clients may select (default: every configuration with credentials)                                                        |
-| `ASR_PROVIDER`         | No       | Provider for the derived default: `qwen` (default), `qwen-omni`, `byteplus`, `openai`, `openrouter`, `meta`, `paxa`, or `mock`                           |
-| `ASR_MODEL`            | No       | Model for the derived default (default: the provider's own default model)                                                                                |
-| `BYTEPLUS_API_KEY`     | No       | BytePlus key; enables the `byteplus` configurations                                                                                                      |
-| `BYTEPLUS_LANGUAGE`    | No       | BytePlus language hint, e.g. `th-TH` (default: unset — Mandarin/English only)                                                                            |
-| `BYTEPLUS_RESOURCE_ID` | No       | BytePlus resource id (default: `volc.seedasr.sauc.duration`)                                                                                             |
-| `BYTEPLUS_BASE_URL`    | No       | BytePlus endpoint base, without the mode path segment                                                                                                    |
-| `OPENAI_API_KEY`       | No       | OpenAI key; enables the `openai` (`gpt-live-transcribe`) configuration                                                                                   |
-| `OPENROUTER_API_KEY`   | No       | OpenRouter key; enables the `openrouter` configurations (`microsoft/mai-transcribe-2`, `meta/muse-voice-transcribe-1.0`, `microsoft/mai-transcribe-1.5`) |
-| `META_API_KEY`         | No       | Meta key; enables the `meta` (`muse-voice-transcribe-1.0`, direct realtime API) configuration                                                            |
-| `PAXA_API_KEY`         | No       | Paxa Labs key; enables the `paxa` configuration                                                                                                          |
-| `PAXA_CONVENTION`      | No       | `written` to render numbers as digits and use the Thai repetition mark (default: the vendor's `spoken`)                                                  |
-| `OIDC_DISCOVERY_URL`   | No       | OIDC provider discovery URL (alternative to API keys)                                                                                                    |
-| `OIDC_CLIENT_ID`       | No       | OIDC client ID (default: `vxbeamer-mobile`)                                                                                                              |
-| `OIDC_AUDIENCE`        | No       | Expected token audience (default: same as client ID)                                                                                                     |
-| `OIDC_SECRET`          | No       | HMAC secret for session tokens (default: `local-dev-secret`)                                                                                             |
-| `WEBHOOK_URL`          | No       | Endpoint to POST completed transcriptions to                                                                                                             |
-| `PORT`                 | No       | HTTP port (default: `8787`)                                                                                                                              |
+| Variable               | Required | Description                                                                                                                                                                              |
+| ---------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DASHSCOPE_API_KEY`    | Yes      | Alibaba Cloud DashScope key for Qwen3-ASR-Flash and Qwen Omni Realtime                                                                                                                   |
+| `API_KEYS`             | No       | Comma-separated `sub:secret` pairs for API key exchange                                                                                                                                  |
+| `GROQ_API_KEY`         | No       | Groq API key for gpt-oss-120b post-processing; enables the `+groq` configurations                                                                                                        |
+| `ASR_CONFIGURATION`    | No       | Default configuration id (default: derived from `ASR_PROVIDER`/`ASR_MODEL`/`GROQ_API_KEY`)                                                                                               |
+| `ASR_CONFIGURATIONS`   | No       | Comma-separated configurations clients may select (default: every configuration with credentials)                                                                                        |
+| `ASR_PROVIDER`         | No       | Provider for the derived default: `qwen` (default), `qwen-omni`, `byteplus`, `openai`, `openrouter`, `meta`, `paxa`, `gemini`, or `mock`                                                 |
+| `ASR_MODEL`            | No       | Model for the derived default (default: the provider's own default model)                                                                                                                |
+| `BYTEPLUS_API_KEY`     | No       | BytePlus key; enables the `byteplus` configurations                                                                                                                                      |
+| `BYTEPLUS_LANGUAGE`    | No       | BytePlus language hint, e.g. `th-TH` (default: unset — Mandarin/English only)                                                                                                            |
+| `BYTEPLUS_RESOURCE_ID` | No       | BytePlus resource id (default: `volc.seedasr.sauc.duration`)                                                                                                                             |
+| `BYTEPLUS_BASE_URL`    | No       | BytePlus endpoint base, without the mode path segment                                                                                                                                    |
+| `OPENAI_API_KEY`       | No       | OpenAI key; enables the `openai` (`gpt-live-transcribe`) configuration                                                                                                                   |
+| `OPENROUTER_API_KEY`   | No       | OpenRouter key; enables the `openrouter` configurations (`microsoft/mai-transcribe-2`, `meta/muse-voice-transcribe-1.0`, `microsoft/mai-transcribe-1.5`, `google/gemini-3.5-transcribe`) |
+| `META_API_KEY`         | No       | Meta key; enables the `meta` (`muse-voice-transcribe-1.0`, direct realtime API) configuration                                                                                            |
+| `PAXA_API_KEY`         | No       | Paxa Labs key; enables the `paxa` configurations (batch and realtime)                                                                                                                    |
+| `PAXA_CONVENTION`      | No       | `written` to render numbers as digits and use the Thai repetition mark (default: the vendor's `spoken`)                                                                                  |
+| `GEMINI_API_KEY`       | No       | Google Gemini API key; enables the `gemini` (`gemini-3.5-transcribe-live`) configuration                                                                                                 |
+| `OIDC_DISCOVERY_URL`   | No       | OIDC provider discovery URL (alternative to API keys)                                                                                                                                    |
+| `OIDC_CLIENT_ID`       | No       | OIDC client ID (default: `vxbeamer-mobile`)                                                                                                                                              |
+| `OIDC_AUDIENCE`        | No       | Expected token audience (default: same as client ID)                                                                                                                                     |
+| `OIDC_SECRET`          | No       | HMAC secret for session tokens (default: `local-dev-secret`)                                                                                                                             |
+| `WEBHOOK_URL`          | No       | Endpoint to POST completed transcriptions to                                                                                                                                             |
+| `PORT`                 | No       | HTTP port (default: `8787`)                                                                                                                                                              |
 
 #### Eval storage
 
@@ -225,8 +227,11 @@ A configuration is a provider, a model, and the post-processing chain applied to
 | `openrouter/microsoft/mai-transcribe-2`            | `OPENROUTER_API_KEY`                |
 | `openrouter/meta/muse-voice-transcribe-1.0`        | `OPENROUTER_API_KEY`                |
 | `openrouter/microsoft/mai-transcribe-1.5`          | `OPENROUTER_API_KEY`                |
+| `openrouter/google/gemini-3.5-transcribe`          | `OPENROUTER_API_KEY`                |
 | `paxa/paxa-stt-lite-v1-preview`                    | `PAXA_API_KEY`                      |
+| `paxa/paxa-stt-lite-realtime-v1-preview`           | `PAXA_API_KEY`                      |
 | `meta/muse-voice-transcribe-1.0`                   | `META_API_KEY`                      |
+| `gemini/gemini-3.5-transcribe-live`                | `GEMINI_API_KEY`                    |
 | `mock/mock`                                        | nothing                             |
 
 Every Qwen model id is a dated snapshot, not a floating one — the vendor repoints undated ids without notice, which would make a vote name a moving target. The Qwen Omni models need no `+groq` variant: their output is already well-formatted (Thai words in Thai, product names in Latin), which is what Groq formatting was tidying up for the plain ASR models — running it on top of Omni's output measurably added nothing.
@@ -238,6 +243,10 @@ OpenRouter is a batch HTTP endpoint fanning out to many backing vendors under on
 The `meta` provider speaks to that same `muse-voice-transcribe-1.0` model directly over Meta's own realtime WebSocket endpoint instead of through OpenRouter's batch wrapper, so it is the only configuration of this model that actually streams partial transcripts. Live-tried against the same fixture (`testdata/OBSERVATIONS.md`): the transcript came back slightly less accurate than the OpenRouter route for this same model on that one clip, and usage is billed in whole seconds rounded up rather than OpenRouter's fractional cost — a genuine tradeoff, not a strict upgrade, which is why both configurations are kept.
 
 Paxa Labs is a batch endpoint too, but takes JSON with the audio base64-encoded rather than a multipart upload. It is the only model compared in `testdata/OBSERVATIONS.md` that needed no instruction to behave: no filler tags, no spaces inserted between Thai words, no English translated into Thai, and byte-identical output across repeated runs of every clip. It costs roughly four times `mai-transcribe-2` for near-identical speed, so it is offered alongside rather than as a default. `PAXA_CONVENTION=written` renders numbers as digits and uses the Thai repetition mark; the vendor's default spells them as spoken.
+
+`paxa/paxa-stt-lite-realtime-v1-preview` is Paxa's realtime WebSocket. The vendor detects the end of speech, so the final transcript arrives about 55 ms after the recording ends. It costs 1.5 times the batch rate, and the whole connection is charged, including silence.
+
+Gemini 3.5 Transcribe is offered two ways. Through OpenRouter it is a batch call: accurate and cheap, but 4–6 s per request whatever the clip length. The `gemini` provider uses the Live model instead, in push-to-talk mode with smart transcription (fillers and false starts removed): partial transcripts about every 0.5 s, and the final 0.3–0.6 s after the audio ends. A Live session can stream for 10 minutes at most. In tests on clips joined from separate recordings, push-to-talk with smart transcription sometimes dropped a later sentence; see `testdata/OBSERVATIONS.md`.
 
 Ids contain `+`, which decodes to a space in a query string, so clients must URL-encode them — `URLSearchParams` does this automatically. The OpenRouter configuration id also contains `/` (the router's own model naming, e.g. `microsoft/mai-transcribe-1.5`), which needs no special handling in a query string value.
 

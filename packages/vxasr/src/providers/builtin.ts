@@ -20,6 +20,11 @@ import {
 } from "./meta-muse.ts";
 import { createPaxaProvider, PAXA_DEFAULT_MODEL, type PaxaProviderConfig } from "./paxa.ts";
 import { createPaxaRealtimeProvider, PAXA_REALTIME_DEFAULT_MODEL } from "./paxa-realtime.ts";
+import {
+  createGeminiLiveProvider,
+  GEMINI_LIVE_DEFAULT_MODEL,
+  type GeminiLiveProviderConfig,
+} from "./gemini-live.ts";
 import { createMockProvider } from "./mock.ts";
 
 export const qwenProviderDefinition: ProviderDefinition = defineProvider<QwenProviderConfig>({
@@ -183,6 +188,10 @@ export const openRouterProviderDefinition: ProviderDefinition =
       OPENROUTER_DEFAULT_MODEL,
       "meta/muse-voice-transcribe-1.0",
       "microsoft/mai-transcribe-1.5",
+      // Accurate and cheap ($0.18/hour), but 4–6 s per request whatever the
+      // clip length: the slowest here. The same model streams, much faster,
+      // through the `gemini` provider (dtinth/vxbeamer#86).
+      "google/gemini-3.5-transcribe",
     ],
     // A batch HTTP call, not a realtime stream — every audio chunk is only
     // ever buffered client-side, so no pace at which `sendAudio` is called
@@ -252,6 +261,26 @@ export const paxaProviderDefinition: ProviderDefinition = defineProvider<PaxaPro
   },
 });
 
+export const geminiProviderDefinition: ProviderDefinition =
+  defineProvider<GeminiLiveProviderConfig>({
+    id: "gemini",
+    label: "Google Gemini (Live transcription)",
+    // The vendor publishes no dated snapshot of this model to pin to.
+    models: [GEMINI_LIVE_DEFAULT_MODEL],
+    // Tried live in push-to-talk mode: a whole 9.2 s clip sent at once gave
+    // the same final in 3.3 s (dtinth/vxbeamer#86). (With the vendor's own
+    // voice detection, the same dump never produced a final.)
+    supportsFastDump: true,
+    resolveConfig(env) {
+      const apiKey = env.GEMINI_API_KEY;
+      if (!apiKey) return { ok: false, missing: ["GEMINI_API_KEY"] };
+      return { ok: true, config: { apiKey } };
+    },
+    create(config, model) {
+      return createGeminiLiveProvider({ ...config, model });
+    },
+  });
+
 export const mockProviderDefinition: ProviderDefinition = defineProvider<Record<string, never>>({
   id: "mock",
   label: "Mock (canned transcript, no network)",
@@ -274,6 +303,7 @@ export const builtinProviderDefinitions: readonly ProviderDefinition[] = [
   openRouterProviderDefinition,
   metaProviderDefinition,
   paxaProviderDefinition,
+  geminiProviderDefinition,
   mockProviderDefinition,
 ];
 

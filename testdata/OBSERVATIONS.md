@@ -406,6 +406,36 @@ is why they are the ones quoted for comparison.)
 
 ---
 
+## Google Gemini 3.5 Transcribe
+
+Run **2026-09-26** (dtinth/vxbeamer#86). Tried three ways. Clips: `test-audio.bin`, the 2.0 s English and 2.1 s Thai clips, and the 13.0 s eval-set clip from the Paxa section.
+
+| route                                         | time to final                                | partials         | cost/hour |
+| --------------------------------------------- | -------------------------------------------- | ---------------- | --------- |
+| OpenRouter `google/gemini-3.5-transcribe`     | 4–6 s per request, any clip length (22 runs) | none             | $0.18     |
+| Gemini API batch (`v1beta/interactions`)      | 5.2–5.8 s                                    | none             | $0.30     |
+| Gemini API Live, `gemini-3.5-transcribe-live` | 0.3–0.7 s after the audio ends               | about each 0.5 s | $0.54     |
+
+OpenRouter's reported cost is the input tokens only (25 audio tokens per second at $2/1M); the Gemini API prices are from Google's pricing page. See `../packages/vxasr/src/providers/gemini-live.ts` for the Live protocol.
+
+`test-audio.bin` was perfect on every run of all three routes, and so were the English and Thai clips. The batch model gave byte-identical output across 5 runs of each clip. On the eval-set clip the batch model wrote `อีกชู` for `issue`; `custom_vocabulary: ["issue"]` fixed it.
+
+**Live, with the vendor's voice detection (the default).** Each pause ends a turn with its own final. After `audioStreamEnd`, a turn in progress gets its final, but if nobody is speaking the service sends nothing more. A whole clip sent at once never produced a final.
+
+**Live, push-to-talk** (`automaticActivityDetection: {disabled: true}`, `activityStart`/`activityEnd`). One final per recording, and `ACTIVITY_END` always follows `activityEnd`, even for silence. A whole clip sent at once works: 3.3 s for the 9.2 s clip.
+
+**Push-to-talk dropped sentences** on clips joined from separate recordings: [A] the `test-audio.bin` sentence, [B] the Thai clip, [C] the English clip. The same result on every run (3 of 3):
+
+| clip                          | push-to-talk | push-to-talk + `SMART` | voice detection + `SMART` |
+| ----------------------------- | ------------ | ---------------------- | ------------------------- |
+| A, 3 s pause, B, 2 s pause, C | complete     | C dropped, B misheard  | complete                  |
+| A, 0.3 s pause, B             | B misheard   | B dropped              | complete                  |
+| eval-set clip                 | complete     | complete               | complete                  |
+
+"Misheard" is `เขียนด้วย` for `เห็นด้วย`. Push-to-talk + `SMART` + `customVocabulary: ["issue"]` also dropped the second half of the eval-set clip (4 of 4). Push-to-talk + `SMART` is what the `gemini` configuration uses, chosen with this known (dtinth/vxbeamer#86).
+
+---
+
 ## Typhoon (SCB 10X)
 
 Run **2026-09-12**. Same OpenAI-compatible transcription shape as OpenRouter: `POST https://api.opentyphoon.ai/v1/audio/transcriptions`, `Authorization: Bearer`, `multipart/form-data` with `model` and `file`. One request, no pacing, no partials (dtinth/vxbeamer#86).

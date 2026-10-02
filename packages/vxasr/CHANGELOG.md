@@ -1,5 +1,21 @@
 # vxasr
 
+## 0.4.0
+
+### Minor Changes
+
+- 4371c0c: Add `ai-gateway/microsoft/mai-transcribe-2-streaming`, the streaming version of MAI-Transcribe-2, through a new `ai-gateway` provider for the Vercel AI Gateway (`AI_GATEWAY_API_KEY`).
+
+  The model is offered only through the gateway, and is reached with the AI SDK's `experimental_streamTranscribe`, so `vxasr` now depends on `ai` and `@ai-sdk/gateway`. Partials come about every 0.3 s and the final 0.33–0.49 s after the audio ends. On clips with pauses between sentences it kept every sentence, which Gemini's push-to-talk mode did not. It costs $0.54 an hour.
+
+- 4371c0c: Add Gemini 3.5 Transcribe two ways: `gemini/gemini-3.5-transcribe-live`, a new `gemini` provider for the Gemini Live API, and `openrouter/google/gemini-3.5-transcribe`, a batch configuration of the existing OpenRouter provider.
+
+  The Live model runs in push-to-talk mode with smart transcription (fillers and false starts removed). Partials come about every 0.5 s and the final 0.3–0.6 s after the recording ends. In tests on clips joined from separate recordings, push-to-talk with smart transcription sometimes dropped a later sentence; it was chosen anyway, to revisit if that shows up in real use. Through OpenRouter the same model is accurate and costs $0.18 an hour, but takes 4–6 s per request.
+
+- 4371c0c: Add `paxa/paxa-stt-lite-realtime-v1-preview`, Paxa Labs' realtime WebSocket, next to the batch model under the same `paxa` provider and key.
+
+  The vendor detects the end of speech itself, so the final transcript arrives about 55 ms after the recording ends, against 0.6–0.9 s for the batch call. It also splits a recording into turns at each pause, with one final per turn; the adapter joins them, so a pause does not drop the text before it. It costs 12.5 credits a minute against 8.33 for batch, and the whole connection is charged, silence included.
+
 ## 0.3.0
 
 ### Minor Changes

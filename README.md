@@ -109,6 +109,7 @@ services:
       - META_API_KEY
       - PAXA_API_KEY
       - GEMINI_API_KEY
+      - AI_GATEWAY_API_KEY
       - OIDC_DISCOVERY_URL
       - OIDC_CLIENT_ID
       - OIDC_SECRET
@@ -124,7 +125,7 @@ services:
 | `GROQ_API_KEY`         | No       | Groq API key for gpt-oss-120b post-processing; enables the `+groq` configurations                                                                                                        |
 | `ASR_CONFIGURATION`    | No       | Default configuration id (default: derived from `ASR_PROVIDER`/`ASR_MODEL`/`GROQ_API_KEY`)                                                                                               |
 | `ASR_CONFIGURATIONS`   | No       | Comma-separated configurations clients may select (default: every configuration with credentials)                                                                                        |
-| `ASR_PROVIDER`         | No       | Provider for the derived default: `qwen` (default), `qwen-omni`, `byteplus`, `openai`, `openrouter`, `meta`, `paxa`, `gemini`, or `mock`                                                 |
+| `ASR_PROVIDER`         | No       | Provider for the derived default: `qwen` (default), `qwen-omni`, `byteplus`, `openai`, `openrouter`, `meta`, `paxa`, `gemini`, `ai-gateway`, or `mock`                                   |
 | `ASR_MODEL`            | No       | Model for the derived default (default: the provider's own default model)                                                                                                                |
 | `BYTEPLUS_API_KEY`     | No       | BytePlus key; enables the `byteplus` configurations                                                                                                                                      |
 | `BYTEPLUS_LANGUAGE`    | No       | BytePlus language hint, e.g. `th-TH` (default: unset — Mandarin/English only)                                                                                                            |
@@ -136,6 +137,7 @@ services:
 | `PAXA_API_KEY`         | No       | Paxa Labs key; enables the `paxa` configurations (batch and realtime)                                                                                                                    |
 | `PAXA_CONVENTION`      | No       | `written` to render numbers as digits and use the Thai repetition mark (default: the vendor's `spoken`)                                                                                  |
 | `GEMINI_API_KEY`       | No       | Google Gemini API key; enables the `gemini` (`gemini-3.5-transcribe-live`) configuration                                                                                                 |
+| `AI_GATEWAY_API_KEY`   | No       | Vercel AI Gateway key; enables the `ai-gateway` (`microsoft/mai-transcribe-2-streaming`) configuration                                                                                   |
 | `OIDC_DISCOVERY_URL`   | No       | OIDC provider discovery URL (alternative to API keys)                                                                                                                                    |
 | `OIDC_CLIENT_ID`       | No       | OIDC client ID (default: `vxbeamer-mobile`)                                                                                                                                              |
 | `OIDC_AUDIENCE`        | No       | Expected token audience (default: same as client ID)                                                                                                                                     |
@@ -232,6 +234,7 @@ A configuration is a provider, a model, and the post-processing chain applied to
 | `paxa/paxa-stt-lite-realtime-v1-preview`           | `PAXA_API_KEY`                      |
 | `meta/muse-voice-transcribe-1.0`                   | `META_API_KEY`                      |
 | `gemini/gemini-3.5-transcribe-live`                | `GEMINI_API_KEY`                    |
+| `ai-gateway/microsoft/mai-transcribe-2-streaming`  | `AI_GATEWAY_API_KEY`                |
 | `mock/mock`                                        | nothing                             |
 
 Every Qwen model id is a dated snapshot, not a floating one — the vendor repoints undated ids without notice, which would make a vote name a moving target. The Qwen Omni models need no `+groq` variant: their output is already well-formatted (Thai words in Thai, product names in Latin), which is what Groq formatting was tidying up for the plain ASR models — running it on top of Omni's output measurably added nothing.
@@ -247,6 +250,8 @@ Paxa Labs is a batch endpoint too, but takes JSON with the audio base64-encoded 
 `paxa/paxa-stt-lite-realtime-v1-preview` is Paxa's realtime WebSocket. The vendor detects the end of speech, so the final transcript arrives about 55 ms after the recording ends. It costs 1.5 times the batch rate, and the whole connection is charged, including silence.
 
 Gemini 3.5 Transcribe is offered two ways. Through OpenRouter it is a batch call: accurate and cheap, but 4–6 s per request whatever the clip length. The `gemini` provider uses the Live model instead, in push-to-talk mode with smart transcription (fillers and false starts removed): partial transcripts about every 0.5 s, and the final 0.3–0.6 s after the audio ends. A Live session can stream for 10 minutes at most. In tests on clips joined from separate recordings, push-to-talk with smart transcription sometimes dropped a later sentence; see `testdata/OBSERVATIONS.md`.
+
+`ai-gateway/microsoft/mai-transcribe-2-streaming` is the streaming version of MAI-Transcribe-2, offered only through the Vercel AI Gateway, and reached with the AI SDK's `experimental_streamTranscribe`. Partial transcripts come about every 0.3 s, and the final 0.33–0.49 s after the audio ends. On clips with pauses between sentences it kept every sentence. It costs $0.54 per hour of audio.
 
 Ids contain `+`, which decodes to a space in a query string, so clients must URL-encode them — `URLSearchParams` does this automatically. The OpenRouter configuration id also contains `/` (the router's own model naming, e.g. `microsoft/mai-transcribe-1.5`), which needs no special handling in a query string value.
 

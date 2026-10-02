@@ -25,6 +25,11 @@ import {
   GEMINI_LIVE_DEFAULT_MODEL,
   type GeminiLiveProviderConfig,
 } from "./gemini-live.ts";
+import {
+  AI_GATEWAY_DEFAULT_MODEL,
+  createAIGatewayProvider,
+  type AIGatewayProviderConfig,
+} from "./ai-gateway.ts";
 import { createMockProvider } from "./mock.ts";
 
 export const qwenProviderDefinition: ProviderDefinition = defineProvider<QwenProviderConfig>({
@@ -281,6 +286,27 @@ export const geminiProviderDefinition: ProviderDefinition =
     },
   });
 
+export const aiGatewayProviderDefinition: ProviderDefinition =
+  defineProvider<AIGatewayProviderConfig>({
+    id: "ai-gateway",
+    label: "Vercel AI Gateway (streaming transcription)",
+    // Offered only through the gateway, which publishes no dated snapshot.
+    // The gateway streams other models with the same key and the same SDK
+    // call; add one here once it has been tried on the same clips.
+    models: [AI_GATEWAY_DEFAULT_MODEL],
+    // Tried live: a whole 9.2 s clip sent at once gave the same final in
+    // 3.2 s (dtinth/vxbeamer#86).
+    supportsFastDump: true,
+    resolveConfig(env) {
+      const apiKey = env.AI_GATEWAY_API_KEY;
+      if (!apiKey) return { ok: false, missing: ["AI_GATEWAY_API_KEY"] };
+      return { ok: true, config: { apiKey } };
+    },
+    create(config, model) {
+      return createAIGatewayProvider({ ...config, model });
+    },
+  });
+
 export const mockProviderDefinition: ProviderDefinition = defineProvider<Record<string, never>>({
   id: "mock",
   label: "Mock (canned transcript, no network)",
@@ -304,6 +330,7 @@ export const builtinProviderDefinitions: readonly ProviderDefinition[] = [
   metaProviderDefinition,
   paxaProviderDefinition,
   geminiProviderDefinition,
+  aiGatewayProviderDefinition,
   mockProviderDefinition,
 ];
 

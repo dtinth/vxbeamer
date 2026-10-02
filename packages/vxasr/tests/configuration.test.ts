@@ -216,6 +216,7 @@ test("the default catalogue offers each real model, enhanced only where that hel
     "paxa/paxa-stt-lite-realtime-v1-preview",
     "meta/muse-voice-transcribe-1.0",
     "gemini/gemini-3.5-transcribe-live",
+    "ai-gateway/microsoft/mai-transcribe-2-streaming",
     "mock/mock",
   ]);
 });
@@ -253,6 +254,8 @@ test("no configuration names a floating model id", () => {
     // Google publishes `gemini-3.5-transcribe-live` with no dated or versioned
     // sibling to pin to (dtinth/vxbeamer#86).
     if (configuration.providerId === "gemini") continue;
+    // The gateway's own model id, with no dated snapshot published.
+    if (configuration.providerId === "ai-gateway") continue;
     expect(configuration.model).toMatch(/-\d{4}-\d{2}-\d{2}$/);
   }
 });

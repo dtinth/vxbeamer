@@ -436,6 +436,31 @@ OpenRouter's reported cost is the input tokens only (25 audio tokens per second 
 
 ---
 
+## Microsoft MAI-Transcribe-2 Streaming (Vercel AI Gateway)
+
+Run **2026-10-02** (dtinth/vxbeamer#86). `microsoft/mai-transcribe-2-streaming`, offered only through the Vercel AI Gateway, reached with the AI SDK's `experimental_streamTranscribe` (`ai` 7.0.127, `@ai-sdk/gateway` 4.0.103), PCM 16 kHz. See `../packages/vxasr/src/providers/ai-gateway.ts`.
+
+| clip                                           | final after the audio ends | transcript                                                                                  |
+| ---------------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------- |
+| `test-audio.bin`, realtime, n=5                | 342–491 ms                 | as batch `mai-transcribe-2`: correct except `Railways`; `framework` in Latin or Thai varies |
+| `test-audio.bin`, fast dump                    | 3.2 s                      | the same                                                                                    |
+| A, 3 s pause, B, 2 s pause, C (Gemini section) | 348 ms                     | **all three sentences**                                                                     |
+| A, 0.3 s pause, B                              | 433 ms                     | both sentences, `เห็นด้วย` correct                                                          |
+| the same sentence twice, 3 s pause             | 349 ms                     | both copies                                                                                 |
+| eval-set clip, 13.0 s                          | 352 ms                     | `เอ่อมันจะมี issue นึงที่...` (fillers kept, `issue` correct)                               |
+| English 2.0 s / Thai 2.1 s                     | 345 / 329 ms               | both correct                                                                                |
+| 3 s of silence                                 | 344 ms                     | empty final                                                                                 |
+
+Partials come about every 0.3 s (31 on the 9.2 s clip). The stream gives `transcript-delta` (finalized text) and `transcript-partial` (the provisional text _after_ the latest delta), then one `transcript-final` with the whole transcript once the input ends.
+
+For silence, the SDK's `text` promise rejects with "No transcript generated" even though `fullStream` ended cleanly with an empty final.
+
+After the stream finishes, the SDK closes the WebSocket with code 1000, but its TLS socket stays open for about 10 s more before it closes. A short CLI run therefore exits about 10 s after printing its transcript.
+
+$0.54 per hour of audio (the gateway's listed price).
+
+---
+
 ## Typhoon (SCB 10X)
 
 Run **2026-09-12**. Same OpenAI-compatible transcription shape as OpenRouter: `POST https://api.opentyphoon.ai/v1/audio/transcriptions`, `Authorization: Bearer`, `multipart/form-data` with `model` and `file`. One request, no pacing, no partials (dtinth/vxbeamer#86).

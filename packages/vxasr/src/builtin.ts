@@ -186,6 +186,14 @@ export const builtinConfigurations: readonly ConfigurationSpec[] = [
   // final 0.3–0.6 s after the audio ends. The same model is also offered
   // through OpenRouter, above.
   { provider: "gemini", label: "Gemini 3.5 Transcribe Live (raw)" },
+  // MAI-Transcribe-2's streaming version, offered only through the Vercel AI
+  // Gateway (dtinth/vxbeamer#86): partials about each 0.3 s, the final
+  // 0.33–0.49 s after the audio ends, and no sentence dropped across pauses.
+  {
+    provider: "ai-gateway",
+    model: "microsoft/mai-transcribe-2-streaming",
+    label: "AI Gateway MAI-Transcribe-2 Streaming (raw)",
+  },
   { provider: "mock", label: "Mock (canned transcript, no network)" },
 ];
 

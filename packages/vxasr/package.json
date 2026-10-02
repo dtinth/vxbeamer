@@ -37,6 +37,8 @@
     "prepublishOnly": "vp run build"
   },
   "dependencies": {
+    "@ai-sdk/gateway": "catalog:",
+    "ai": "catalog:",
     "groq-sdk": "^0.15.0",
     "ws": "^8.18.3"
   },

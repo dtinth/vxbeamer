@@ -105,14 +105,16 @@ object Recorder {
         // only completed once the file is closed.
         val captureFinished = CompletableDeferred<Unit>()
 
+        // The upload tails the same file capture is writing, so the transcript
+        // arrives as promptly as it would have from a live socket — but the
+        // audio is on disk either way. It is launched on its own, not inside
+        // the capture job, because that job is what the guard above waits on:
+        // a transcription stalled on a bad connection must not keep the next
+        // recording from starting.
+        scope.launch { uploader.upload(recording) { captureFinished.isCompleted } }
+
         captureJob =
             scope.launch {
-                // The upload tails the same file capture is writing, so the
-                // transcript arrives as promptly as it would have from a live
-                // socket — but the audio is on disk either way.
-                val liveUpload = launch {
-                    uploader.upload(recording) { captureFinished.isCompleted }
-                }
                 try {
                     AudioCapture.record(
                         file = store.audioFile(recording),
@@ -138,7 +140,6 @@ object Recorder {
                     }
                     if (_capturingId.value == recording.id) _capturingId.value = null
                 }
-                liveUpload.join()
             }
         return recording.id
     }

@@ -33,6 +33,10 @@ Two separate Android apps live here, in one Gradle project:
   | Floating button     | One tap, anywhere | Draggable, live transcript and level meter. Uses "draw over other apps", which banking apps can suppress on Android 12+, so it is opt-in and switchable off |
   | Quick Settings tile | Swipe down, tap   | No permission, and no app can suppress it                                                                                                                   |
 
+  A second tile, "Floating button", switches the floating button on and off
+  from the same shade, so it need not be left on all the time. With the
+  permission not yet granted, tapping it opens the app, where the toggle asks.
+
   Leaving the app mid-recording drops it into a square picture-in-picture
   window. That window is a **status readout, not a control** — a PiP window
   never delivers touches to its content, so its stop button is the

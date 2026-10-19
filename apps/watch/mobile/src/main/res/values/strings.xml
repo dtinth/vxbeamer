@@ -2,4 +2,5 @@
 <resources>
     <string name="app_name">vxbeamer transmitter</string>
     <string name="tile_label">Transcribe</string>
+    <string name="floating_tile_label">Floating button</string>
 </resources>

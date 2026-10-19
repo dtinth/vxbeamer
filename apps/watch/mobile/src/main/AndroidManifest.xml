@@ -99,5 +99,18 @@
             </intent-filter>
         </service>
 
+        <!-- Switching the floating button on and off from the shade. See
+             FloatingButtonTileService's own doc comment. -->
+        <service
+            android:name=".FloatingButtonTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_floating"
+            android:label="@string/floating_tile_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
     </application>
 </manifest>

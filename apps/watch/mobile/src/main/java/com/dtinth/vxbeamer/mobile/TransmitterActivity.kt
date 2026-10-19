@@ -183,11 +183,13 @@ class TransmitterActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleAutoStart(intent)
+        handleShowFloating(intent)
     }
 
     override fun onResume() {
         super.onResume()
         handleAutoStart(intent)
+        handleShowFloating(intent)
     }
 
     /**
@@ -209,9 +211,26 @@ class TransmitterActivity : ComponentActivity() {
         enterPictureInPictureMode(buildPipParams())
     }
 
+    /**
+     * Launched by [FloatingButtonTileService], which cannot start the service
+     * itself once it has stopped: it comes up as a microphone foreground
+     * service, and that cannot be started from the background. Starting it
+     * here gives it a foreground context, then this screen steps aside so the
+     * user is left where they were.
+     */
+    private fun handleShowFloating(intent: Intent?) {
+        if (intent?.getBooleanExtra(EXTRA_SHOW_FLOATING, false) != true) return
+        // Consume it, or coming back to this activity shows the button again.
+        intent.removeExtra(EXTRA_SHOW_FLOATING)
+        if (!Settings.canDrawOverlays(this)) return
+        RecorderService.send(this, RecorderService.ACTION_SHOW_WINDOW)
+        moveTaskToBack(true)
+    }
+
     companion object {
         const val ACTION_TOGGLE = "com.dtinth.vxbeamer.mobile.action.TOGGLE_FROM_PIP"
         const val EXTRA_AUTO_START = "auto_start"
+        const val EXTRA_SHOW_FLOATING = "show_floating"
     }
 }
 

@@ -1,0 +1,229 @@
+{
+  "audio": "testdata/test-audio.bin",
+  "reference": "{โปรเจกต์|โพรเจกต์|โปรเจ็กต์|โปรเจค|โปรเจ็ค|project}นี้เขียนด้วยภาษา {TypeScript|ไทป์สคริปต์} ใช้{เฟรมเวิร์ก|เฟรมเวิร์ค|framework}ชื่อ {Elysia|เอลิเซีย} โดย {deploy|ดีพลอย} ไปที่ {Railway|เรลเวย์} และใช้ {MongoDB|Mongo DB|มองโกดีบี} {Atlas|แอตลาส|แอทลาส} เป็นผู้ให้บริการฐานข้อมูล",
+  "source": "testdata/OBSERVATIONS.md — one run per model, copied exactly",
+  "results": [
+    {
+      "model": "qwen3-asr-flash-realtime-2025-10-27",
+      "route": "DashScope realtime",
+      "date": "2026-07-16",
+      "transcript": "project นี้เขียนด้วยภาษา TypeScript ใช้ framework ชื่อ Elysia โดย deploy ไปที่ Railway และใช้ MongoDB Atlas เป็นผู้ให้บริการฐานข้อมูล."
+    },
+    {
+      "model": "qwen3-asr-flash-realtime-2026-02-10",
+      "route": "DashScope realtime",
+      "date": "2026-07-16",
+      "transcript": "โปรเจกต์นี้เขียนด้วยภาษา typescript ใช้ framework ชื่อ elixir โดย deploy ไปที่ railway และใช้ mongodb atlas เป็นผู้ให้บริการฐานข้อมูล"
+    },
+    {
+      "model": "qwen3-asr-flash-realtime + Groq",
+      "route": "DashScope realtime",
+      "date": "2026-07-16",
+      "transcript": "project นี้เขียนด้วยภาษา TypeScript ใช้ framework ชื่อ Elysia โดย deploy ไปที่ Railway และใช้ MongoDB Atlas เป็นผู้ให้บริการฐานข้อมูล."
+    },
+    {
+      "model": "qwen3.5-omni-plus",
+      "route": "DashScope offline",
+      "date": "2026-07-16",
+      "transcript": "โปรเจกต์นี้เขียนด้วยภาษา TypeScript ใช้เฟรมเวิร์กชื่อ Elysia โดย deploy ไปที่ Railway และใช้ MongoDB Atlas เป็นผู้ให้บริการฐานข้อมูล"
+    },
+    {
+      "model": "qwen3-omni-flash",
+      "route": "DashScope offline",
+      "date": "2026-07-16",
+      "transcript": "โปรเจกต์นี้เขียนด้วยภาษา TypeScript ใช้เฟรมเวิร์กชื่อ Elysia โดย Deploy ไปที่ Railway และใช้ MongoDB Atlas เป็นผู้ให้บริการฐานข้อมูล"
+    },
+    {
+      "model": "qwen3.5-omni-flash",
+      "route": "DashScope offline",
+      "date": "2026-07-16",
+      "transcript": "โปรเจกต์นี้เขียนด้วยภาษา TypeScript ใช้เฟรมเวิร์กชื่อ Alecia โดย deploy ไปที่ Railway และใช้ MongoDB Atlas เป็นผู้ให้บริการฐานข้อมูล"
+    },
+    {
+      "model": "qwen3.5-omni-plus-realtime",
+      "route": "DashScope realtime",
+      "date": "2026-07-16",
+      "transcript": "โปรเจกต์นี้เขียนด้วยภาษา TypeScript ใช้เฟรมเวิร์กชื่อ Elysia โดย deploy ไปที่ Railway และใช้ MongoDB Atlas เป็นผู้ให้บริการฐานข้อมูล"
+    },
+    {
+      "model": "qwen3.5-omni-flash-realtime",
+      "route": "DashScope realtime",
+      "date": "2026-07-16",
+      "transcript": "โปรเจกต์นี้เขียนด้วยภาษา TypeScript ใช้เฟรมเวิร์กชื่อ Elysia โดย deploy ไปที่ Railway และใช้ MongoDB Atlas เป็นผู้ให้บริการฐานข้อมูล"
+    },
+    {
+      "model": "qwen3-omni-flash-realtime",
+      "route": "DashScope realtime",
+      "date": "2026-07-16",
+      "transcript": "Project นี้เขียนด้วยภาษา TypeScript ใช้ framework ชื่อ Elysia โดย deploy ไปที่ Railway และใช้ MongoDB Atlas เป็นผู้ให้บริการฐานข้อมูล"
+    },
+    {
+      "model": "fun-asr-realtime",
+      "route": "DashScope realtime",
+      "date": "2026-07-16",
+      "transcript": "Project Nickel repository type script, type framework shoe elisia deploy material way, lettuce mongo db atlas, penpui balikantan common."
+    },
+    {
+      "model": "seed-asr bigmodel",
+      "route": "BytePlus",
+      "date": "2026-07-16",
+      "transcript": "project Niagara typescript Chai framework Chai do deploy material way 来自 Chai MongoDB Atlassian common。"
+    },
+    {
+      "model": "seed-asr bigmodel_nostream",
+      "route": "BytePlus",
+      "date": "2026-07-16",
+      "transcript": "Project Nick and Repasa TypeScript, Chai framework to Elisia to deploy material way, Let's say Mongodb at last, and two high baricantum common."
+    },
+    {
+      "model": "seed-asr bigmodel_nostream, th-TH",
+      "route": "BytePlus",
+      "date": "2026-07-16",
+      "transcript": "โปรเจกต์นี้เขียนด้วยภาษาไทป์สคริปต์ ใช้เฟรมเวิร์กชื่ออเลเซีย โดยดีพลอยไปที่เรลเวย์ และใช้มองโกดีบีแอทลาสเป็นผู้ให้บริการฐานข้อมูล."
+    },
+    {
+      "model": "nvidia/nemotron-3.5-asr-streaming-multilingual-0.6b",
+      "route": "OpenRouter",
+      "date": "2026-08-23",
+      "transcript": "โ ป ร เ จ ็ ก ต ์ น ี ้ เ ข ี ย น ด ้ ว ย ภ า ษ า ไ ท ป ์ ส ค ร ิ ป ใ ช ้ เ ฟ ร ม เ ว ิ ร ์ ค ช ื ่ อ เ อ เ ล เ ซ ี ย โ ด ย ด ี พ ล อ ย ไ ป ท ี ่ เ ร ล เ ว ย ์ แ ล ะ ใ ช ้ ม อ ง โ ก ด ี บ ี แ อ ต ล า ส เ ป ็ น ผ ู ้ ใ ห ้ บ ร ิ ก า ร ฐ า น ข ้ อ ม ู ล"
+    },
+    {
+      "model": "mistralai/voxtral-small-24b-2507-stt",
+      "route": "OpenRouter",
+      "date": "2026-08-23",
+      "transcript": "Project này được viết bằng ngôn ngữ TypeScript, sử dụng framework tên là Elysia để deploy về Railway và sử dụng MongoDB Atlas là người cung cấp cơ sở dữ liệu."
+    },
+    {
+      "model": "mistralai/voxtral-mini-3b-2507",
+      "route": "OpenRouter",
+      "date": "2026-08-23",
+      "transcript": "Project này viết bằng ngôn ngữ TypeScript, sử dụng framework tên là Elecia được triển khai trên Railway và sử dụng MongoDB Atlas làm cơ sở dữ liệu."
+    },
+    {
+      "model": "qwen/qwen3-asr-1.7b",
+      "route": "OpenRouter",
+      "date": "2026-08-23",
+      "transcript": "โปรเจกtnี้เขียนด้วยภาษา TypeScript ใช้เฟรมเวิร์กชื่อเอลิเซียโดยดิโพยไปที่เรลเวสและใช้มองโกดีบีแอตลาสเป็นผู้ให้บริการฐานข้อมูล"
+    },
+    {
+      "model": "qwen/qwen3-asr-0.6b",
+      "route": "OpenRouter",
+      "date": "2026-08-23",
+      "transcript": "โปรเจกต์นี้เขียนด้วยภาษา TypeScript ใช้ framework ชื่อ Ellassay โดย Deploy ไปที่ Railway และใช้ Mongo DB Atlas เป็นผู้ให้บริการฐานข้อมูล"
+    },
+    {
+      "model": "openai/gpt-transcribe",
+      "route": "OpenRouter",
+      "date": "2026-08-23",
+      "transcript": "โปรเจกต์นี้เขียนด้วยภาษาไทป์สคริปต์ ใช้เฟรมเวิร์กชื่อ Elysia โดยดีพลอยไปที่ Railway และใช้ MongoDB Atlas เป็นผู้ให้บริการฐานข้อมูล"
+    },
+    {
+      "model": "fish-audio/transcribe-1",
+      "route": "OpenRouter",
+      "date": "2026-08-23",
+      "transcript": "โปรเจกtnี้เขียนด้วยภาษา TypeScript ใช้เฟรมเวิร์กชื่อเอลิเซียโดยดิโพยไปที่เรลเวสและใช้มองโกดีบีแอตลาสเป็นผู้ให้บริการฐานข้อมูล"
+    },
+    {
+      "model": "x-ai/grok-stt-1.0",
+      "route": "OpenRouter",
+      "date": "2026-08-23",
+      "transcript": "โปรเจกต์นี้เขียนด้วยภาษาไทปสคริปต์ ใช้เฟรมเวิร์กชื่อเอลิเซียโดยดิปลอยไปที่เรลเวลและใช้มงโก้ดีบีแอทลาสเป็นผู้ให้บริการฐานข้อมูล"
+    },
+    {
+      "model": "deepgram/nova-3",
+      "route": "OpenRouter",
+      "date": "2026-08-23",
+      "transcript": "Project Nikon Repaza TypeScript, Chai Framework, Shai Alesia, the deploy material way like Shai MongoDB Atlas and Puhai Baligantan Komun."
+    },
+    {
+      "model": "microsoft/mai-transcribe-1.5",
+      "route": "OpenRouter",
+      "date": "2026-08-23",
+      "transcript": "โปรเจกต์นี้เขียนด้วยภาษา TypeScript ใช้เฟรมเวิร์กชื่อ Elysia โดย deploy ไปที่ Railway และใช้ MongoDB Atlas เป็นผู้ให้บริการฐานข้อมูล"
+    },
+    {
+      "model": "nvidia/parakeet-tdt-0.6b-v3",
+      "route": "OpenRouter",
+      "date": "2026-08-23",
+      "transcript": "Project Nichian Repasa Type script Chi Framework Shield Alicia deploy Battery Railway La Chi Mongo DB Atlas Bent Punha Belgantan Comun."
+    },
+    {
+      "model": "mistralai/voxtral-mini-transcribe",
+      "route": "OpenRouter",
+      "date": "2026-08-23",
+      "transcript": "проектни хриен дуэ пасат TypeScript, шай фреймвэрк шью Elysia дуэ деплой бай ти railway, лэ шай MongoDB Atlas бен пухэй барікан тхан хамун."
+    },
+    {
+      "model": "qwen/qwen3-asr-flash-2026-02-10",
+      "route": "OpenRouter",
+      "date": "2026-08-23",
+      "transcript": "โปรเจกต์นี้เขียนด้วยภาษา typescript ใช้ framework ชื่อ elixir โดย deploy ไปที่ railway และใช้ mongodb atlas เป็นผู้ให้บริการฐานข้อมูล"
+    },
+    {
+      "model": "google/chirp-3",
+      "route": "OpenRouter",
+      "date": "2026-08-23",
+      "transcript": "Project นี้ เขียน ด้วย ภาษา TypeScript ใช้ Framework ชื่อ Elysia โดย Deploy ไป ที่ Railway และ ใช้ MongoDB Atlas เป็น ผู้ ให้ บริการ ฐาน ข้อ มูล"
+    },
+    {
+      "model": "openai/gpt-4o-mini-transcribe",
+      "route": "OpenRouter",
+      "date": "2026-08-23",
+      "transcript": "โปรเจคนี้เขียนด้วยภาษาไทป์สคริปต์ ใช้เฟรมเวิร์คชื่ออีเลเซีย โดยดีพลอยไปที่เรลเวย์ และใช้มองโกดีบีแอตลาสเป็นผู้ให้บริการฐานข้อมูล"
+    },
+    {
+      "model": "openai/whisper-large-v3-turbo",
+      "route": "OpenRouter",
+      "date": "2026-08-23",
+      "transcript": "โปรเจ็กต์นี้เขียนด้วยภาษา TypeScript ใช้ framework ชื่อ Alixier โดย Deploy ไปที่ Railway และใช้ MongoDB Atlas เป็นผู้ให้บริการฐานข้อมูล"
+    },
+    {
+      "model": "openai/whisper-large-v3",
+      "route": "OpenRouter",
+      "date": "2026-08-23",
+      "transcript": "โปรเจคนี้เขียนด้วยภาษา TypeScript ใช้ Framework ชื่อ Elysia โดย deploy ไปที่ Railway และใช้ MongoDB Atlas เป็นผู้ให้บริการฐานข้อมูล"
+    },
+    {
+      "model": "openai/whisper-1",
+      "route": "OpenRouter",
+      "date": "2026-08-23",
+      "transcript": "โปรเจคนี้เขียนด้วยภาษา TypeScript ใช้ Framework ชื่อ Elysia โดย Deploy ไปที่ Railway และใช้ MongoDB Atlas เป็นผู้ให้บริการฐานข้อมูล"
+    },
+    {
+      "model": "openai/gpt-4o-transcribe",
+      "route": "OpenRouter",
+      "date": "2026-08-23",
+      "transcript": "โปรเจกต์นี้เขียนด้วยภาษา TypeScript ใช้ Framework ชื่อ Elysia โดย deploy ไปที่ Railway และใช้ MongoDB Atlas เป็นผู้ให้บริการฐานข้อมูล"
+    },
+    {
+      "model": "microsoft/mai-transcribe-2",
+      "route": "OpenRouter",
+      "date": "2026-09-06",
+      "transcript": "โพรเจกต์นี้เขียนด้วยภาษา TypeScript ใช้เฟรมเวิร์กชื่อ Elysia โดย deploy ไปที่ Railways และใช้ MongoDB Atlas เป็นผู้ให้บริการฐานข้อมูล"
+    },
+    {
+      "model": "meta/muse-voice-transcribe-1.0",
+      "route": "OpenRouter",
+      "date": "2026-09-17",
+      "transcript": "โปรเจกต์นี้เขียนด้วยภาษา TypeScript ใช้ framework ชื่อ Elysia โดย deploy ไปที่ railway และใช้ MongoDB Atlas เป็นผู้ให้บริการฐานข้อมูล"
+    },
+    {
+      "model": "muse-voice-transcribe-1.0",
+      "route": "Meta realtime",
+      "date": "2026-09-18",
+      "transcript": "โปรเจกต์นี้เขียนด้วยภาษา TypeScript ใช้เฟรมเวิร์กชื่อ Alessia โดย deploy ไปที่ Railway และใช้ MongoDB Atlas เป็นผู้ให้บริการฐานข้อมูล"
+    },
+    {
+      "model": "paxa-stt-lite-v1-preview",
+      "route": "Paxa Labs",
+      "date": "2026-09-22",
+      "transcript": "โพรเจกต์นี้เขียนด้วยภาษา TypeScript ใช้เฟรมเวิร์กชื่อ Elysia โดย deploy ไปที่ Railways และใช้ MongoDB Atlas เป็นผู้ให้บริการฐานข้อมูล"
+    },
+    {
+      "model": "typhoon-asr-realtime",
+      "route": "Typhoon",
+      "date": "2026-09-12",
+      "transcript": "โปรเจกต์นี้เขียนด้วยภาษา Thaiscribe ใช้เฟรมวิกชื่อเอเลเซียโดย Deply ไปที่ Realway และใช้ mango Debe Adlus เป็นผู้ให้บริการฐานข้อมูล"
+    }
+  ]
+}

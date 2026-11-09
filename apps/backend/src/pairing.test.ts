@@ -51,6 +51,28 @@ test("anything that is not a well-formed code is refused", () => {
   expect(normalizePairingCode(zeros)).toBe(zeros);
 });
 
+test("minting drops the expired codes and keeps the live ones", () => {
+  let now = 0;
+  const store = createPairingStore({ now: () => now, ttlMs: 10 });
+  const first = store.mint({ sub: "a" });
+  now = 5;
+  const second = store.mint({ sub: "b" });
+  now = 12;
+  const third = store.mint({ sub: "c" });
+
+  expect(store.redeem(first.code)).toBeNull();
+  expect(store.redeem(second.code)?.sub).toBe("b");
+  expect(store.redeem(third.code)?.sub).toBe("c");
+});
+
+test("an absurdly long input is refused outright", () => {
+  const store = createPairingStore();
+  const { code } = store.mint({ sub: "a" });
+  expect(store.redeem("0".repeat(100_000))).toBeNull();
+  expect(store.redeem(`${code} `.repeat(20))).toBeNull();
+  expect(store.redeem(code)?.sub).toBe("a");
+});
+
 test("two codes never collide, even when the random source repeats", () => {
   const sources = [new Uint8Array(12), new Uint8Array(12), new Uint8Array(12).fill(1)];
   const store = createPairingStore({

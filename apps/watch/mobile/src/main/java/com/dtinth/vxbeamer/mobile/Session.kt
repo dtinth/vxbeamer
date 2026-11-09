@@ -18,21 +18,25 @@ object Session {
 
     data class Tokens(val accessToken: String, val refreshToken: String)
 
-    suspend fun refresh(backendUrl: String, refreshToken: String): Tokens =
+    suspend fun refresh(backendUrl: String, refreshToken: String): Tokens {
+        val session = postJson(backendUrl.trimEnd('/') + "/auth/refresh", JSONObject().put("refresh_token", refreshToken))
+        return Tokens(
+            accessToken = session.getString("access_token"),
+            refreshToken = session.optString("refresh_token", refreshToken),
+        )
+    }
+
+    /** POSTs [body] as JSON. Fails with the backend's own `error` text when it has one. */
+    internal suspend fun postJson(url: String, body: JSONObject): JSONObject =
         withContext(Dispatchers.IO) {
-            val request =
-                Request.Builder()
-                    .url(backendUrl.trimEnd('/') + "/auth/refresh")
-                    .post(JSONObject().put("refresh_token", refreshToken).toString().toRequestBody(JSON))
-                    .build()
+            val request = Request.Builder().url(url).post(body.toString().toRequestBody(JSON)).build()
             client.newCall(request).execute().use { response ->
-                val body = response.body?.string().orEmpty()
-                if (!response.isSuccessful) error("Refresh failed: HTTP ${response.code} $body")
-                val session = JSONObject(body)
-                Tokens(
-                    accessToken = session.getString("access_token"),
-                    refreshToken = session.optString("refresh_token", refreshToken),
-                )
+                val text = response.body?.string().orEmpty()
+                if (!response.isSuccessful) {
+                    val reason = runCatching { JSONObject(text).getString("error") }.getOrNull()
+                    error(reason ?: "HTTP ${response.code}")
+                }
+                JSONObject(text)
             }
         }
 }

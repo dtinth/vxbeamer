@@ -240,7 +240,7 @@ private fun TransmitterScreen(onToggle: () -> Unit, compact: Boolean) {
     val capturingId by Recorder.capturingId.collectAsState()
     val recordings by Recorder.store.recordings.collectAsState()
     val level by Recorder.audioLevel.collectAsState()
-    var keepScreenOn by remember { mutableStateOf(false) }
+    var keepScreenOn by remember { mutableStateOf(true) }
 
     val micPermission =
         rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->

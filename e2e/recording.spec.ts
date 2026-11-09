@@ -58,6 +58,11 @@ test("records audio and displays transcript from mock ASR", async ({ page }) => 
   await page.getByLabel("Pairing link").fill(link);
   await pairButton.click();
 
+  // A browser that has never used this backend asks before pairing with it.
+  const confirmation = page.getByRole("alertdialog", { name: "Confirm pairing" });
+  await expect(confirmation).toContainText(BACKEND_URL);
+  await confirmation.getByRole("button", { name: "Pair", exact: true }).click();
+
   // Wait for SSE connection (green dot)
   const connectedDot = page.locator('[title="connected"]');
   await expect(connectedDot).toBeVisible({ timeout: 10_000 });

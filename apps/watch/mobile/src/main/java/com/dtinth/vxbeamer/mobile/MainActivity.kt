@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -19,6 +20,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -58,15 +60,12 @@ private fun SignInScreen() {
     val scope = rememberCoroutineScope()
 
     var pairingLink by rememberSaveable { mutableStateOf("") }
+    var pendingLink by remember { mutableStateOf<Pairing.Link?>(null) }
     var statusMessage by rememberSaveable { mutableStateOf("") }
     var signedIn by remember { mutableStateOf(authStore.isSignedIn) }
 
-    fun pair(text: String) {
-        val link = Pairing.parseLink(text)
-        if (link == null) {
-            statusMessage = "That is not a pairing link."
-            return
-        }
+    fun redeem(link: Pairing.Link) {
+        pendingLink = null
         statusMessage = "Pairing…"
         scope.launch {
             runCatching { Pairing.redeem(link) }
@@ -81,6 +80,23 @@ private fun SignInScreen() {
         }
     }
 
+    fun pair(text: String) {
+        val link = Pairing.parseLink(text)
+        if (link == null) {
+            statusMessage = "That is not a pairing link."
+            return
+        }
+        // A link can come from anyone, and the backend it names then gets this
+        // app's audio and transcripts. Only the backend already in use goes
+        // through unasked.
+        if (link.backendUrl != authStore.backendUrl) {
+            statusMessage = ""
+            pendingLink = link
+            return
+        }
+        redeem(link)
+    }
+
     fun scan() {
         val options =
             GmsBarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_QR_CODE).build()
@@ -88,6 +104,21 @@ private fun SignInScreen() {
             .startScan()
             .addOnSuccessListener { barcode -> barcode.rawValue?.let(::pair) }
             .addOnFailureListener { statusMessage = it.message ?: "Could not scan" }
+    }
+
+    pendingLink?.let { link ->
+        AlertDialog(
+            onDismissRequest = { pendingLink = null },
+            title = { Text("Pair with ${link.backendUrl}?") },
+            text = {
+                Text(
+                    "Your recordings and transcripts will go to that server. " +
+                        "Only continue if you know it and you opened this link yourself.",
+                )
+            },
+            confirmButton = { TextButton(onClick = { redeem(link) }) { Text("Pair") } },
+            dismissButton = { TextButton(onClick = { pendingLink = null }) { Text("Cancel") } },
+        )
     }
 
     Column(

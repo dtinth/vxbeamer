@@ -25,7 +25,7 @@ import {
   type TranscriptListMode,
   type WakeLockMode,
 } from "../store.ts";
-import { parsePairingLink, redeemPairingCode, scanQrCode } from "../pairing.ts";
+import { parsePairingLink, redeemPairingCode, scanQrCode, type PairingLink } from "../pairing.ts";
 import { SettingsIcon } from "./SettingsIcon.tsx";
 import { isDesktopApp, type DesktopSwipeBehavior } from "../desktop.ts";
 
@@ -49,16 +49,13 @@ export function SettingsSheet({ open: controlledOpen, onOpenChange }: SettingsSh
   const [pairInput, setPairInput] = useState("");
   const [pairing, setPairing] = useState(false);
   const [pairError, setPairError] = useState<string | null>(null);
+  const [pendingLink, setPendingLink] = useState<PairingLink | null>(null);
   const open = controlledOpen ?? uncontrolledOpen;
   const setOpen = onOpenChange ?? setUncontrolledOpen;
   const isDesktop = isDesktopApp();
 
-  const handlePair = async (text: string) => {
-    const link = parsePairingLink(text);
-    if (!link) {
-      setPairError("That is not a pairing link.");
-      return;
-    }
+  const redeem = async (link: PairingLink) => {
+    setPendingLink(null);
     setPairing(true);
     setPairError(null);
     try {
@@ -72,6 +69,23 @@ export function SettingsSheet({ open: controlledOpen, onOpenChange }: SettingsSh
     } finally {
       setPairing(false);
     }
+  };
+
+  const handlePair = async (text: string) => {
+    const link = parsePairingLink(text);
+    if (!link) {
+      setPairError("That is not a pairing link.");
+      return;
+    }
+    // A link can come from anyone, and the backend it names then gets this
+    // app's audio and transcripts. Only the backend already in use goes
+    // through unasked.
+    if (link.backendUrl !== backendUrl) {
+      setPairError(null);
+      setPendingLink(link);
+      return;
+    }
+    await redeem(link);
   };
 
   const handleScan = async () => {
@@ -284,6 +298,36 @@ export function SettingsSheet({ open: controlledOpen, onOpenChange }: SettingsSh
                 >
                   Scan a QR code
                 </button>
+                {pendingLink && (
+                  <div
+                    role="alertdialog"
+                    aria-label="Confirm pairing"
+                    className="space-y-2 rounded-xl bg-(--m3-surface-container-highest) p-3"
+                  >
+                    <p className="text-sm text-(--m3-on-surface)">
+                      Pair with{" "}
+                      <span className="font-mono break-all">{pendingLink.backendUrl}</span>?
+                    </p>
+                    <p className="text-xs text-(--m3-on-surface-variant)">
+                      Your recordings and transcripts will go to that server. Only continue if you
+                      know it and you opened this link yourself.
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => void redeem(pendingLink)}
+                        className="flex-1 py-2 rounded-xl bg-(--m3-primary) text-(--m3-on-primary) text-sm font-semibold"
+                      >
+                        Pair
+                      </button>
+                      <button
+                        onClick={() => setPendingLink(null)}
+                        className="flex-1 py-2 rounded-xl bg-(--m3-surface-container-high) text-sm"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
                 {pairError && (
                   <p role="alert" className="text-xs text-(--m3-error)">
                     {pairError}

@@ -25,10 +25,8 @@ import {
   type TranscriptListMode,
   type WakeLockMode,
 } from "../store.ts";
-import { startSignIn } from "../oidc.ts";
 import { parsePairingLink, redeemPairingCode, scanQrCode } from "../pairing.ts";
 import { SettingsIcon } from "./SettingsIcon.tsx";
-import { AuthUrlModal } from "./AuthUrlModal.tsx";
 import { isDesktopApp, type DesktopSwipeBehavior } from "../desktop.ts";
 
 export interface SettingsSheetProps {
@@ -48,28 +46,12 @@ export function SettingsSheet({ open: controlledOpen, onOpenChange }: SettingsSh
   const userInfo = useStore($userInfo);
   const wakeLockMode = useStore($wakeLockMode);
   const wakeLockActive = useStore($wakeLockActive);
-  const [urlInput, setUrlInput] = useState(backendUrl);
-  const [signingIn, setSigningIn] = useState(false);
-  const [authModalOpen, setAuthModalOpen] = useState(false);
   const [pairInput, setPairInput] = useState("");
   const [pairing, setPairing] = useState(false);
   const [pairError, setPairError] = useState<string | null>(null);
   const open = controlledOpen ?? uncontrolledOpen;
   const setOpen = onOpenChange ?? setUncontrolledOpen;
   const isDesktop = isDesktopApp();
-  const trimmedBackendUrl = urlInput.trim();
-  const canSignIn = trimmedBackendUrl.length > 0;
-
-  const handleSignIn = async () => {
-    if (!canSignIn) return;
-    setSigningIn(true);
-    setBackendUrl(trimmedBackendUrl);
-    try {
-      await startSignIn(trimmedBackendUrl);
-    } catch {
-      setSigningIn(false);
-    }
-  };
 
   const handlePair = async (text: string) => {
     const link = parsePairingLink(text);
@@ -82,7 +64,6 @@ export function SettingsSheet({ open: controlledOpen, onOpenChange }: SettingsSh
     try {
       const tokens = await redeemPairingCode(link.backendUrl, link.code);
       setBackendUrl(link.backendUrl);
-      setUrlInput(link.backendUrl);
       saveSessionToken(tokens.accessToken, tokens.refreshToken);
       setPairInput("");
       setOpen(false);
@@ -129,21 +110,6 @@ export function SettingsSheet({ open: controlledOpen, onOpenChange }: SettingsSh
             ✕
           </button>
         </div>
-
-        <label className="block space-y-1.5">
-          <span className="text-xs font-medium text-white/50 uppercase tracking-wider">
-            Backend URL
-          </span>
-          <input
-            value={urlInput}
-            onChange={(e) => setUrlInput(e.target.value)}
-            onBlur={() => setBackendUrl(trimmedBackendUrl)}
-            className="w-full bg-(--m3-surface-container-highest) rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-(--m3-outline)"
-            autoComplete="off"
-            autoCapitalize="off"
-            placeholder="https://your-backend-url.example.com"
-          />
-        </label>
 
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
@@ -257,6 +223,14 @@ export function SettingsSheet({ open: controlledOpen, onOpenChange }: SettingsSh
                   </span>
                   <div className="bg-(--m3-surface-container-highest) rounded-xl px-3 py-2.5 text-sm space-y-1">
                     {userInfo.name && <div className="text-(--m3-on-surface)">{userInfo.name}</div>}
+                    {backendUrl && (
+                      <div
+                        className="text-(--m3-on-surface-variant) text-xs truncate"
+                        title={backendUrl}
+                      >
+                        {backendUrl}
+                      </div>
+                    )}
                     {userInfo.sub && (
                       <button
                         onClick={() => void navigator.clipboard.writeText(userInfo.sub!)}
@@ -319,32 +293,6 @@ export function SettingsSheet({ open: controlledOpen, onOpenChange }: SettingsSh
                   Open /pair on your backend, sign in, and copy or scan the link it shows.
                 </p>
               </div>
-              {isDesktop ? (
-                <button
-                  onClick={() => setAuthModalOpen(true)}
-                  disabled={!canSignIn}
-                  className="w-full py-3 rounded-xl bg-(--m3-primary) text-(--m3-on-primary) text-sm font-semibold hover:bg-(--m3-primary)/90 transition-colors disabled:opacity-50"
-                >
-                  Sign in with OIDC
-                </button>
-              ) : (
-                <>
-                  <button
-                    onClick={() => void handleSignIn()}
-                    disabled={!canSignIn || signingIn}
-                    className="w-full py-3 rounded-xl bg-(--m3-primary) text-(--m3-on-primary) text-sm font-semibold hover:bg-(--m3-primary)/90 transition-colors disabled:opacity-50"
-                  >
-                    {signingIn ? "Redirecting…" : "Sign in with OIDC"}
-                  </button>
-                  <button
-                    onClick={() => setAuthModalOpen(true)}
-                    disabled={!canSignIn}
-                    className="w-full text-sm text-(--m3-on-surface-variant) hover:text-(--m3-on-surface) transition-colors underline disabled:opacity-50"
-                  >
-                    Log in with another browser
-                  </button>
-                </>
-              )}
             </>
           )}
         </div>
@@ -357,18 +305,6 @@ export function SettingsSheet({ open: controlledOpen, onOpenChange }: SettingsSh
             Refresh app
           </button>
         </div>
-
-        {authModalOpen && (
-          <AuthUrlModal
-            backendUrl={trimmedBackendUrl}
-            onSuccess={(accessToken, refreshToken) => {
-              saveSessionToken(accessToken, refreshToken);
-              setAuthModalOpen(false);
-              setOpen(false);
-            }}
-            onClose={() => setAuthModalOpen(false)}
-          />
-        )}
       </div>
     </div>
   );

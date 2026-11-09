@@ -22,8 +22,8 @@ This project is primarily for personal use and is not designed to be particularl
 
 <img width="3200" height="1428" alt="image" src="https://github.com/user-attachments/assets/e1067d8e-48ec-4ba4-91df-c378b6914978" />
 
-1. Deploy and configure the backend URL
-2. Sign in with OIDC
+1. Deploy the backend
+2. Open `/pair` on it, sign in with OIDC, and open the pairing link in the client (see [Pairing a client](#pairing-a-client))
 3. To start transcribing, click the start recording button
 4. To stop, click the same button
 5. Click on the transcript bubble to copy, swipe left to delete, swipe right to beam to custom integrations
@@ -80,7 +80,7 @@ API_KEYS=your-sub-claim:my-secret-key,your-sub-claim:another-secret
 
 To find your `sub` claim:
 
-1. Sign in to the web app with OIDC
+1. Pair the web app with your backend (see [Pairing a client](#pairing-a-client))
 2. Open Settings (⚙️ icon)
 3. Copy your `sub` from the "Signed in" section
 
@@ -94,7 +94,7 @@ A full deployment consists of three parts:
 
 1. **OIDC provider** — an OIDC-compatible identity provider such as Authentik (see [Authentication](#authentication) above).
 2. **Backend** — a self-hosted server you run yourself (see below).
-3. **Frontend** — the web application, available at [vxbeamer.vercel.app](https://vxbeamer.vercel.app). This hosted instance is provided as-is and connects to whichever backend URL you configure in its settings. Only the frontend is hosted; you must run your own backend.
+3. **Frontend** — the web application, available at [vxbeamer.vercel.app](https://vxbeamer.vercel.app). This hosted instance is provided as-is and connects to whichever backend you pair it with: it learns the backend's address from the pairing link, so there is no URL to type. Only the frontend is hosted; you must run your own backend.
 
 ### Backend
 

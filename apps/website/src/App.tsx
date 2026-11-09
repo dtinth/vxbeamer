@@ -5,22 +5,16 @@ import {
   $backendUrl,
   $sseStatus,
   applySSEEvent,
-  saveSessionToken,
-  setBackendUrl,
-  clearSessionToken,
   obtainSessionToken,
 } from "./store.ts";
 import { MessageFeed } from "./components/MessageFeed.tsx";
 import { RecordingBar } from "./components/RecordingBar.tsx";
 import { SettingsSheet } from "./components/SettingsSheet.tsx";
-import { DesktopAuthCode } from "./components/DesktopAuthCode.tsx";
-import { handleCallback } from "./oidc.ts";
 import { attachKeyboardShortcuts } from "./keyboardShortcuts.ts";
 import { attachAutoCopy } from "./autoCopy.ts";
 
 export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [desktopCallbackPayload, setDesktopCallbackPayload] = useState<string | null>(null);
   const authToken = useStore($sessionToken);
   const backendUrl = useStore($backendUrl);
   const sseStatus = useStore($sseStatus);
@@ -30,24 +24,6 @@ export function App() {
   // record button and message bubbles are on screen right now.
   useEffect(() => attachKeyboardShortcuts(), []);
   useEffect(() => attachAutoCopy(), []);
-
-  // Handle OIDC callback on mount
-  useEffect(() => {
-    void handleCallback()
-      .then((result) => {
-        if (!result) return;
-        if (result.type === "session") {
-          saveSessionToken(result.accessToken, result.refreshToken);
-          setBackendUrl(result.backendUrl);
-        } else if (result.type === "desktop") {
-          setDesktopCallbackPayload(result.payload);
-        }
-      })
-      .catch((err: unknown) => {
-        console.error("Auth error:", err);
-        clearSessionToken();
-      });
-  }, []);
 
   // SSE connection with heartbeat checking
   useEffect(() => {
@@ -169,12 +145,6 @@ export function App() {
 
   return (
     <>
-      {desktopCallbackPayload && (
-        <DesktopAuthCode
-          payload={desktopCallbackPayload}
-          onDone={() => setDesktopCallbackPayload(null)}
-        />
-      )}
       <div
         className="flex flex-col bg-(--m3-background) text-(--m3-on-surface) overflow-hidden"
         style={{

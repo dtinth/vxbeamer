@@ -35,7 +35,7 @@ object Pairing {
         return Link("${url.scheme}://${url.host}$port", code)
     }
 
-    suspend fun redeem(link: Link): Oidc.Tokens =
+    suspend fun redeem(link: Link): Session.Tokens =
         withContext(Dispatchers.IO) {
             val request =
                 Request.Builder()
@@ -49,7 +49,7 @@ object Pairing {
                     error(reason ?: "Pairing failed: HTTP ${response.code}")
                 }
                 val json = JSONObject(body)
-                Oidc.Tokens(
+                Session.Tokens(
                     accessToken = json.getString("access_token"),
                     refreshToken = json.getString("refresh_token"),
                 )

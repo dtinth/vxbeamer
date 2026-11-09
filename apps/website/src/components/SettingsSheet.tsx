@@ -26,6 +26,7 @@ import {
   type WakeLockMode,
 } from "../store.ts";
 import { startSignIn } from "../oidc.ts";
+import { parsePairingLink, redeemPairingCode, scanQrCode } from "../pairing.ts";
 import { SettingsIcon } from "./SettingsIcon.tsx";
 import { AuthUrlModal } from "./AuthUrlModal.tsx";
 import { isDesktopApp, type DesktopSwipeBehavior } from "../desktop.ts";
@@ -50,6 +51,9 @@ export function SettingsSheet({ open: controlledOpen, onOpenChange }: SettingsSh
   const [urlInput, setUrlInput] = useState(backendUrl);
   const [signingIn, setSigningIn] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [pairInput, setPairInput] = useState("");
+  const [pairing, setPairing] = useState(false);
+  const [pairError, setPairError] = useState<string | null>(null);
   const open = controlledOpen ?? uncontrolledOpen;
   const setOpen = onOpenChange ?? setUncontrolledOpen;
   const isDesktop = isDesktopApp();
@@ -65,6 +69,34 @@ export function SettingsSheet({ open: controlledOpen, onOpenChange }: SettingsSh
     } catch {
       setSigningIn(false);
     }
+  };
+
+  const handlePair = async (text: string) => {
+    const link = parsePairingLink(text);
+    if (!link) {
+      setPairError("That is not a pairing link.");
+      return;
+    }
+    setPairing(true);
+    setPairError(null);
+    try {
+      const tokens = await redeemPairingCode(link.backendUrl, link.code);
+      setBackendUrl(link.backendUrl);
+      setUrlInput(link.backendUrl);
+      saveSessionToken(tokens.accessToken, tokens.refreshToken);
+      setPairInput("");
+      setOpen(false);
+    } catch (err) {
+      setPairError(err instanceof Error ? err.message : "Pairing failed.");
+    } finally {
+      setPairing(false);
+    }
+  };
+
+  const handleScan = async () => {
+    setPairError(null);
+    const text = await scanQrCode();
+    if (text !== null) await handlePair(text);
   };
 
   if (!open) {
@@ -249,6 +281,44 @@ export function SettingsSheet({ open: controlledOpen, onOpenChange }: SettingsSh
             </>
           ) : (
             <>
+              <div className="space-y-1.5">
+                <span className="text-xs font-medium text-(--m3-on-surface-variant) uppercase tracking-wider">
+                  Pair with a link
+                </span>
+                <div className="flex gap-2">
+                  <input
+                    value={pairInput}
+                    onChange={(e) => setPairInput(e.target.value)}
+                    className="min-w-0 flex-1 bg-(--m3-surface-container-highest) rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-(--m3-outline)"
+                    autoComplete="off"
+                    autoCapitalize="off"
+                    placeholder="https://your-backend.example.com/pair#…"
+                    aria-label="Pairing link"
+                  />
+                  <button
+                    onClick={() => void handlePair(pairInput)}
+                    disabled={pairing || pairInput.trim().length === 0}
+                    className="px-4 rounded-xl bg-(--m3-primary) text-(--m3-on-primary) text-sm font-semibold hover:bg-(--m3-primary)/90 transition-colors disabled:opacity-50"
+                  >
+                    {pairing ? "Pairing…" : "Pair"}
+                  </button>
+                </div>
+                <button
+                  onClick={() => void handleScan()}
+                  disabled={pairing}
+                  className="w-full text-sm text-(--m3-on-surface-variant) hover:text-(--m3-on-surface) transition-colors underline disabled:opacity-50"
+                >
+                  Scan a QR code
+                </button>
+                {pairError && (
+                  <p role="alert" className="text-xs text-(--m3-error)">
+                    {pairError}
+                  </p>
+                )}
+                <p className="text-xs text-(--m3-on-surface-variant)">
+                  Open /pair on your backend, sign in, and copy or scan the link it shows.
+                </p>
+              </div>
               {isDesktop ? (
                 <button
                   onClick={() => setAuthModalOpen(true)}

@@ -1,8 +1,10 @@
 import { createMiddleware } from "hono/factory";
 import { streamSSE } from "hono/streaming";
 import { cors } from "hono/cors";
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { serve } from "@hono/node-server";
+import { getConnInfo } from "@hono/node-server/conninfo";
+import QRCode from "qrcode";
 import { createNodeWebSocket } from "@hono/node-ws";
 import type { WSContext, WSMessageReceive } from "hono/ws";
 import type { ASRSession } from "vxasr";
@@ -18,6 +20,8 @@ import {
   verifyIdToken,
 } from "./auth.ts";
 import { createSwipedEvent } from "./events.ts";
+import { pairPageHtml } from "./pairPage.ts";
+import { createPairingStore, createRateLimiter } from "./pairing.ts";
 import { createEvalSocketHandler } from "./evalSocket.ts";
 import { createEvalStorage, type EvalUploadTargets } from "./evalStorage.ts";
 import { createSubjectStore, type Message } from "./store.ts";
@@ -43,6 +47,9 @@ const apiKeys = new Map(
     }),
 );
 const webhookUrl = process.env.WEBHOOK_URL ?? "";
+// Where pairing links point. Behind a proxy the request's own origin can be the
+// internal one, so a deployment can say what clients should be given instead.
+const publicUrl = (process.env.PUBLIC_URL ?? "").replace(/\/+$/, "");
 // How long a recording socket may go without audio before it is kicked and its
 // upstream vendor connection reclaimed. Vendor connections are capped per
 // account, so an abandoned session that never sends `stop` must not pin one
@@ -237,6 +244,79 @@ app.post("/auth/refresh", async (c) => {
     ttlSeconds: REFRESH_TOKEN_TTL_SECONDS,
     sid: refreshPayload.sid,
     name: refreshPayload.name,
+  });
+  return c.json({
+    token_type: "Bearer",
+    access_token: accessToken,
+    refresh_token: refreshToken,
+    expires_in: ACCESS_TOKEN_TTL_SECONDS,
+  });
+});
+
+// --- Pairing ---
+// A signed-in browser mints a short-lived code at /pair; a client redeems it for
+// its own session. See pairing.ts for why the codes live in memory.
+const pairingStore = createPairingStore();
+// Redeeming is the only unauthenticated way in, so it is rate limited twice: per
+// caller, and overall, since a forwarded-for header is only as honest as the
+// proxy in front. Both leave a 60-bit code out of reach.
+const redeemPerCaller = createRateLimiter({ max: 10, windowMs: 60_000 });
+const redeemOverall = createRateLimiter({ max: 120, windowMs: 60_000 });
+
+function callerKey(c: Context): string {
+  const forwarded = c.req.header("x-forwarded-for")?.split(",")[0]?.trim();
+  if (forwarded) return forwarded;
+  try {
+    return getConnInfo(c).remote.address ?? "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
+app.get("/pair", (c) => {
+  c.header("Cache-Control", "no-store");
+  c.header("Referrer-Policy", "no-referrer");
+  c.header("X-Frame-Options", "DENY");
+  return c.html(pairPageHtml);
+});
+
+app.post("/pair/codes", authMiddleware, async (c) => {
+  const auth = c.get("auth");
+  const { code, expiresIn } = pairingStore.mint({ sub: auth.sub, name: auth.name });
+  const origin = publicUrl || c.req.header("origin") || new URL(c.req.url).origin;
+  const link = `${origin}/pair#${code}`;
+  const svg = await QRCode.toString(link, { type: "svg", margin: 1, errorCorrectionLevel: "M" });
+  return c.json({ code, link, svg, expires_in: expiresIn });
+});
+
+app.post("/auth/pair", async (c) => {
+  if (!redeemOverall.allow("all") || !redeemPerCaller.allow(callerKey(c))) {
+    return c.json({ error: "Too many attempts" }, 429);
+  }
+  let body: { code?: string };
+  try {
+    body = (await c.req.json()) as typeof body;
+  } catch {
+    return c.json({ error: "Invalid request body" }, 400);
+  }
+  if (typeof body.code !== "string") return c.json({ error: "Missing code" }, 400);
+  const identity = pairingStore.redeem(body.code);
+  if (!identity) return c.json({ error: "Invalid or expired code" }, 401);
+
+  const sid = crypto.randomUUID();
+  const accessToken = await createAccessToken({
+    subject: identity.sub,
+    secret: authSecret,
+    ttlSeconds: ACCESS_TOKEN_TTL_SECONDS,
+    sid,
+    name: identity.name,
+  });
+  const refreshToken = await createRefreshToken({
+    subject: identity.sub,
+    secret: authSecret,
+    ttlSeconds: REFRESH_TOKEN_TTL_SECONDS,
+    sid,
+    name: identity.name,
   });
   return c.json({
     token_type: "Bearer",

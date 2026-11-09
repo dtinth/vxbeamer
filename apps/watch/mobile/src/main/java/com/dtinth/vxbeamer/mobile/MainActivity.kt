@@ -30,6 +30,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.google.mlkit.vision.barcode.common.Barcode
+import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import kotlinx.coroutines.launch
 
 /**
@@ -59,8 +62,39 @@ private fun SignInScreen() {
     var pendingCodeVerifier by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingState by rememberSaveable { mutableStateOf<String?>(null) }
     var pastedCode by rememberSaveable { mutableStateOf("") }
+    var pairingLink by rememberSaveable { mutableStateOf("") }
     var statusMessage by rememberSaveable { mutableStateOf("") }
     var signedIn by remember { mutableStateOf(authStore.isSignedIn) }
+
+    fun pair(text: String) {
+        val link = Pairing.parseLink(text)
+        if (link == null) {
+            statusMessage = "That is not a pairing link."
+            return
+        }
+        statusMessage = "Pairing…"
+        scope.launch {
+            runCatching { Pairing.redeem(link) }
+                .onSuccess { tokens ->
+                    backendUrl = link.backendUrl
+                    authStore.backendUrl = link.backendUrl
+                    authStore.saveTokens(tokens)
+                    signedIn = true
+                    pairingLink = ""
+                    statusMessage = ""
+                }
+                .onFailure { statusMessage = it.message ?: "Pairing failed" }
+        }
+    }
+
+    fun scan() {
+        val options =
+            GmsBarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_QR_CODE).build()
+        GmsBarcodeScanning.getClient(context, options)
+            .startScan()
+            .addOnSuccessListener { barcode -> barcode.rawValue?.let(::pair) }
+            .addOnFailureListener { statusMessage = it.message ?: "Could not scan" }
+    }
 
     Column(
         modifier =
@@ -101,6 +135,12 @@ private fun SignInScreen() {
                 },
             )
         } else {
+            PairingCard(
+                link = pairingLink,
+                onLinkChange = { pairingLink = it },
+                onPair = { pair(pairingLink) },
+                onScan = ::scan,
+            )
             SignInCard(
                 pendingCode = pendingCodeVerifier != null,
                 pastedCode = pastedCode,
@@ -167,6 +207,52 @@ private fun SignedInCard(onTranscribe: () -> Unit, onSignOut: () -> Unit) {
             }
             OutlinedButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) {
                 Text("Sign out")
+            }
+        }
+    }
+}
+
+/**
+ * The way in that needs no browser round trip on this phone: sign in on
+ * `/pair` wherever you are signed in, then scan its QR code or paste its link.
+ */
+@Composable
+private fun PairingCard(
+    link: String,
+    onLinkChange: (String) -> Unit,
+    onPair: () -> Unit,
+    onScan: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text("Pair with a link", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Open /pair on your backend, sign in there, then scan the QR code it shows or paste its link.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Button(onClick = onScan, modifier = Modifier.fillMaxWidth()) {
+                Text("Scan QR code")
+            }
+            OutlinedTextField(
+                value = link,
+                onValueChange = onLinkChange,
+                label = { Text("Pairing link") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedButton(
+                onClick = onPair,
+                enabled = link.isNotBlank(),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Pair")
             }
         }
     }

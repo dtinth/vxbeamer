@@ -62,6 +62,14 @@ The OIDC provider must support:
 
 [Authentik](https://goauthentik.io) is a self-hosted, open-source identity provider that meets all of these requirements.
 
+### Pairing a client
+
+Clients that cannot easily sign in themselves (a PWA on iOS, the Android app, anything on a different machine from the browser you are signed in on) pair instead. Open `/pair` on your backend, sign in, and it shows a one-time pairing link and QR code. Open the link in the client, scan the QR code, or paste the link into its pairing box. The link carries the backend's address and a 12-character code; the client redeems the code at `POST /auth/pair` for its own session.
+
+Codes are valid for two minutes and work once. They are kept in memory, so a backend running several instances would need to share them.
+
+The `/pair` page runs the OIDC code flow itself, so the provider must allow `https://<your-backend>/pair` as a redirect URI. Register it as an exact match, not a wildcard. Set `PUBLIC_URL` if the backend sits behind a proxy and the link should not use the address it sees.
+
 ### API keys (personal access tokens)
 
 Set the `API_KEYS` environment variable in the format `<sub>:<key>`. In case of multiple keys, separate by commas:
@@ -142,6 +150,7 @@ services:
 | `OIDC_CLIENT_ID`       | No       | OIDC client ID (default: `vxbeamer-mobile`)                                                                                                                                              |
 | `OIDC_AUDIENCE`        | No       | Expected token audience (default: same as client ID)                                                                                                                                     |
 | `OIDC_SECRET`          | No       | HMAC secret for session tokens (default: `local-dev-secret`)                                                                                                                             |
+| `PUBLIC_URL`           | No       | Address clients should use for pairing links (default: the address the request came in on)                                                                                               |
 | `WEBHOOK_URL`          | No       | Endpoint to POST completed transcriptions to                                                                                                                                             |
 | `PORT`                 | No       | HTTP port (default: `8787`)                                                                                                                                                              |
 

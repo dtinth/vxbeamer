@@ -7,6 +7,7 @@ activityCompose = "1.9.2"
 composeBom = "2024.09.03"
 wearCompose = "1.4.0"
 playServicesWearable = "18.2.0"
+playServicesCodeScanner = "16.1.0"
 appcompat = "1.7.0"
 fragment = "1.8.3"
 coroutines = "1.8.1"
@@ -30,6 +31,7 @@ compose-runtime-saveable = { group = "androidx.compose.runtime", name = "runtime
 wear-compose-material = { group = "androidx.wear.compose", name = "compose-material", version.ref = "wearCompose" }
 wear-compose-foundation = { group = "androidx.wear.compose", name = "compose-foundation", version.ref = "wearCompose" }
 play-services-wearable = { group = "com.google.android.gms", name = "play-services-wearable", version.ref = "playServicesWearable" }
+play-services-code-scanner = { group = "com.google.android.gms", name = "play-services-code-scanner", version.ref = "playServicesCodeScanner" }
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-play-services", version.ref = "coroutines" }

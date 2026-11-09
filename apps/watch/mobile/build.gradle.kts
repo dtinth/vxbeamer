@@ -47,6 +47,7 @@ dependencies {
     implementation(libs.compose.material3)
     implementation(libs.compose.runtime.saveable)
     implementation(libs.play.services.wearable)
+    implementation(libs.play.services.code.scanner)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.play.services)

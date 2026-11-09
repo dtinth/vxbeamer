@@ -79,12 +79,18 @@ test("holding Space is push-to-talk: starts on press, stops and auto-copies on r
 });
 
 test("shortcuts are suppressed while typing in a text field", async ({ page }) => {
+  // The only text field is the pairing box, which shows while signed out.
+  await page.evaluate(() => {
+    localStorage.removeItem("vxbeamer_access_token");
+    localStorage.removeItem("vxbeamer_refresh_token");
+  });
+  await page.reload();
   await page.getByRole("button", { name: "Settings", exact: true }).click();
-  const backendUrlInput = page.getByRole("textbox");
-  await backendUrlInput.fill("r c");
+  const pairingInput = page.getByLabel("Pairing link");
+  await pairingInput.fill("r c");
 
   // `r`/`c` typed into the field must not have toggled recording or copied
   // anything — they should have landed as plain text instead.
   await expect(page.getByLabel("Stop recording")).not.toBeVisible();
-  await expect(backendUrlInput).toHaveValue("r c");
+  await expect(pairingInput).toHaveValue("r c");
 });

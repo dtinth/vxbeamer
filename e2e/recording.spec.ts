@@ -35,37 +35,28 @@ test("records audio and displays transcript from mock ASR", async ({ page }) => 
   const settingsButton = page.getByRole("button", { name: "Settings", exact: true });
   await settingsButton.click();
 
-  // Fill in the backend URL so it matches the signed-in state
-  const backendUrlInput = page.getByRole("textbox");
-  await backendUrlInput.fill(BACKEND_URL);
+  // Signed out, pairing is the only way in: there is no backend URL to type.
+  const pairButton = page.getByRole("button", { name: "Pair", exact: true });
+  await expect(pairButton).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sign in with OIDC" })).toHaveCount(0);
+  await storyboard.capture("Settings - signed out", pairButton);
 
-  const signInButton = page.getByRole("button", { name: "Sign in with OIDC" });
-  await expect(signInButton).toBeVisible();
-  await storyboard.capture("Settings - signed out", signInButton);
-
-  // Close settings
-  await page.locator(".fixed.inset-0").click({ position: { x: 0, y: 0 } });
-
-  // --- Exchange API key for access token ---
+  // --- Exchange API key for access token, then mint a pairing link ---
+  // The `/pair` page would do the OIDC sign-in here; the e2e backend has no
+  // identity provider, so an API key stands in for it. Everything after the
+  // minting is the real pairing flow.
   const tokenRes = await page.request.post(`${BACKEND_URL}/auth/token`, {
     data: { api_key: E2E_API_KEY },
   });
-  const tokenData = (await tokenRes.json()) as {
-    access_token: string;
-    refresh_token?: string;
-  };
+  const tokenData = (await tokenRes.json()) as { access_token: string };
+  const codeRes = await page.request.post(`${BACKEND_URL}/pair/codes`, {
+    headers: { authorization: `Bearer ${tokenData.access_token}` },
+  });
+  const { link } = (await codeRes.json()) as { link: string };
 
-  // --- Inject tokens and reload to signed-in state ---
-  await page.evaluate(
-    ({ backendUrl, accessToken }) => {
-      localStorage.setItem("vxbeamer_backend_url", backendUrl);
-      localStorage.setItem("vxbeamer_access_token", accessToken);
-      // Dummy refresh token for testing (won't actually refresh during e2e)
-      localStorage.setItem("vxbeamer_refresh_token", "dummy-refresh-token");
-    },
-    { backendUrl: BACKEND_URL, accessToken: tokenData.access_token },
-  );
-  await page.reload();
+  // --- Pair: paste the link into settings ---
+  await page.getByLabel("Pairing link").fill(link);
+  await pairButton.click();
 
   // Wait for SSE connection (green dot)
   const connectedDot = page.locator('[title="connected"]');

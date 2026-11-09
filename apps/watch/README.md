@@ -51,10 +51,10 @@ Two separate Android apps live here, in one Gradle project:
   that has not been transcribed yet, which is never deleted to stay under
   the cap, since that would destroy the only copy of what was said.
 
-Sign-in reuses the desktop app's own flow: the phone app opens your browser,
-you sign in, the hosted web app shows a short code, and you paste that code
-back into the phone app. Nothing on the backend or website needed to change
-for a second app to reuse this path.
+The phone app pairs with your backend: open `/pair` on the backend wherever
+you are signed in, then scan the QR code it shows (Google's code scanner, no
+camera permission) or paste its link into the app. The link carries the
+backend's address, so there is no URL to type.
 
 ## Status
 
@@ -137,8 +137,8 @@ adb -s <watch-serial> install wear/build/outputs/apk/debug/wear-debug.apk   # to
 Or download the built APKs from GitHub Actions (see below) and open the file
 directly on-device.
 
-Sign in inside the phone app once, with the backend URL, before trying to
-record from the watch.
+Pair the phone app with your backend once before trying to record from the
+watch.
 
 ## CI
 

@@ -37,7 +37,7 @@ class AuthStore(context: Context) {
     val isSignedIn: Boolean
         get() = !accessToken.isNullOrEmpty() && !refreshToken.isNullOrEmpty()
 
-    fun saveTokens(tokens: Oidc.Tokens) {
+    fun saveTokens(tokens: Session.Tokens) {
         accessToken = tokens.accessToken
         refreshToken = tokens.refreshToken
     }
@@ -60,7 +60,7 @@ class AuthStore(context: Context) {
         val exp = decodeExpiry(token)
         val nowSeconds = System.currentTimeMillis() / 1000
         if (exp == null || exp - nowSeconds < EXPIRY_BUFFER_SECONDS) {
-            val refreshed = Oidc.refresh(backendUrl, refreshToken ?: error("Not signed in"))
+            val refreshed = Session.refresh(backendUrl, refreshToken ?: error("Not signed in"))
             saveTokens(refreshed)
             return refreshed.accessToken
         }

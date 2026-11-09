@@ -16,14 +16,18 @@ beforeEach(() => {
   vi.unstubAllGlobals();
 });
 
-test("web sign-in actions are disabled until the backend URL is filled", async () => {
+test("signed out, pairing is the only way in", async () => {
   vi.stubGlobal("localStorage", createStorage());
   vi.stubGlobal("window", { location: { origin: "https://example.com", pathname: "/" } });
 
   const { SettingsSheet } = await import("./SettingsSheet.tsx");
   const markup = renderToStaticMarkup(<SettingsSheet open />);
 
-  expect(markup).toContain('placeholder="https://your-backend-url.example.com"');
+  expect(markup).toContain("Pair with a link");
+  expect(markup).toContain("Scan a QR code");
+  expect(markup).not.toContain("Backend URL");
+  expect(markup).not.toContain("Sign in with OIDC");
+  expect(markup).not.toContain("Log in with another browser");
   expect(markup).toContain("Audio Processing");
   expect(markup).toContain(">On<");
   expect(markup).toContain(">Off<");
@@ -31,12 +35,11 @@ test("web sign-in actions are disabled until the backend URL is filled", async (
   expect(markup).toContain("Latest 10 only");
   expect(markup).toContain("Recording button");
   expect(markup).toContain("Refresh app");
-  expect(markup).toContain("Sign in with OIDC");
-  expect(markup).toContain("Log in with another browser");
+  // The Pair button waits for a link to be entered.
   expect(markup).toContain("disabled");
 });
 
-test("desktop sign-in action is disabled until the backend URL is filled", async () => {
+test("the desktop app pairs the same way", async () => {
   vi.stubGlobal("localStorage", createStorage());
   vi.stubGlobal("window", {
     location: { origin: "https://example.com", pathname: "/" },
@@ -46,6 +49,7 @@ test("desktop sign-in action is disabled until the backend URL is filled", async
   const { SettingsSheet } = await import("./SettingsSheet.tsx");
   const markup = renderToStaticMarkup(<SettingsSheet open />);
 
-  expect(markup).toContain("Sign in with OIDC");
+  expect(markup).toContain("Pair with a link");
+  expect(markup).not.toContain("Sign in with OIDC");
   expect(markup).toContain("disabled");
 });

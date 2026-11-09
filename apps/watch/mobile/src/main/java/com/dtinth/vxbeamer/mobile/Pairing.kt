@@ -1,13 +1,7 @@
 package com.dtinth.vxbeamer.mobile
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 
 /**
@@ -18,8 +12,6 @@ import org.json.JSONObject
  */
 object Pairing {
     private val CODE = Regex("^[0-9A-HJKMNP-TV-Z]{12}$")
-    private val JSON = "application/json".toMediaType()
-    private val client = OkHttpClient()
 
     data class Link(val backendUrl: String, val code: String)
 
@@ -35,24 +27,11 @@ object Pairing {
         return Link("${url.scheme}://${url.host}$port", code)
     }
 
-    suspend fun redeem(link: Link): Session.Tokens =
-        withContext(Dispatchers.IO) {
-            val request =
-                Request.Builder()
-                    .url(link.backendUrl + "/auth/pair")
-                    .post(JSONObject().put("code", link.code).toString().toRequestBody(JSON))
-                    .build()
-            client.newCall(request).execute().use { response ->
-                val body = response.body?.string().orEmpty()
-                if (!response.isSuccessful) {
-                    val reason = runCatching { JSONObject(body).getString("error") }.getOrNull()
-                    error(reason ?: "Pairing failed: HTTP ${response.code}")
-                }
-                val json = JSONObject(body)
-                Session.Tokens(
-                    accessToken = json.getString("access_token"),
-                    refreshToken = json.getString("refresh_token"),
-                )
-            }
-        }
+    suspend fun redeem(link: Link): Session.Tokens {
+        val json = Session.postJson(link.backendUrl + "/auth/pair", JSONObject().put("code", link.code))
+        return Session.Tokens(
+            accessToken = json.getString("access_token"),
+            refreshToken = json.getString("refresh_token"),
+        )
+    }
 }

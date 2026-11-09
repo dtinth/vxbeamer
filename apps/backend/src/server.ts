@@ -154,6 +154,21 @@ app.get("/auth/config", async (c) => {
   }
 });
 
+/** One session's tokens, whichever way the identity was proven. */
+async function issueSession(identity: { sub: string; name?: string }, sid?: string) {
+  const claims = { subject: identity.sub, secret: authSecret, sid, name: identity.name };
+  const [accessToken, refreshToken] = await Promise.all([
+    createAccessToken({ ...claims, ttlSeconds: ACCESS_TOKEN_TTL_SECONDS }),
+    createRefreshToken({ ...claims, ttlSeconds: REFRESH_TOKEN_TTL_SECONDS }),
+  ]);
+  return {
+    token_type: "Bearer",
+    access_token: accessToken,
+    refresh_token: refreshToken,
+    expires_in: ACCESS_TOKEN_TTL_SECONDS,
+  };
+}
+
 app.post("/auth/session", async (c) => {
   if (!oidcDiscoveryUrl) return c.json({ error: "OIDC_DISCOVERY_URL not configured" }, 503);
   let body: { id_token?: string };
@@ -171,27 +186,7 @@ app.post("/auth/session", async (c) => {
       discovery.jwks_uri,
       oidcAudience,
     );
-    const sid = crypto.randomUUID();
-    const accessToken = await createAccessToken({
-      subject: claims.sub,
-      secret: authSecret,
-      ttlSeconds: ACCESS_TOKEN_TTL_SECONDS,
-      sid,
-      name: claims.name,
-    });
-    const refreshToken = await createRefreshToken({
-      subject: claims.sub,
-      secret: authSecret,
-      ttlSeconds: REFRESH_TOKEN_TTL_SECONDS,
-      sid,
-      name: claims.name,
-    });
-    return c.json({
-      token_type: "Bearer",
-      access_token: accessToken,
-      refresh_token: refreshToken,
-      expires_in: ACCESS_TOKEN_TTL_SECONDS,
-    });
+    return c.json(await issueSession(claims, crypto.randomUUID()));
   } catch (error) {
     const message = error instanceof Error ? error.message : "Invalid id_token";
     return c.json({ error: message }, 401);
@@ -231,26 +226,9 @@ app.post("/auth/refresh", async (c) => {
   const refreshPayload = await verifyRefreshToken(body.refresh_token, authSecret);
   if (!refreshPayload) return c.json({ error: "Invalid refresh_token" }, 401);
 
-  const accessToken = await createAccessToken({
-    subject: refreshPayload.sub,
-    secret: authSecret,
-    ttlSeconds: ACCESS_TOKEN_TTL_SECONDS,
-    sid: refreshPayload.sid,
-    name: refreshPayload.name,
-  });
-  const refreshToken = await createRefreshToken({
-    subject: refreshPayload.sub,
-    secret: authSecret,
-    ttlSeconds: REFRESH_TOKEN_TTL_SECONDS,
-    sid: refreshPayload.sid,
-    name: refreshPayload.name,
-  });
-  return c.json({
-    token_type: "Bearer",
-    access_token: accessToken,
-    refresh_token: refreshToken,
-    expires_in: ACCESS_TOKEN_TTL_SECONDS,
-  });
+  return c.json(
+    await issueSession({ sub: refreshPayload.sub, name: refreshPayload.name }, refreshPayload.sid),
+  );
 });
 
 // --- Pairing ---
@@ -290,7 +268,9 @@ app.post("/pair/codes", authMiddleware, async (c) => {
 });
 
 app.post("/auth/pair", async (c) => {
-  if (!redeemOverall.allow("all") || !redeemPerCaller.allow(callerKey(c))) {
+  // Per caller first, so one noisy caller cannot spend the overall allowance
+  // that everyone else shares.
+  if (!redeemPerCaller.allow(callerKey(c)) || !redeemOverall.allow("all")) {
     return c.json({ error: "Too many attempts" }, 429);
   }
   let body: { code?: string };
@@ -303,27 +283,7 @@ app.post("/auth/pair", async (c) => {
   const identity = pairingStore.redeem(body.code);
   if (!identity) return c.json({ error: "Invalid or expired code" }, 401);
 
-  const sid = crypto.randomUUID();
-  const accessToken = await createAccessToken({
-    subject: identity.sub,
-    secret: authSecret,
-    ttlSeconds: ACCESS_TOKEN_TTL_SECONDS,
-    sid,
-    name: identity.name,
-  });
-  const refreshToken = await createRefreshToken({
-    subject: identity.sub,
-    secret: authSecret,
-    ttlSeconds: REFRESH_TOKEN_TTL_SECONDS,
-    sid,
-    name: identity.name,
-  });
-  return c.json({
-    token_type: "Bearer",
-    access_token: accessToken,
-    refresh_token: refreshToken,
-    expires_in: ACCESS_TOKEN_TTL_SECONDS,
-  });
+  return c.json(await issueSession(identity, crypto.randomUUID()));
 });
 
 app.get("/sse", authMiddleware, (c) => {

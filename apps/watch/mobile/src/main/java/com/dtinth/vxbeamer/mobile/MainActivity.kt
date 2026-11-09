@@ -57,7 +57,6 @@ private fun SignInScreen() {
     val authStore = remember { AuthStore(context) }
     val scope = rememberCoroutineScope()
 
-    var backendUrl by rememberSaveable { mutableStateOf(authStore.backendUrl) }
     var pairingLink by rememberSaveable { mutableStateOf("") }
     var statusMessage by rememberSaveable { mutableStateOf("") }
     var signedIn by remember { mutableStateOf(authStore.isSignedIn) }
@@ -72,7 +71,6 @@ private fun SignInScreen() {
         scope.launch {
             runCatching { Pairing.redeem(link) }
                 .onSuccess { tokens ->
-                    backendUrl = link.backendUrl
                     authStore.backendUrl = link.backendUrl
                     authStore.saveTokens(tokens)
                     signedIn = true
@@ -110,7 +108,7 @@ private fun SignInScreen() {
 
         if (signedIn) {
             SignedInCard(
-                backendUrl = backendUrl,
+                backendUrl = authStore.backendUrl,
                 onTranscribe = { context.startActivity(Intent(context, TransmitterActivity::class.java)) },
                 onSignOut = {
                     authStore.signOut()

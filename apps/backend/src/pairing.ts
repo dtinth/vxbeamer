@@ -24,7 +24,8 @@ export interface PairingIdentity {
   name?: string;
 }
 
-interface PairingEntry extends PairingIdentity {
+interface PairingEntry {
+  identity: PairingIdentity;
   expiresAt: number;
 }
 
@@ -42,10 +43,13 @@ export function createPairingStore(
   const random = options.randomBytes ?? randomBytes;
   const entries = new Map<string, PairingEntry>();
 
+  // Every code lives for the same time, so the map is in expiry order and the
+  // purge can stop at the first live one.
   function purgeExpired() {
     const t = now();
     for (const [code, entry] of entries) {
-      if (entry.expiresAt <= t) entries.delete(code);
+      if (entry.expiresAt > t) break;
+      entries.delete(code);
     }
   }
 
@@ -61,7 +65,7 @@ export function createPairingStore(
       purgeExpired();
       let code = generate();
       while (entries.has(code)) code = generate();
-      entries.set(code, { ...identity, expiresAt: now() + ttlMs });
+      entries.set(code, { identity, expiresAt: now() + ttlMs });
       return { code, expiresIn: Math.floor(ttlMs / 1000) };
     },
     redeem(code) {
@@ -72,13 +76,16 @@ export function createPairingStore(
       // Spent whether or not it is still good: an expired code stays unusable.
       entries.delete(normalized);
       if (entry.expiresAt <= now()) return null;
-      return { sub: entry.sub, ...(entry.name ? { name: entry.name } : {}) };
+      return entry.identity;
     },
   };
 }
 
 /** Accepts a code as typed or pasted: any case, with spaces or dashes in it. */
 export function normalizePairingCode(input: string): string | null {
+  // A real code, even with a few separators in it, is short: do not run the
+  // regex over an arbitrarily long body.
+  if (input.length > PAIRING_CODE_LENGTH * 2) return null;
   const code = input.replace(/[\s-]/g, "").toUpperCase();
   if (code.length !== PAIRING_CODE_LENGTH) return null;
   for (const char of code) if (!ALPHABET.includes(char)) return null;
@@ -98,14 +105,18 @@ export function createRateLimiter(options: {
 }): RateLimiter {
   const now = options.now ?? Date.now;
   const windows = new Map<string, { start: number; count: number }>();
+  let lastSweep = now();
   return {
     allow(key) {
       const t = now();
+      // Once a window, drop the keys that have gone quiet, so the map cannot
+      // outgrow the callers seen in one window.
+      if (t - lastSweep >= options.windowMs) {
+        lastSweep = t;
+        for (const [k, w] of windows) if (t - w.start >= options.windowMs) windows.delete(k);
+      }
       const current = windows.get(key);
       if (!current || t - current.start >= options.windowMs) {
-        if (windows.size > 10_000) {
-          for (const [k, w] of windows) if (t - w.start >= options.windowMs) windows.delete(k);
-        }
         windows.set(key, { start: t, count: 1 });
         return true;
       }

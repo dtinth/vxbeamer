@@ -96,6 +96,13 @@ export const builtinConfigurations: readonly ConfigurationSpec[] = [
     model: "qwen3-omni-flash-realtime-2025-12-01",
     label: "Qwen3-Omni-Flash Realtime (2025-12-01, raw)",
   },
+  // Undated: the vendor lists no snapshot id for it yet. Needs
+  // DASHSCOPE_WORKSPACE_ID as well as the key.
+  {
+    provider: "qwen-omni",
+    model: "qwen3.8-omni-flash-realtime",
+    label: "Qwen3.8-Omni-Flash Realtime (undated, raw)",
+  },
   // `byteplus/bigmodel_nostream`, the mode that accepts a language. The
   // bi-directional `bigmodel` mode is deliberately NOT declared: it cannot be
   // given a language, so outside its Chinese/English default set it returns

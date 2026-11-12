@@ -137,6 +137,14 @@ export const QWEN_OMNI_PRICING: Readonly<Record<string, QwenOmniTokenPricing>> =
     inputTextPerToken: 0.52e-6,
     outputTextPerToken: 18.13e-6,
   },
+  // PROVISIONAL: the vendor's page states no rates ("check the Model Studio
+  // console"), so this copies qwen3.5-omni-flash until someone reads them off
+  // the console. Costs reported for this model are a guess.
+  "qwen3.8-omni-flash-realtime": {
+    inputAudioPerToken: 4.5e-6,
+    inputTextPerToken: 0.55e-6,
+    outputTextPerToken: 17.7e-6,
+  },
 };
 
 export const QWEN_OMNI_DEFAULT_MODEL = "qwen3.5-omni-flash-realtime-2026-03-15";
@@ -152,6 +160,12 @@ export interface QwenOmniProviderConfig {
   model?: string;
   /** Endpoint, without the `?model=` query. Overridden in tests. */
   baseUrl?: string;
+  /**
+   * The Model Studio workspace the key belongs to. Models listed in
+   * {@link needsWorkspaceEndpoint} are served only from
+   * `<workspaceId>.<region>.maas.aliyuncs.com`, not the shared endpoint.
+   */
+  workspaceId?: string;
   /** Overrides {@link QWEN_OMNI_PRICING} for this model — rates are regional. */
   pricing?: QwenOmniTokenPricing;
   /**
@@ -172,6 +186,25 @@ export interface QwenOmniProviderConfig {
 }
 
 const DEFAULT_BASE_URL = "wss://dashscope-intl.aliyuncs.com/api-ws/v1/realtime";
+
+/** Singapore, to match the rates in {@link QWEN_OMNI_PRICING}. */
+const WORKSPACE_REGION = "ap-southeast-1";
+
+/** Models the vendor serves only from a workspace-specific endpoint. */
+function needsWorkspaceEndpoint(model: string): boolean {
+  return model.startsWith("qwen3.8-");
+}
+
+function resolveBaseUrl(config: QwenOmniProviderConfig, model: string): string {
+  if (config.baseUrl) return config.baseUrl;
+  if (!needsWorkspaceEndpoint(model)) return DEFAULT_BASE_URL;
+  if (!config.workspaceId) {
+    throw new Error(
+      `Qwen Omni model "${model}" is served from a workspace endpoint: set DASHSCOPE_WORKSPACE_ID`,
+    );
+  }
+  return `wss://${config.workspaceId}.${WORKSPACE_REGION}.maas.aliyuncs.com/api-ws/v1/realtime`;
+}
 
 /** 16 kHz 16-bit mono — matches {@link CHUNK_SIZE}'s own unit. */
 const BYTES_PER_SECOND = 32_000;
@@ -249,7 +282,7 @@ export function createQwenOmniProvider(config: QwenOmniProviderConfig): ASRProvi
     );
   }
 
-  const url = `${config.baseUrl ?? DEFAULT_BASE_URL}?model=${model}`;
+  const url = `${resolveBaseUrl(config, model)}?model=${model}`;
   const lingerMs = config.stickyLingerMs ?? DEFAULT_STICKY_LINGER_MS;
   const maxAudioSeconds = config.stickyMaxAudioSeconds ?? DEFAULT_STICKY_MAX_AUDIO_SECONDS;
 

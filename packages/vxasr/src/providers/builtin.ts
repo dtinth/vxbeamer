@@ -80,6 +80,11 @@ export const qwenOmniProviderDefinition: ProviderDefinition =
       "qwen3.5-omni-flash-realtime-2026-03-15",
       "qwen3.5-omni-plus-realtime-2026-03-15",
       "qwen3-omni-flash-realtime-2025-12-01",
+      // The one exception to "pinned snapshots": the vendor's docs list no
+      // dated id for it yet. Being evaluated, not yet the default; pin it
+      // as soon as a dated sibling appears. It is also served only from a
+      // workspace-specific endpoint, hence `DASHSCOPE_WORKSPACE_ID`.
+      "qwen3.8-omni-flash-realtime",
     ],
     // Confirmed against testdata/OBSERVATIONS.md, "fast dump vs realtime".
     supportsFastDump: true,
@@ -90,6 +95,7 @@ export const qwenOmniProviderDefinition: ProviderDefinition =
         ok: true,
         config: {
           apiKey,
+          workspaceId: env.DASHSCOPE_WORKSPACE_ID || undefined,
           stickyLingerMs: env.QWEN_OMNI_STICKY_LINGER_MS
             ? Number(env.QWEN_OMNI_STICKY_LINGER_MS)
             : undefined,

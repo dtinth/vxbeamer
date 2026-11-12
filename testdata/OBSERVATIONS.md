@@ -204,6 +204,14 @@ word (`ไทป์สคริปต์`, `เอลิเซีย`, `มอ�
 `MongoDB Atlas` wrong in a different way each time (`mongodbb atlas`, `mongodbbas`,
 `mongodbbasas`). Neither run-to-run variation is a measurement; n is small.
 
+**Faster than real time** (the CLI's `--fast`, every chunk sent back to back; 3 runs
+each, 9.2 s clip): all three new models accept it. `qwen3.8-omni-flash-realtime`
+1.07-1.15 s, `-message` 0.83-0.86 s, `-streaming` 1.98-2.58 s. The text and token
+counts are the same as when paced at real time (3.8 and `-message` the good
+transcript all 3 times; `-streaming` the same unspaced text with `mongodbbas` all 3
+times), so nothing was dropped. One short clip, so a clip of several minutes sent as
+fast could still behave differently; not tested.
+
 **Tokens and price.** `-message` 116 in / 54 out, `-streaming` 109 in / 45 out, the
 vendor's measured counts. Price **unverified**: the vendor's pricing page is too long
 for the fetch tool and the ASR rows were only seen in a summary of it

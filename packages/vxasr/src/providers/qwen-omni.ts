@@ -191,7 +191,7 @@ const DEFAULT_BASE_URL = "wss://dashscope-intl.aliyuncs.com/api-ws/v1/realtime";
 const WORKSPACE_REGION = "ap-southeast-1";
 
 /** Models the vendor serves only from a workspace-specific endpoint. */
-function needsWorkspaceEndpoint(model: string): boolean {
+export function needsWorkspaceEndpoint(model: string): boolean {
   return model.startsWith("qwen3.8-");
 }
 

@@ -46,8 +46,12 @@ export interface ProviderSpec<TConfig> {
    * (e.g. the eval dialog) then never has to duplicate or re-guess the list.
    */
   readonly supportsFastDump: boolean;
-  /** Read this provider's credentials/config out of the environment. */
-  resolveConfig(env: ProviderEnv): ConfigResolution<TConfig>;
+  /**
+   * Read this provider's credentials/config out of the environment. `model` is
+   * given when the answer is for one model: a vendor may serve one of its models
+   * from somewhere that needs more than its siblings do (see `qwen-omni`).
+   */
+  resolveConfig(env: ProviderEnv, model?: string): ConfigResolution<TConfig>;
   /** Build a provider. `model` is always one of `models`. */
   create(config: TConfig, model: string): ASRProvider;
 }
@@ -73,10 +77,13 @@ export interface ProviderDefinition {
   readonly defaultModel: string;
   /** See {@link ProviderSpec.supportsFastDump}. */
   readonly supportsFastDump: boolean;
-  /** True when the environment carries everything this provider needs. */
-  isConfigured(env: ProviderEnv): boolean;
+  /**
+   * True when the environment carries everything this provider needs — for
+   * `model` when given, else for the provider's models in general.
+   */
+  isConfigured(env: ProviderEnv, model?: string): boolean;
   /** Env var names this provider needs but the environment does not carry. */
-  missingConfig(env: ProviderEnv): readonly string[];
+  missingConfig(env: ProviderEnv, model?: string): readonly string[];
   /** Validate the model, read config, and instantiate. Never throws. */
   resolve(env: ProviderEnv, model?: string): ProviderResolution;
 }
@@ -90,12 +97,12 @@ export function defineProvider<TConfig>(spec: ProviderSpec<TConfig>): ProviderDe
     defaultModel,
     supportsFastDump: spec.supportsFastDump,
 
-    isConfigured(env) {
-      return spec.resolveConfig(env).ok;
+    isConfigured(env, model) {
+      return spec.resolveConfig(env, model).ok;
     },
 
-    missingConfig(env) {
-      const resolution = spec.resolveConfig(env);
+    missingConfig(env, model) {
+      const resolution = spec.resolveConfig(env, model);
       return resolution.ok ? [] : resolution.missing;
     },
 
@@ -110,7 +117,7 @@ export function defineProvider<TConfig>(spec: ProviderSpec<TConfig>): ProviderDe
           },
         };
       }
-      const config = spec.resolveConfig(env);
+      const config = spec.resolveConfig(env, selected);
       if (!config.ok) {
         return {
           ok: false,

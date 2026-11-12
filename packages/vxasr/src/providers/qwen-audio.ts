@@ -56,6 +56,15 @@ export interface QwenAudioProviderConfig {
   baseUrl?: string;
   /** Overrides {@link QWEN_AUDIO_PRICING} for this model — rates are regional. */
   pricing?: QwenAudioTokenPricing;
+  /**
+   * The vendor's "native text polishing" (`disfluency_removal_enabled`): drops
+   * fillers such as "um" and "uh". Default **true**, because in testing it was
+   * the one setting that helped on every axis tried (testdata/OBSERVATIONS.md,
+   * "Tuning the message model"): it removed fillers, kept English words in
+   * Latin instead of spelling them in Thai script, and kept numbers as digits.
+   * Pass `false` to get the vendor's default (off).
+   */
+  disfluencyRemoval?: boolean;
 }
 
 /** Singapore, to match the rates in {@link QWEN_AUDIO_PRICING}. */
@@ -195,6 +204,7 @@ export function createQwenAudioProvider(config: QwenAudioProviderConfig): ASRPro
                 // The streaming model sends partials by default; the message
                 // model sends only finals unless asked.
                 intermediate_result_enabled: true,
+                disfluency_removal_enabled: config.disfluencyRemoval ?? true,
               },
               input: {},
             },

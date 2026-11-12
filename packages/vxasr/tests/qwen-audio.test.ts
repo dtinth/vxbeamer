@@ -177,6 +177,8 @@ test("run-task names the model and sends 16 kHz PCM, with the key as a bearer to
   // The message model sends only finals unless asked; partials are what tell
   // the user they are being heard.
   expect(task.parameters.intermediate_result_enabled).toBe(true);
+  // Native text polishing is on unless asked otherwise (see the provider).
+  expect(task.parameters.disfluency_removal_enabled).toBe(true);
   expect(vendor.authorization()).toBe("bearer test-key");
 });
 
@@ -393,4 +395,30 @@ test("a transport error does not leak the workspace id", async () => {
   expect(outcome.error?.message).not.toContain("secret-ws");
   // Proves the redaction ran, rather than the message never naming the host.
   expect(outcome.error?.message).toContain("<workspace>");
+});
+
+test("text polishing can be switched off, for either model", async () => {
+  for (const model of [MESSAGE, STREAMING]) {
+    const vendor = await withVendor();
+    await run(
+      createQwenAudioProvider({
+        apiKey: "test-key",
+        model,
+        baseUrl: vendor.url,
+        disfluencyRemoval: false,
+      }),
+      Buffer.alloc(3200),
+    );
+
+    expect((await vendor.task()).parameters.disfluency_removal_enabled).toBe(false);
+  }
+});
+
+test("text polishing is on by default for both models", async () => {
+  for (const model of [MESSAGE, STREAMING]) {
+    const vendor = await withVendor();
+    await run(provider(vendor, model), Buffer.alloc(3200));
+
+    expect((await vendor.task()).parameters.disfluency_removal_enabled).toBe(true);
+  }
 });

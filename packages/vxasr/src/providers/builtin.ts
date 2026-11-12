@@ -132,9 +132,9 @@ export const qwenAudioProviderDefinition: ProviderDefinition =
     // snapshot for either, so they are exempted by name in the pinned-id test.
     // Both are served only from a workspace endpoint.
     models: ["qwen-audio-3.1-asr-flash-message", "qwen-audio-3.1-asr-flash-streaming"],
-    // Not measured: the fast-dump check in testdata/OBSERVATIONS.md was only
-    // run on the Omni models.
-    supportsFastDump: false,
+    // Confirmed for both models (testdata/OBSERVATIONS.md, "Qwen-Audio-3.1-ASR"):
+    // same token counts and the same text as paced at real time.
+    supportsFastDump: true,
     resolveConfig(env) {
       const missing = [
         ...(env.DASHSCOPE_API_KEY ? [] : ["DASHSCOPE_API_KEY"]),

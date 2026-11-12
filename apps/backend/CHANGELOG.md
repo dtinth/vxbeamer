@@ -1,5 +1,21 @@
 # backend
 
+## 0.5.0
+
+### Minor Changes
+
+- ff8afa4: Add pairing: a signed-in browser opens `/pair` on the backend and gets a one-time link and QR code, and any client redeems it at `POST /auth/pair` for its own session, without running the OIDC flow itself.
+
+  Codes are 12 characters, last two minutes, work once, and live in memory. Redeeming is rate limited per caller and overall. The provider must allow `<backend>/pair` as a redirect URI, since that page runs the OIDC code flow. Set `PUBLIC_URL` to change the address put in pairing links.
+
+### Patch Changes
+
+- 1128c84: Pass every transcript through `normalizeThaiText` from `@thai/text-cleaner`, unconditionally, for partials and finals on every path that hands one out (live messages, the eval socket, a chosen eval winner). It fixes Thai Unicode encoding mistakes such as a doubled `เ` for `แ`, and touches only runs of Thai script, so other languages and mixed text are unchanged.
+- Updated dependencies [fd45cf2]
+- Updated dependencies [a590e4e]
+- Updated dependencies [cadd50c]
+  - vxasr@0.5.0
+
 ## 0.4.0
 
 ### Patch Changes

@@ -556,3 +556,17 @@ test("a turn cannot reuse a connection another turn is still actively using", as
   holding.finish();
   await new Promise((resolve) => setTimeout(resolve, 50));
 });
+
+test("text output is billed at the text rate, not the audio-output rate", () => {
+  // The vendor lists a higher rate where audio is also produced. We ask for text only.
+  expect(QWEN_OMNI_PRICING["qwen3.5-omni-flash-realtime-2026-03-15"]?.outputTextPerToken).toBe(
+    3.3e-6,
+  );
+  expect(QWEN_OMNI_PRICING["qwen3.5-omni-plus-realtime-2026-03-15"]?.outputTextPerToken).toBe(
+    12.4e-6,
+  );
+  expect(QWEN_OMNI_PRICING["qwen3-omni-flash-realtime-2025-12-01"]?.outputTextPerToken).toBe(
+    3.67e-6,
+  );
+  expect(QWEN_OMNI_PRICING["qwen3.8-omni-flash-realtime"]?.outputTextPerToken).toBe(0.7e-6);
+});

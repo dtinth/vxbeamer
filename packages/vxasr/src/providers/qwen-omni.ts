@@ -132,11 +132,16 @@ export const QWEN_OMNI_PRICING: Readonly<Record<string, QwenOmniTokenPricing>> =
     inputTextPerToken: 2.1e-6,
     outputTextPerToken: 12.4e-6,
   },
-  // audio $4.57 / text $0.52 / output $18.13 per 1M
+  // audio $4.57 / text $0.52 / output text $3.67 per 1M. The vendor's page lists
+  // this model's output by input type: text-only input $1.99, multimodal (audio)
+  // input $3.67, and $18.13 where audio is also produced ("audio only billed").
+  // We send audio and ask for text, so $3.67 applies. Read from the flattened
+  // table (the Beijing row has the same shape: $1.19 / $2.179 / $10.766), and
+  // the page lists the 2025-09-15 snapshot, not this one — rates assumed equal.
   "qwen3-omni-flash-realtime-2025-12-01": {
     inputAudioPerToken: 4.57e-6,
     inputTextPerToken: 0.52e-6,
-    outputTextPerToken: 18.13e-6,
+    outputTextPerToken: 3.67e-6,
   },
   // audio $0.93 / text $0.23 / output text $0.70 per 1M, from the vendor's
   // model-pricing page (Singapore, read 2026-11-12). We ask for text-only

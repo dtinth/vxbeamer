@@ -34,10 +34,10 @@ export interface QwenAudioTokenPricing {
 /**
  * Singapore, per 1M tokens → per token.
  *
- * **Unverified.** The vendor's model-pricing page is too long for the fetch
- * tool, and these rows ($0.93 input / $0.70 output, identical for both models)
- * were only seen in a summary of it, not in page text — check them against the
- * live page before trusting a reported cost.
+ * Read from the vendor's model-pricing page on 2026-11-12 (Speech recognition,
+ * Singapore, "Input price" / "Output price" per 1M tokens): $0.93 / $0.70 for
+ * both models. The two rows are separate on the page and happen to match; the
+ * non-streaming `qwen-audio-3.1-asr-flash` is a different model at $0.15 / $0.47.
  */
 export const QWEN_AUDIO_PRICING: Readonly<Record<string, QwenAudioTokenPricing>> = {
   "qwen-audio-3.1-asr-flash-message": { inputPerToken: 0.93e-6, outputPerToken: 0.7e-6 },

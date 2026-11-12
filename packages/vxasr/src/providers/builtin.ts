@@ -6,6 +6,7 @@ import {
 } from "../registry.ts";
 import { createQwenProvider, type QwenProviderConfig } from "./qwen.ts";
 import { createQwenOmniProvider, type QwenOmniProviderConfig } from "./qwen-omni.ts";
+import { createQwenAudioProvider, type QwenAudioProviderConfig } from "./qwen-audio.ts";
 import { createBytePlusProvider, type BytePlusProviderConfig } from "./byteplus.ts";
 import { createOpenAIProvider, OPENAI_DEFAULT_MODEL, type OpenAIProviderConfig } from "./openai.ts";
 import {
@@ -107,6 +108,37 @@ export const qwenOmniProviderDefinition: ProviderDefinition =
     },
     create(config, model) {
       return createQwenOmniProvider({ ...config, model });
+    },
+  });
+
+export const qwenAudioProviderDefinition: ProviderDefinition =
+  defineProvider<QwenAudioProviderConfig>({
+    id: "qwen-audio",
+    label: "Alibaba Cloud DashScope (Qwen-Audio ASR)",
+    // Same vendor and key as `qwen`, a third wire protocol (`run-task`) — see
+    // `./qwen-audio.ts`. Both ids are undated: the vendor's docs list no
+    // snapshot for either, so they are exempted by name in the pinned-id test.
+    // Both are served only from a workspace endpoint.
+    models: ["qwen-audio-3.1-asr-flash-message", "qwen-audio-3.1-asr-flash-streaming"],
+    // Not measured: the fast-dump check in testdata/OBSERVATIONS.md was only
+    // run on the Omni models.
+    supportsFastDump: false,
+    resolveConfig(env) {
+      const missing = [
+        ...(env.DASHSCOPE_API_KEY ? [] : ["DASHSCOPE_API_KEY"]),
+        ...(env.DASHSCOPE_WORKSPACE_ID ? [] : ["DASHSCOPE_WORKSPACE_ID"]),
+      ];
+      if (missing.length) return { ok: false, missing };
+      return {
+        ok: true,
+        config: {
+          apiKey: env.DASHSCOPE_API_KEY!,
+          workspaceId: env.DASHSCOPE_WORKSPACE_ID!,
+        },
+      };
+    },
+    create(config, model) {
+      return createQwenAudioProvider({ ...config, model });
     },
   });
 
@@ -330,6 +362,7 @@ export const mockProviderDefinition: ProviderDefinition = defineProvider<Record<
 export const builtinProviderDefinitions: readonly ProviderDefinition[] = [
   qwenProviderDefinition,
   qwenOmniProviderDefinition,
+  qwenAudioProviderDefinition,
   bytePlusProviderDefinition,
   openAIProviderDefinition,
   openRouterProviderDefinition,

@@ -129,7 +129,7 @@ services:
 | Variable                 | Required | Description                                                                                                                                                                              |
 | ------------------------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `DASHSCOPE_API_KEY`      | Yes      | Alibaba Cloud DashScope key for Qwen3-ASR-Flash and Qwen Omni Realtime                                                                                                                   |
-| `DASHSCOPE_WORKSPACE_ID` | No       | Model Studio workspace id. Needed only by `qwen-omni/qwen3.8-omni-flash-realtime`, which is served from `<id>.ap-southeast-1.maas.aliyuncs.com`                                          |
+| `DASHSCOPE_WORKSPACE_ID` | No       | Model Studio workspace id. Needed only by `qwen-omni/qwen3.8-omni-flash-realtime` and the `qwen-audio/*` models, which are served from `<id>.ap-southeast-1.maas.aliyuncs.com`           |
 | `API_KEYS`               | No       | Comma-separated `sub:secret` pairs for API key exchange                                                                                                                                  |
 | `GROQ_API_KEY`           | No       | Groq API key for gpt-oss-120b post-processing; enables the `+groq` configurations                                                                                                        |
 | `ASR_CONFIGURATION`      | No       | Default configuration id (default: derived from `ASR_PROVIDER`/`ASR_MODEL`/`GROQ_API_KEY`)                                                                                               |
@@ -234,6 +234,8 @@ A configuration is a provider, a model, and the post-processing chain applied to
 | `qwen-omni/qwen3.5-omni-plus-realtime-2026-03-15`  | `DASHSCOPE_API_KEY`                           |
 | `qwen-omni/qwen3-omni-flash-realtime-2025-12-01`   | `DASHSCOPE_API_KEY`                           |
 | `qwen-omni/qwen3.8-omni-flash-realtime`            | `DASHSCOPE_API_KEY`, `DASHSCOPE_WORKSPACE_ID` |
+| `qwen-audio/qwen-audio-3.1-asr-flash-message`      | `DASHSCOPE_API_KEY`, `DASHSCOPE_WORKSPACE_ID` |
+| `qwen-audio/qwen-audio-3.1-asr-flash-streaming`    | `DASHSCOPE_API_KEY`, `DASHSCOPE_WORKSPACE_ID` |
 | `byteplus/bigmodel_nostream`                       | `BYTEPLUS_API_KEY`                            |
 | `byteplus/bigmodel_nostream+groq`                  | `BYTEPLUS_API_KEY`, `GROQ_API_KEY`            |
 | `openai/gpt-live-transcribe`                       | `OPENAI_API_KEY`                              |

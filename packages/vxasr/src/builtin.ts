@@ -103,6 +103,19 @@ export const builtinConfigurations: readonly ConfigurationSpec[] = [
     model: "qwen3.8-omni-flash-realtime",
     label: "Qwen3.8-Omni-Flash Realtime (undated, raw)",
   },
+  // Qwen-Audio-3.1-ASR. Raw only: these are ASR models, and the message model's
+  // finals are already punctuated. Undated ids; both need DASHSCOPE_WORKSPACE_ID
+  // as well as the key.
+  {
+    provider: "qwen-audio",
+    model: "qwen-audio-3.1-asr-flash-message",
+    label: "Qwen-Audio-3.1-ASR-Flash Message (undated, raw)",
+  },
+  {
+    provider: "qwen-audio",
+    model: "qwen-audio-3.1-asr-flash-streaming",
+    label: "Qwen-Audio-3.1-ASR-Flash Streaming (undated, raw)",
+  },
   // `byteplus/bigmodel_nostream`, the mode that accepts a language. The
   // bi-directional `bigmodel` mode is deliberately NOT declared: it cannot be
   // given a language, so outside its Chinese/English default set it returns

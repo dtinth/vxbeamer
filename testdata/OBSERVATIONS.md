@@ -175,6 +175,41 @@ charge the output _audio_ column ($17.70, and $62 for plus) for text output; it
 now charges the text column ($3.30 and $12.40), so the 3.5 clip cost
 is now about $0.00047 rather than $0.00094 (4.4x the 3.8 price, not 8.5x).
 
+### `qwen-audio-3.1-asr-flash-message` and `-streaming` (2026-11-12)
+
+A third Qwen wire protocol: DashScope's duplex `run-task` (a `run-task` text frame,
+raw PCM as binary frames, `finish-task`), against
+`wss://<WorkspaceId>.ap-southeast-1.maas.aliyuncs.com/api-ws/v1/inference`. Audio may
+only be sent after `task-started`. Results come as `result-generated` with a
+`sentence` (`sentence_id`, `sentence_end`, `text`) and cumulative `usage` tokens.
+
+**When partials arrive** (9.2 s clip, real-time pacing, last audio chunk at 9.45 s):
+the Omni models send no partial before the last chunk, because the adapter sends
+`response.create` only at the end. Both Audio-3.1 models stream while the audio is
+still being sent: `-streaming` 13 partials from 1.3 s, `-message` 22 partials from
+0.5 s (with `intermediate_result_enabled`; its default is final-only). Every model
+finishes 0.2-0.7 s after the last chunk.
+
+**Partials are not the transcript.** `-message` guesses the language from the first
+fraction of a second, so its partials are English and Chinese junk until late in the
+clip (`language_hints: ["th"]` did not change the partials). `-streaming` partials
+are garbled early and readable from about 5 s. The partials only tell the user they
+are being heard.
+
+**Final text**, 6 runs of `-message`: 5 gave the good transcript (Thai script,
+spaced, `TypeScript`/`Elysia`/`deploy`/`Railway`/`MongoDB Atlas` in Latin, matching
+`qwen3.8-omni-flash-realtime`'s good runs); 1 wrote phonetic Thai for every English
+word (`ไทป์สคริปต์`, `เอลิเซีย`, `มองโกดีบีแอดลาสต์`) with 77 output tokens instead of 54. 5 runs of `-streaming`: always no spaces between words, always Latin
+`project`/`typescript`/`framework`/`elysia`/`deploy`/`railway` in lowercase, and
+`MongoDB Atlas` wrong in a different way each time (`mongodbb atlas`, `mongodbbas`,
+`mongodbbasas`). Neither run-to-run variation is a measurement; n is small.
+
+**Tokens and price.** `-message` 116 in / 54 out, `-streaming` 109 in / 45 out, the
+vendor's measured counts. Price **unverified**: the vendor's pricing page is too long
+for the fetch tool and the ASR rows were only seen in a summary of it
+($0.93 input / $0.70 output per 1M tokens for both, Singapore), about $0.00015 and
+$0.00013 per clip.
+
 ### Pacing: fast dump vs realtime
 
 `qwen-omni/qwen3.5-omni-flash-realtime-2026-03-15`, same fixture, 20 runs per

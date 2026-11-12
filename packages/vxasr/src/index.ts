@@ -16,6 +16,8 @@ export {
 } from "./audio.ts";
 export type { PcmAudio } from "./audio.ts";
 export { LinearResampler } from "./resample.ts";
+export { createQwenAudioProvider, QWEN_AUDIO_PRICING } from "./providers/qwen-audio.ts";
+export type { QwenAudioProviderConfig } from "./providers/qwen-audio.ts";
 export { createQwenProvider } from "./providers/qwen.ts";
 export type { QwenProviderConfig } from "./providers/qwen.ts";
 export {
@@ -71,6 +73,7 @@ export {
   aiGatewayProviderDefinition,
   openAIProviderDefinition,
   openRouterProviderDefinition,
+  qwenAudioProviderDefinition,
   qwenOmniProviderDefinition,
   qwenProviderDefinition,
 } from "./providers/builtin.ts";

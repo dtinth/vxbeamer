@@ -138,6 +138,13 @@ export const builtinConfigurations: readonly ConfigurationSpec[] = [
   // OpenAI does not publish dated variants of it the way DashScope does, so
   // there is nothing to pin to — same situation as BytePlus's mode ids.
   { provider: "openai", label: "OpenAI gpt-live-transcribe (raw)" },
+  // Grok Voice Transcribe 2.0, tried live: it writes English loanwords in Latin
+  // and the rest in Thai, unprompted, so it is raw only. Undated id.
+  {
+    provider: "xai",
+    model: "grok-voice-transcribe-2.0",
+    label: "xAI Grok Voice Transcribe 2.0 (raw)",
+  },
   // Every OpenRouter entry names its model explicitly, including the one that
   // is currently the provider's default. Relying on omission would tie a
   // configuration id to whichever model happens to lead the list, so

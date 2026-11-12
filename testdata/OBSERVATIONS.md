@@ -260,6 +260,47 @@ letter in 4 of 4; on the filler clip the fillers are removed 4 of 4.
 Conclusion: polishing is the one setting that helped on every axis, so
 `qwen-audio` turns it on by default (`disfluencyRemoval: false` to turn it off).
 
+### Grok Voice Transcribe 2.0 (2026-11-12)
+
+xAI's streaming speech-to-text, `wss://api.x.ai/v1/stt?model=grok-voice-transcribe-2.0`.
+Everything is configured in the query string; the server sends `transcript.created`
+(audio may only follow it), the client sends raw PCM frames, then
+`{"type":"audio.done"}`. Priced per second of audio, $0.20 per hour streaming
+($0.10 per hour batch), per the vendor's announcement of 2026-09-18; OpenRouter's
+`x-ai/grok-stt-2.0` lists the batch rate, $0.000028 per second.
+
+On the 9.2 s Thai fixture (about 50 sessions, some in parallel):
+
+- **Text** is the best seen so far on this fixture: Thai in Thai script, every English
+  word in Latin (`TypeScript`, `deploy`, `Railway`, `MongoDB Atlas`), with word spaces
+  where a Latin word meets Thai. The one variable word is the framework name: `Elysia`
+  (right) or `Elixir`, changing from run to run in every setting (`Elixir` more often;
+  `Elysia` in 3 of 3 with `en` + `format`, too few runs to call that an effect).
+  `filler_words` is off by default, so fillers are removed.
+- **Partials** (with `interim_results=true`) start 1-2 s in and read well, because each
+  is the running text of the chunk being heard. A chunk final (`is_final`) locks about
+  3-4 s of speech; an utterance final (`speech_final`) carries the whole stitched
+  utterance. Without `interim_results` the first text comes at about 5.5 s.
+- **`transcript.done.text` is empty.** Only the utterance finals carry the text, so the
+  adapter builds its final from those (and falls back to the chunk finals plus the
+  last interim if the audio ended without one).
+- **Fast dump is no faster**: the whole 9.2 s clip sent at once still finished at
+  about 13.5 s, so the provider is declared real-time only.
+- **End-of-audio wait is erratic.** From `audio.done` to `transcript.done`: 0.3-1 s on
+  most single sessions, but 11 s, 18 s, 40 s and 43 s on others, and one session never
+  finished. It happened with `interim_results` on and off (1 in 4 off), and with the
+  audio sent evenly or with an 800 ms burst, so it is the vendor, not those settings.
+  Several sessions at once made it worse. Worth watching before relying on this as a
+  default; the backend's own timeouts are what catch a session that never ends.
+- **Text formatting** (`format=true`) needs a `language` and, per the vendor, works
+  for Arabic, Chinese, English, French, German, Japanese, Portuguese, Russian,
+  Spanish, Swedish and Vietnamese: **not Thai**. Measured on the English numbers clip
+  (2 runs each): no language, `th`, and `th` + `format` all spell the numbers out
+  (`twenty three`, `zero eight one two ...`); `en` + `format` writes `23`, `081-234-5678`
+  and `2026`, but also mangled the price (`four hundred fifty BAHT` became `400 50bht`).
+  On the Thai fixture `en` + `format` left the text intact in 3 of 3 runs. **Thai
+  spoken numbers under an English bias were not tested**: no Thai audio with numbers.
+
 ### Pacing: fast dump vs realtime
 
 `qwen-omni/qwen3.5-omni-flash-realtime-2026-03-15`, same fixture, 20 runs per

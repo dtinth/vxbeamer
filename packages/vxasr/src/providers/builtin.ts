@@ -36,6 +36,7 @@ import {
   createAIGatewayProvider,
   type AIGatewayProviderConfig,
 } from "./ai-gateway.ts";
+import { createXaiProvider, XAI_DEFAULT_MODEL, type XaiProviderConfig } from "./xai.ts";
 import { createMockProvider } from "./mock.ts";
 
 export const qwenProviderDefinition: ProviderDefinition = defineProvider<QwenProviderConfig>({
@@ -223,6 +224,27 @@ export const openAIProviderDefinition: ProviderDefinition = defineProvider<OpenA
   },
 });
 
+export const xaiProviderDefinition: ProviderDefinition = defineProvider<XaiProviderConfig>({
+  id: "xai",
+  label: "xAI (Grok Voice Transcribe, streaming)",
+  // One undated model id: the vendor lists no snapshot, and says only that 2.0
+  // is "the default when `model` is omitted". It is named explicitly anyway, so
+  // a configuration id does not depend on which model leads the vendor's list.
+  models: [XAI_DEFAULT_MODEL],
+  // Tried at both paces (testdata/OBSERVATIONS.md, "Grok Voice Transcribe"): it
+  // accepts a fast dump but finishes in about the audio's own duration either
+  // way, so there is nothing to gain and it stays at realtime pacing.
+  supportsFastDump: false,
+  resolveConfig(env) {
+    const apiKey = env.XAI_API_KEY;
+    if (!apiKey) return { ok: false, missing: ["XAI_API_KEY"] };
+    return { ok: true, config: { apiKey } };
+  },
+  create(config, model) {
+    return createXaiProvider({ ...config, model });
+  },
+});
+
 export const openRouterProviderDefinition: ProviderDefinition =
   defineProvider<OpenRouterProviderConfig>({
     id: "openrouter",
@@ -382,6 +404,7 @@ export const builtinProviderDefinitions: readonly ProviderDefinition[] = [
   qwenAudioProviderDefinition,
   bytePlusProviderDefinition,
   openAIProviderDefinition,
+  xaiProviderDefinition,
   openRouterProviderDefinition,
   metaProviderDefinition,
   paxaProviderDefinition,

@@ -215,6 +215,16 @@ test("the workspace-endpoint Qwen models are selectable only once a workspace id
   }
 });
 
+test("the xAI model is selectable with XAI_API_KEY and not without it", () => {
+  const id = "xai/grok-voice-transcribe-2.0";
+  const without = createConfigurationSelector({ DASHSCOPE_API_KEY: "dk" });
+  const withKey = createConfigurationSelector({ XAI_API_KEY: "xk" });
+
+  expect(without.isEnabled(id)).toBe(false);
+  expect(withKey.isEnabled(id)).toBe(true);
+  expect(expectOk(withKey.select({ configuration: id })).configurationId).toBe(id);
+});
+
 test("isEnabled answers the same question as select, without building a provider", () => {
   const selector = createConfigurationSelector({
     DASHSCOPE_API_KEY: "dk",

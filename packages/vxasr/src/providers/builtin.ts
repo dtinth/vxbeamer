@@ -11,6 +11,7 @@ import {
   type QwenOmniProviderConfig,
 } from "./qwen-omni.ts";
 import { createQwenAudioProvider, type QwenAudioProviderConfig } from "./qwen-audio.ts";
+import { isValidWorkspaceId } from "./workspace.ts";
 import { createBytePlusProvider, type BytePlusProviderConfig } from "./byteplus.ts";
 import { createOpenAIProvider, OPENAI_DEFAULT_MODEL, type OpenAIProviderConfig } from "./openai.ts";
 import {
@@ -99,7 +100,9 @@ export const qwenOmniProviderDefinition: ProviderDefinition =
       // such a model out of the selectable set until it can actually be built.
       const missing = [
         ...(env.DASHSCOPE_API_KEY ? [] : ["DASHSCOPE_API_KEY"]),
-        ...(model && needsWorkspaceEndpoint(model) && !env.DASHSCOPE_WORKSPACE_ID
+        ...(model &&
+        needsWorkspaceEndpoint(model) &&
+        !isValidWorkspaceId(env.DASHSCOPE_WORKSPACE_ID)
           ? ["DASHSCOPE_WORKSPACE_ID"]
           : []),
       ];
@@ -108,7 +111,9 @@ export const qwenOmniProviderDefinition: ProviderDefinition =
         ok: true,
         config: {
           apiKey: env.DASHSCOPE_API_KEY!,
-          workspaceId: env.DASHSCOPE_WORKSPACE_ID || undefined,
+          workspaceId: isValidWorkspaceId(env.DASHSCOPE_WORKSPACE_ID)
+            ? env.DASHSCOPE_WORKSPACE_ID
+            : undefined,
           stickyLingerMs: env.QWEN_OMNI_STICKY_LINGER_MS
             ? Number(env.QWEN_OMNI_STICKY_LINGER_MS)
             : undefined,
@@ -138,14 +143,14 @@ export const qwenAudioProviderDefinition: ProviderDefinition =
     resolveConfig(env) {
       const missing = [
         ...(env.DASHSCOPE_API_KEY ? [] : ["DASHSCOPE_API_KEY"]),
-        ...(env.DASHSCOPE_WORKSPACE_ID ? [] : ["DASHSCOPE_WORKSPACE_ID"]),
+        ...(isValidWorkspaceId(env.DASHSCOPE_WORKSPACE_ID) ? [] : ["DASHSCOPE_WORKSPACE_ID"]),
       ];
       if (missing.length) return { ok: false, missing };
       return {
         ok: true,
         config: {
           apiKey: env.DASHSCOPE_API_KEY!,
-          workspaceId: env.DASHSCOPE_WORKSPACE_ID!,
+          workspaceId: env.DASHSCOPE_WORKSPACE_ID,
         },
       };
     },

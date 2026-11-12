@@ -128,7 +128,7 @@ services:
 
 | Variable                 | Required | Description                                                                                                                                                                              |
 | ------------------------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DASHSCOPE_API_KEY`      | Yes      | Alibaba Cloud DashScope key for Qwen3-ASR-Flash and Qwen Omni Realtime                                                                                                                   |
+| `DASHSCOPE_API_KEY`      | Yes      | Alibaba Cloud DashScope key for Qwen3-ASR-Flash, Qwen Omni Realtime and Qwen-Audio ASR                                                                                                   |
 | `DASHSCOPE_WORKSPACE_ID` | No       | Model Studio workspace id. Needed only by `qwen-omni/qwen3.8-omni-flash-realtime` and the `qwen-audio/*` models, which are served from `<id>.ap-southeast-1.maas.aliyuncs.com`           |
 | `API_KEYS`               | No       | Comma-separated `sub:secret` pairs for API key exchange                                                                                                                                  |
 | `GROQ_API_KEY`           | No       | Groq API key for gpt-oss-120b post-processing; enables the `+groq` configurations                                                                                                        |

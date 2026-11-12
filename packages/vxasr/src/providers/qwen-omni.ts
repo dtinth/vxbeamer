@@ -1,6 +1,7 @@
 import WebSocket from "ws";
 import type { ASRCreateSessionOptions, ASRProvider, ASRSession, UsageRecord } from "../asr.ts";
 import { createBufferedSocketSession } from "./bufferedSocketSession.ts";
+import { isValidWorkspaceId, redactWorkspaceId } from "./workspace.ts";
 
 /**
  * The Qwen **Omni Realtime** models, which are not ASR models at all: they are
@@ -195,13 +196,17 @@ export function needsWorkspaceEndpoint(model: string): boolean {
   return model.startsWith("qwen3.8-");
 }
 
-function resolveBaseUrl(config: QwenOmniProviderConfig, model: string): string {
+export function resolveBaseUrl(config: QwenOmniProviderConfig, model: string): string {
   if (config.baseUrl) return config.baseUrl;
   if (!needsWorkspaceEndpoint(model)) return DEFAULT_BASE_URL;
   if (!config.workspaceId) {
     throw new Error(
       `Qwen Omni model "${model}" is served from a workspace endpoint: set DASHSCOPE_WORKSPACE_ID`,
     );
+  }
+  if (!isValidWorkspaceId(config.workspaceId)) {
+    // Not echoed: it is a malformed value, and may be a secret typed in the wrong place.
+    throw new Error("DASHSCOPE_WORKSPACE_ID must be letters, digits and hyphens only");
   }
   return `wss://${config.workspaceId}.${WORKSPACE_REGION}.maas.aliyuncs.com/api-ws/v1/realtime`;
 }
@@ -475,7 +480,9 @@ export function createQwenOmniProvider(config: QwenOmniProviderConfig): ASRProvi
         handleMessage,
         alreadyOpen: reusing,
         onError(err) {
-          options.onError?.(err);
+          // A transport failure names the host it could not reach, and for the
+          // workspace-endpoint model that host carries the workspace id.
+          options.onError?.(new Error(redactWorkspaceId(err.message, config.workspaceId)));
           evict();
         },
       });

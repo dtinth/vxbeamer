@@ -10,6 +10,7 @@ import {
   createDefaultProviderRegistry,
   type ASRProvider,
 } from "../src/index.ts";
+import { resolveBaseUrl } from "../src/providers/qwen-omni.ts";
 import { run, trackVendors, type RunOutcome } from "./streamingSessionHarness.ts";
 
 /**
@@ -365,6 +366,36 @@ test("only the workspace-endpoint model needs DASHSCOPE_WORKSPACE_ID, and it is 
   expect(workspace?.missingConfig(env)).toEqual(["DASHSCOPE_WORKSPACE_ID"]);
   expect(workspace?.isConfigured({ ...env, DASHSCOPE_WORKSPACE_ID: "ws" })).toBe(true);
   expect(workspace?.resolve(env).ok).toBe(false);
+});
+
+test("the 3.8 endpoint is the workspace's own; the others use the shared one", () => {
+  const config = { apiKey: "k", workspaceId: "ws-1" };
+
+  expect(resolveBaseUrl(config, "qwen3.8-omni-flash-realtime")).toBe(
+    "wss://ws-1.ap-southeast-1.maas.aliyuncs.com/api-ws/v1/realtime",
+  );
+  expect(resolveBaseUrl(config, FLASH)).toBe(
+    "wss://dashscope-intl.aliyuncs.com/api-ws/v1/realtime",
+  );
+  expect(() =>
+    resolveBaseUrl({ apiKey: "k", workspaceId: "x.evil.com/#" }, "qwen3.8-omni-flash-realtime"),
+  ).toThrow(/letters, digits and hyphens/);
+});
+
+test("a transport error does not leak the workspace id", async () => {
+  const dead = createQwenOmniProvider({
+    apiKey: "k",
+    model: "qwen3.8-omni-flash-realtime",
+    baseUrl: "ws://secret-ws.invalid:1/api-ws/v1/realtime",
+    workspaceId: "secret-ws",
+  });
+
+  const outcome = await run(dead, Buffer.alloc(3200));
+
+  expect(outcome.error).toBeDefined();
+  expect(outcome.error?.message).not.toContain("secret-ws");
+  // Proves the redaction ran, rather than the message never naming the host.
+  expect(outcome.error?.message).toContain("<workspace>");
 });
 
 // --- Sticky sessions (dtinth/vxbeamer#99) ---

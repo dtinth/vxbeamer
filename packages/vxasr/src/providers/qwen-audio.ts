@@ -2,6 +2,7 @@ import WebSocket from "ws";
 import { randomUUID } from "crypto";
 import type { ASRCreateSessionOptions, ASRProvider, ASRSession, UsageRecord } from "../asr.ts";
 import { createBufferedSocketSession } from "./bufferedSocketSession.ts";
+import { isValidWorkspaceId, redactWorkspaceId } from "./workspace.ts";
 
 /**
  * Qwen-Audio-3.1-ASR over DashScope's duplex `run-task` protocol.
@@ -63,10 +64,15 @@ const WORKSPACE_REGION = "ap-southeast-1";
 /** 100 ms of 16 kHz 16-bit mono — what the vendor's own samples send. */
 const CHUNK_SIZE = 3200;
 
-function resolveUrl(config: QwenAudioProviderConfig): string {
+/** The workspace endpoint, or `baseUrl` where a test has pointed it elsewhere. */
+export function resolveQwenAudioUrl(config: QwenAudioProviderConfig): string {
   if (config.baseUrl) return config.baseUrl;
   if (!config.workspaceId) {
     throw new Error("Qwen Audio is served from a workspace endpoint: set DASHSCOPE_WORKSPACE_ID");
+  }
+  if (!isValidWorkspaceId(config.workspaceId)) {
+    // Not echoed: it is a malformed value, and may be a secret typed in the wrong place.
+    throw new Error("DASHSCOPE_WORKSPACE_ID must be letters, digits and hyphens only");
   }
   return `wss://${config.workspaceId}.${WORKSPACE_REGION}.maas.aliyuncs.com/api-ws/v1/inference`;
 }
@@ -113,7 +119,7 @@ export function createQwenAudioProvider(config: QwenAudioProviderConfig): ASRPro
       `No pricing for Qwen Audio model "${model}" (known: ${Object.keys(QWEN_AUDIO_PRICING).join(", ")})`,
     );
   }
-  const url = resolveUrl(config);
+  const url = resolveQwenAudioUrl(config);
 
   return {
     createSession(callbacks: ASRCreateSessionOptions): ASRSession {
@@ -125,8 +131,14 @@ export function createQwenAudioProvider(config: QwenAudioProviderConfig): ASRPro
       let started = false;
       let endRequested = false;
       let held: Buffer[] = [];
-      const finished = new Map<number, string>();
+      // Every sentence seen, finished or not, by id. A sentence that never gets
+      // `sentence_end` (the task finishing first) still counts: dropping it would
+      // lose the tail of what was said.
+      const sentences = new Map<number, string>();
       let lastUsage: { input_tokens?: number; output_tokens?: number } | undefined;
+      // `task-finished` / `task-failed` / an unexpected close each end the
+      // session exactly once; anything after is ignored.
+      let done = false;
 
       const send = (frame: object) => ws.send(JSON.stringify(frame));
       const sendFinish = () =>
@@ -135,10 +147,18 @@ export function createQwenAudioProvider(config: QwenAudioProviderConfig): ASRPro
           payload: { input: {} },
         });
 
-      function transcript(partial?: { id: number; text: string }): string {
-        const parts = new Map(finished);
-        if (partial && !parts.has(partial.id)) parts.set(partial.id, partial.text);
-        return joinSentences([...parts.entries()].sort((a, b) => a[0] - b[0]).map(([, t]) => t));
+      function transcript(): string {
+        return joinSentences(
+          [...sentences.entries()].sort((a, b) => a[0] - b[0]).map(([, text]) => text),
+        );
+      }
+
+      /** Report a failure once, with the workspace id taken out of it. */
+      function fail(error: Error) {
+        if (done) return;
+        done = true;
+        callbacks.onError?.(new Error(redactWorkspaceId(error.message, config.workspaceId)));
+        ws.close();
       }
 
       function reportUsage(usage = lastUsage): UsageRecord[] {
@@ -157,7 +177,8 @@ export function createQwenAudioProvider(config: QwenAudioProviderConfig): ASRPro
         ];
       }
 
-      return createBufferedSocketSession({
+      let abandoned = false;
+      const session = createBufferedSocketSession({
         ws,
         chunkSize: CHUNK_SIZE,
         sendHandshake() {
@@ -198,8 +219,10 @@ export function createQwenAudioProvider(config: QwenAudioProviderConfig): ASRPro
           } catch {
             return;
           }
+          if (done) return;
           switch (frame.header?.event) {
             case "task-started": {
+              if (started) return;
               started = true;
               for (const chunk of held) ws.send(chunk);
               held = [];
@@ -212,14 +235,13 @@ export function createQwenAudioProvider(config: QwenAudioProviderConfig): ASRPro
               if (!sentence || sentence.heartbeat) return;
               const id = sentence.sentence_id ?? 0;
               const text = sentence.text ?? "";
-              if (sentence.sentence_end) {
-                finished.set(id, text);
-              } else if (text) {
-                callbacks.onPartial?.(transcript({ id, text }));
-              }
+              // An empty frame never erases text already seen for the sentence.
+              if (text || !sentences.has(id)) sentences.set(id, text);
+              if (!sentence.sentence_end && text) callbacks.onPartial?.(transcript());
               return;
             }
             case "task-finished": {
+              done = true;
               const usage = frame.payload?.usage ?? lastUsage;
               const text = transcript();
               if (text.trim()) callbacks.onFinal?.(text);
@@ -229,20 +251,35 @@ export function createQwenAudioProvider(config: QwenAudioProviderConfig): ASRPro
               return;
             }
             case "task-failed": {
-              callbacks.onError?.(
+              fail(
                 new Error(
                   `Qwen Audio ${frame.header?.error_code ?? "error"}: ${frame.header?.error_message ?? "task failed"}`,
                 ),
               );
-              ws.close();
               return;
             }
           }
         },
         onError(err) {
-          callbacks.onError?.(err);
+          fail(err);
         },
       });
+
+      // The vendor can drop the socket without ever sending `task-finished` or
+      // `task-failed` (an idle timeout, a server restart). Without this the
+      // session would wait for an end that is not coming.
+      ws.on("close", () => {
+        if (!abandoned) fail(new Error("Qwen Audio connection closed before the task finished"));
+      });
+
+      return {
+        ...session,
+        close() {
+          // The caller hanging up is not a failure.
+          abandoned = true;
+          session.close();
+        },
+      };
     },
   };
 }

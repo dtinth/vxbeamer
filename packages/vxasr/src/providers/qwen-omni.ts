@@ -113,23 +113,23 @@ export interface QwenOmniTokenPricing {
  *
  * Worth knowing when reading a cost: rates alone do not rank these models.
  * `qwen3-omni-flash-realtime` is priced within pennies of `qwen3.5-omni-flash-realtime`
- * yet costs ~58% more per recording, because the older generation tokenises the
+ * yet costs noticeably more per recording, because the older generation tokenises the
  * same audio far less efficiently (125 audio tokens vs 70 on a 9.2 s clip) and
  * is wordier. That is only visible because usage is reported as measured rather
  * than estimated from duration.
  */
 export const QWEN_OMNI_PRICING: Readonly<Record<string, QwenOmniTokenPricing>> = {
-  // audio $4.50 / text $0.55 / output $17.70 per 1M
+  // audio $4.50 / text $0.55 / output text $3.30 per 1M (output audio is $17.70)
   "qwen3.5-omni-flash-realtime-2026-03-15": {
     inputAudioPerToken: 4.5e-6,
     inputTextPerToken: 0.55e-6,
-    outputTextPerToken: 17.7e-6,
+    outputTextPerToken: 3.3e-6,
   },
-  // audio $16.50 / text $2.10 / output $62.00 per 1M
+  // audio $16.50 / text $2.10 / output text $12.40 per 1M (output audio is $62.00)
   "qwen3.5-omni-plus-realtime-2026-03-15": {
     inputAudioPerToken: 16.5e-6,
     inputTextPerToken: 2.1e-6,
-    outputTextPerToken: 62.0e-6,
+    outputTextPerToken: 12.4e-6,
   },
   // audio $4.57 / text $0.52 / output $18.13 per 1M
   "qwen3-omni-flash-realtime-2025-12-01": {

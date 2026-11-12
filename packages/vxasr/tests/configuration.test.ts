@@ -200,6 +200,7 @@ test("the default catalogue offers each real model, enhanced only where that hel
     "qwen-omni/qwen3.5-omni-flash-realtime-2026-03-15",
     "qwen-omni/qwen3.5-omni-plus-realtime-2026-03-15",
     "qwen-omni/qwen3-omni-flash-realtime-2025-12-01",
+    "qwen-omni/qwen3.8-omni-flash-realtime",
     "byteplus/bigmodel_nostream",
     "byteplus/bigmodel_nostream+groq",
     // Raw only, like the Qwen Omni models — tried live, and it renders
@@ -256,6 +257,9 @@ test("no configuration names a floating model id", () => {
     if (configuration.providerId === "gemini") continue;
     // The gateway's own model id, with no dated snapshot published.
     if (configuration.providerId === "ai-gateway") continue;
+    // Just this one id, not its provider: the vendor's docs list no dated
+    // snapshot for Qwen3.8 yet. Drop this line when one appears and pin to it.
+    if (configuration.model === "qwen3.8-omni-flash-realtime") continue;
     expect(configuration.model).toMatch(/-\d{4}-\d{2}-\d{2}$/);
   }
 });

@@ -149,6 +149,23 @@ waits for ASR events, so it does not drive these models:
 | `qwen3.5-omni-plus-realtime`  | no result, 60 s timeout |
 | `qwen3.5-omni-flash-realtime` | no result, 60 s timeout |
 
+### `qwen3.8-omni-flash-realtime` (2026-11-12)
+
+Served only from a workspace endpoint:
+`wss://<WorkspaceId>.ap-southeast-1.maas.aliyuncs.com/api-ws/v1/realtime?model=qwen3.8-omni-flash-realtime`,
+not the shared `dashscope-intl` one. No dated snapshot is listed in the vendor's
+docs. The vendor's page describes a new nested `session.update` shape
+(`audio.input.format`, `audio.output`), but our existing flat handshake
+(`input_audio_format: "pcm"`, `sample_rate`, `turn_detection: null`) is accepted
+unchanged, so the same adapter drives it.
+
+On the 9.2 s fixture, three realtime runs: two returned the same transcript as
+`qwen3.5-omni-flash-realtime-2026-03-15` (`deploy` in Latin); one rendered it
+as `ดีพลอย`. Same token counts (70 audio, 97 text, 32-33 output), about 10 s
+wall clock, but fewer and coarser partials (9-11 against 31). Three runs is a
+sample, not a measurement. Cost is not known: the vendor states no rates, and
+the pricing entry is provisional.
+
 ### Pacing: fast dump vs realtime
 
 `qwen-omni/qwen3.5-omni-flash-realtime-2026-03-15`, same fixture, 20 runs per

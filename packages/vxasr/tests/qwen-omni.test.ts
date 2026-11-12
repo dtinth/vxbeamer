@@ -334,6 +334,7 @@ test("the omni configurations are offered raw, never enhanced", () => {
     "qwen-omni/qwen3.5-omni-flash-realtime-2026-03-15",
     "qwen-omni/qwen3.5-omni-plus-realtime-2026-03-15",
     "qwen-omni/qwen3-omni-flash-realtime-2025-12-01",
+    "qwen-omni/qwen3.8-omni-flash-realtime",
   ]);
   for (const configuration of omni) {
     expect(configuration.postProcessing).toEqual([]);

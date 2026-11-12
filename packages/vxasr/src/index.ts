@@ -33,6 +33,8 @@ export { createBytePlusProvider } from "./providers/byteplus.ts";
 export type { BytePlusProviderConfig } from "./providers/byteplus.ts";
 export { createOpenAIProvider, OPENAI_DEFAULT_MODEL } from "./providers/openai.ts";
 export type { OpenAIProviderConfig } from "./providers/openai.ts";
+export { createXaiProvider, XAI_DEFAULT_MODEL, XAI_PRICE_PER_SECOND } from "./providers/xai.ts";
+export type { XaiProviderConfig } from "./providers/xai.ts";
 export { createOpenRouterProvider, OPENROUTER_DEFAULT_MODEL } from "./providers/openrouter.ts";
 export type { OpenRouterProviderConfig } from "./providers/openrouter.ts";
 export { createMetaMuseProvider, META_MUSE_DEFAULT_MODEL } from "./providers/meta-muse.ts";
@@ -76,6 +78,7 @@ export {
   qwenAudioProviderDefinition,
   qwenOmniProviderDefinition,
   qwenProviderDefinition,
+  xaiProviderDefinition,
 } from "./providers/builtin.ts";
 export {
   buildConfigurationId,

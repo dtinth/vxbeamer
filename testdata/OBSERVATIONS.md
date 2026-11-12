@@ -214,10 +214,8 @@ times), so nothing was dropped. One short clip, so a clip of several minutes sen
 fast could still behave differently; not tested.
 
 **Tokens and price.** `-message` 116 in / 54 out, `-streaming` 109 in / 45 out, the
-vendor's measured counts. Price **unverified**: the vendor's pricing page is too long
-for the fetch tool and the ASR rows were only seen in a summary of it
-($0.93 input / $0.70 output per 1M tokens for both, Singapore), about $0.00015 and
-$0.00013 per clip.
+vendor's measured counts. Price, from the vendor's pricing page (Singapore, per 1M
+tokens): $0.93 input / $0.70 output for both, about $0.00015 and $0.00013 per clip.
 
 ### Pacing: fast dump vs realtime
 

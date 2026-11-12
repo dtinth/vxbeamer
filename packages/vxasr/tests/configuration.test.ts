@@ -201,6 +201,8 @@ test("the default catalogue offers each real model, enhanced only where that hel
     "qwen-omni/qwen3.5-omni-plus-realtime-2026-03-15",
     "qwen-omni/qwen3-omni-flash-realtime-2025-12-01",
     "qwen-omni/qwen3.8-omni-flash-realtime",
+    "qwen-audio/qwen-audio-3.1-asr-flash-message",
+    "qwen-audio/qwen-audio-3.1-asr-flash-streaming",
     "byteplus/bigmodel_nostream",
     "byteplus/bigmodel_nostream+groq",
     // Raw only, like the Qwen Omni models — tried live, and it renders
@@ -260,6 +262,8 @@ test("no configuration names a floating model id", () => {
     // Just this one id, not its provider: the vendor's docs list no dated
     // snapshot for Qwen3.8 yet. Drop this line when one appears and pin to it.
     if (configuration.model === "qwen3.8-omni-flash-realtime") continue;
+    // Same for Qwen-Audio-3.1-ASR: no dated ids published for either model.
+    if (configuration.providerId === "qwen-audio") continue;
     expect(configuration.model).toMatch(/-\d{4}-\d{2}-\d{2}$/);
   }
 });

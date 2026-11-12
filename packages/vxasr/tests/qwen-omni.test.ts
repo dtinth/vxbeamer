@@ -288,7 +288,7 @@ test("usage is billed as measured tokens, audio and text priced apart", async ()
   expect(outcome.usage).toEqual([
     { sku: `dashscope:${FLASH}:input-audio-tokens`, unitPrice: 4.5e-6, quantity: 70 },
     { sku: `dashscope:${FLASH}:input-text-tokens`, unitPrice: 0.55e-6, quantity: 44 },
-    { sku: `dashscope:${FLASH}:output-text-tokens`, unitPrice: 17.7e-6, quantity: 32 },
+    { sku: `dashscope:${FLASH}:output-text-tokens`, unitPrice: 3.3e-6, quantity: 32 },
   ]);
 });
 
@@ -302,7 +302,7 @@ test("each model is billed at its own rates", async () => {
 
   // Plus is over 3x flash on the same tokens — a per-provider constant would be
   // wrong for two of the three models.
-  expect(outcome.usage.map((record) => record.unitPrice)).toEqual([16.5e-6, 2.1e-6, 62.0e-6]);
+  expect(outcome.usage.map((record) => record.unitPrice)).toEqual([16.5e-6, 2.1e-6, 12.4e-6]);
   expect(outcome.usage.every((record) => record.sku.includes("plus-realtime"))).toBe(true);
 });
 

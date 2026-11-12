@@ -170,10 +170,10 @@ Price, from the vendor's model-pricing page (Singapore, USD per 1M tokens, read
 2026-11-12): input text $0.23, input audio $0.93, output text $0.70, output
 audio $1.87. We ask for text-only output, so the text rate applies: about
 $0.00011 for this clip. The page lists `qwen3.5-omni-flash-realtime` at $0.55 /
-$4.50 / $3.30 / $17.70 on the same four columns, and that model's entry in
-`QWEN_OMNI_PRICING` charges $17.70 for text output, which is the page's
-output _audio_ column. If the page's text column is the right one for our
-sessions, the 3.5 and plus costs reported by vxasr are overstated.
+$4.50 / $3.30 / $17.70 on the same four columns. `QWEN_OMNI_PRICING` used to
+charge the output _audio_ column ($17.70, and $62 for plus) for text output; it
+now charges the text column ($3.30 and $12.40), so the 3.5 clip cost
+is now about $0.00047 rather than $0.00094 (4.4x the 3.8 price, not 8.5x).
 
 ### Pacing: fast dump vs realtime
 

@@ -159,12 +159,21 @@ docs. The vendor's page describes a new nested `session.update` shape
 (`input_audio_format: "pcm"`, `sample_rate`, `turn_detection: null`) is accepted
 unchanged, so the same adapter drives it.
 
-On the 9.2 s fixture, three realtime runs: two returned the same transcript as
-`qwen3.5-omni-flash-realtime-2026-03-15` (`deploy` in Latin); one rendered it
-as `ดีพลอย`. Same token counts (70 audio, 97 text, 32-33 output), about 10 s
-wall clock, but fewer and coarser partials (9-11 against 31). Three runs is a
-sample, not a measurement. Cost is not known: the vendor states no rates, and
-the pricing entry is provisional.
+On the 9.2 s fixture, four realtime runs: two returned the same transcript as
+`qwen3.5-omni-flash-realtime-2026-03-15` (`เฟรมเวิร์ก` in Thai, `deploy` in
+Latin); one rendered `deploy` as `ดีพลอย`; one kept `framework` in Latin. Same
+token counts (70 audio, 97 text, 29-33 output), about 10 s wall clock, but
+fewer and coarser partials (9-11 against 31). Four runs is a sample, not a
+measurement.
+
+Price, from the vendor's model-pricing page (Singapore, USD per 1M tokens, read
+2026-11-12): input text $0.23, input audio $0.93, output text $0.70, output
+audio $1.87. We ask for text-only output, so the text rate applies: about
+$0.00011 for this clip. The page lists `qwen3.5-omni-flash-realtime` at $0.55 /
+$4.50 / $3.30 / $17.70 on the same four columns, and that model's entry in
+`QWEN_OMNI_PRICING` charges $17.70 for text output, which is the page's
+output _audio_ column. If the page's text column is the right one for our
+sessions, the 3.5 and plus costs reported by vxasr are overstated.
 
 ### Pacing: fast dump vs realtime
 

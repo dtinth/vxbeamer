@@ -5,7 +5,11 @@ import {
   type ProviderDefinition,
 } from "../registry.ts";
 import { createQwenProvider, type QwenProviderConfig } from "./qwen.ts";
-import { createQwenOmniProvider, type QwenOmniProviderConfig } from "./qwen-omni.ts";
+import {
+  createQwenOmniProvider,
+  needsWorkspaceEndpoint,
+  type QwenOmniProviderConfig,
+} from "./qwen-omni.ts";
 import { createQwenAudioProvider, type QwenAudioProviderConfig } from "./qwen-audio.ts";
 import { createBytePlusProvider, type BytePlusProviderConfig } from "./byteplus.ts";
 import { createOpenAIProvider, OPENAI_DEFAULT_MODEL, type OpenAIProviderConfig } from "./openai.ts";
@@ -89,13 +93,21 @@ export const qwenOmniProviderDefinition: ProviderDefinition =
     ],
     // Confirmed against testdata/OBSERVATIONS.md, "fast dump vs realtime".
     supportsFastDump: true,
-    resolveConfig(env) {
-      const apiKey = env.DASHSCOPE_API_KEY;
-      if (!apiKey) return { ok: false, missing: ["DASHSCOPE_API_KEY"] };
+    resolveConfig(env, model) {
+      // The workspace id is required only by the models served from a workspace
+      // endpoint. Saying so here, not just failing at `create`, is what keeps
+      // such a model out of the selectable set until it can actually be built.
+      const missing = [
+        ...(env.DASHSCOPE_API_KEY ? [] : ["DASHSCOPE_API_KEY"]),
+        ...(model && needsWorkspaceEndpoint(model) && !env.DASHSCOPE_WORKSPACE_ID
+          ? ["DASHSCOPE_WORKSPACE_ID"]
+          : []),
+      ];
+      if (missing.length) return { ok: false, missing };
       return {
         ok: true,
         config: {
-          apiKey,
+          apiKey: env.DASHSCOPE_API_KEY!,
           workspaceId: env.DASHSCOPE_WORKSPACE_ID || undefined,
           stickyLingerMs: env.QWEN_OMNI_STICKY_LINGER_MS
             ? Number(env.QWEN_OMNI_STICKY_LINGER_MS)

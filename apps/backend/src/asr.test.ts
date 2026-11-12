@@ -197,6 +197,24 @@ test("credentials alone make a configuration selectable", () => {
   ]);
 });
 
+test("the workspace-endpoint Qwen models are selectable only once a workspace id is set", () => {
+  const withKey = createConfigurationSelector({ DASHSCOPE_API_KEY: "dk" });
+  const withWorkspace = createConfigurationSelector({
+    DASHSCOPE_API_KEY: "dk",
+    DASHSCOPE_WORKSPACE_ID: "ws",
+  });
+
+  for (const id of [
+    "qwen-omni/qwen3.8-omni-flash-realtime",
+    "qwen-audio/qwen-audio-3.1-asr-flash-message",
+    "qwen-audio/qwen-audio-3.1-asr-flash-streaming",
+  ]) {
+    expect(withKey.isEnabled(id)).toBe(false);
+    expect(withWorkspace.isEnabled(id)).toBe(true);
+    expect(expectOk(withWorkspace.select({ configuration: id })).configurationId).toBe(id);
+  }
+});
+
 test("isEnabled answers the same question as select, without building a provider", () => {
   const selector = createConfigurationSelector({
     DASHSCOPE_API_KEY: "dk",

@@ -161,7 +161,7 @@ export function createConfigurationCatalogue(options: {
 
     const missingConfig = (env: ProviderEnv) =>
       dedupe([
-        ...providerDefinition.missingConfig(env),
+        ...providerDefinition.missingConfig(env, model),
         ...chain.flatMap((decorator) => decorator.missingConfig(env)),
       ]);
 

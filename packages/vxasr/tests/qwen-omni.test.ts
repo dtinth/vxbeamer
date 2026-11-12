@@ -352,6 +352,21 @@ test("qwen-omni is a separate provider from qwen, sharing only the key", () => {
   expect(registry.get("qwen-omni")?.defaultModel).toBe(FLASH);
 });
 
+test("only the workspace-endpoint model needs DASHSCOPE_WORKSPACE_ID, and it is not selectable without it", () => {
+  const catalogue = createDefaultConfigurationCatalogue();
+  const env = { DASHSCOPE_API_KEY: "k" };
+
+  // The siblings keep working on the key alone...
+  expect(catalogue.get(`qwen-omni/${FLASH}`)?.isConfigured(env)).toBe(true);
+  // ...while this one must not be offered, or a client could select it and
+  // hit the `create` error instead of the not-configured one.
+  const workspace = catalogue.get("qwen-omni/qwen3.8-omni-flash-realtime");
+  expect(workspace?.isConfigured(env)).toBe(false);
+  expect(workspace?.missingConfig(env)).toEqual(["DASHSCOPE_WORKSPACE_ID"]);
+  expect(workspace?.isConfigured({ ...env, DASHSCOPE_WORKSPACE_ID: "ws" })).toBe(true);
+  expect(workspace?.resolve(env).ok).toBe(false);
+});
+
 // --- Sticky sessions (dtinth/vxbeamer#99) ---
 //
 // A `clientId` lets a connection linger after a turn ends instead of closing,

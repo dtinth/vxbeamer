@@ -137,13 +137,13 @@ export const QWEN_OMNI_PRICING: Readonly<Record<string, QwenOmniTokenPricing>> =
     inputTextPerToken: 0.52e-6,
     outputTextPerToken: 18.13e-6,
   },
-  // PROVISIONAL: the vendor's page states no rates ("check the Model Studio
-  // console"), so this copies qwen3.5-omni-flash until someone reads them off
-  // the console. Costs reported for this model are a guess.
+  // audio $0.93 / text $0.23 / output text $0.70 per 1M, from the vendor's
+  // model-pricing page (Singapore, read 2026-11-12). We ask for text-only
+  // output, so the "output text" column applies, not "output audio" ($1.87).
   "qwen3.8-omni-flash-realtime": {
-    inputAudioPerToken: 4.5e-6,
-    inputTextPerToken: 0.55e-6,
-    outputTextPerToken: 17.7e-6,
+    inputAudioPerToken: 0.93e-6,
+    inputTextPerToken: 0.23e-6,
+    outputTextPerToken: 0.7e-6,
   },
 };
 

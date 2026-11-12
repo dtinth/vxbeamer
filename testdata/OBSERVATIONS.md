@@ -217,6 +217,49 @@ fast could still behave differently; not tested.
 vendor's measured counts. Price, from the vendor's pricing page (Singapore, per 1M
 tokens): $0.93 input / $0.70 output for both, about $0.00015 and $0.00013 per clip.
 
+### Tuning the message model's parameters (2026-11-12)
+
+`qwen-audio-3.1-asr-flash-message` takes these `parameters` on `run-task` (vendor's
+client-events page): `disfluency_removal_enabled` (its "native text polishing":
+drops fillers), `language_hints` (up to 4 codes; applies to finals), `vocabulary` /
+`vocabulary_id` (hotwords, weight 1-5, or 50 for a "super" hotword, at most 50 of
+those), `input.context` (up to 5 user/assistant turns, 400 characters a turn),
+`max_sentence_silence` (200-6000 ms, default 800), `vad_model`,
+`speech_noise_threshold`, `heartbeat`, `keep_dialect` (Chinese dialects) and
+`intermediate_result_enabled`. Not tried, for want of audio: `vad_model`,
+`speech_noise_threshold`, `keep_dialect`.
+
+What was run: the 9.2 s Thai fixture (about 400 sessions in all, 6-56 runs per
+setting, several sessions in parallel at real-time pacing), and two synthetic English
+clips made with ffmpeg's `flite` voice, one of spoken numbers and one full of
+"um/uh/you know". Counts below are runs of the same audio, not independent speakers.
+
+**English words in Thai, spelled in Thai script** ("phonetic": `ไทป์สคริปต์`,
+`เอลิเซีย`) as a share of runs on the Thai clip: no parameters 15 of 40;
+`language_hints: ["th"]` 1 of 24; `disfluency_removal_enabled` 0 of 24; hotwords at
+weight 50 0 of 24 (at weight 5, 5 of 8); a Thai+Latin example turn in `context` 0 of
+24 (a bare word list, 4 of 8); `th` + polishing 0 of 12, with weight-50 hotwords also
+0 of 12. Setting `max_sentence_silence` at all (200, 800 or 3000) made it worse, 44
+of 56; cause unknown, so just do not set it.
+
+**Spoken numbers** (English clip): with no parameters the model wrote digits in 5 of
+6 runs (`23 apples`, `0812345678`, `2026`). Every `language_hints` form tried
+(`en`, `th`, `th,en`, `en,th`) wrote words in 24 of 24 (`twenty three`). Polishing
+alone gave digits in 18 of 18, and a hint plus polishing gave digits in 30 of 30. So
+a hint on its own breaks numbers, and polishing repairs it. **Thai spoken numbers
+were not tested**: there was no Thai audio with numbers.
+
+**Fillers** (English clip): off, every `um`, `uh`, `you know` and `like` is kept;
+on, all are removed (6 of 6), and `Well` and `So` stay.
+
+**The streaming model accepts it too**, and benefits (4 runs each): on the Thai clip
+the text gains word spaces, a capital `Project` and a correct `MongoDB Atlas`, where
+without it the text is unspaced and `mongodbbas`, though `ชื่อ` loses its last
+letter in 4 of 4; on the filler clip the fillers are removed 4 of 4.
+
+Conclusion: polishing is the one setting that helped on every axis, so
+`qwen-audio` turns it on by default (`disfluencyRemoval: false` to turn it off).
+
 ### Pacing: fast dump vs realtime
 
 `qwen-omni/qwen3.5-omni-flash-realtime-2026-03-15`, same fixture, 20 runs per

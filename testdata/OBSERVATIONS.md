@@ -196,9 +196,9 @@ clip (`language_hints: ["th"]` did not change the partials). `-streaming` partia
 are garbled early and readable from about 5 s. The partials only tell the user they
 are being heard.
 
-**Final text**, 6 runs of `-message`: 5 gave the good transcript (Thai script,
+**Final text**, 7 runs of `-message` paced at real time: 5 gave the good transcript (Thai script,
 spaced, `TypeScript`/`Elysia`/`deploy`/`Railway`/`MongoDB Atlas` in Latin, matching
-`qwen3.8-omni-flash-realtime`'s good runs); 1 wrote phonetic Thai for every English
+`qwen3.8-omni-flash-realtime`'s good runs); 2 wrote phonetic Thai for every English
 word (`ไทป์สคริปต์`, `เอลิเซีย`, `มองโกดีบีแอดลาสต์`) with 77 output tokens instead of 54. 5 runs of `-streaming`: always no spaces between words, always Latin
 `project`/`typescript`/`framework`/`elysia`/`deploy`/`railway` in lowercase, and
 `MongoDB Atlas` wrong in a different way each time (`mongodbb atlas`, `mongodbbas`,
@@ -208,7 +208,8 @@ word (`ไทป์สคริปต์`, `เอลิเซีย`, `มอ�
 each, 9.2 s clip): all three new models accept it. `qwen3.8-omni-flash-realtime`
 1.07-1.15 s, `-message` 0.83-0.86 s, `-streaming` 1.98-2.58 s. The text and token
 counts are the same as when paced at real time (3.8 and `-message` the good
-transcript all 3 times; `-streaming` the same unspaced text with `mongodbbas` all 3
+transcript all 3 times, though the phonetic-Thai variant of `-message` is seen only
+when paced, so 3 fast runs do not rule it out; `-streaming` the same unspaced text with `mongodbbas` all 3
 times), so nothing was dropped. One short clip, so a clip of several minutes sent as
 fast could still behave differently; not tested.
 

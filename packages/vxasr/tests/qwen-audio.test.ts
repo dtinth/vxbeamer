@@ -7,6 +7,7 @@ import {
   createDefaultConfigurationCatalogue,
   createQwenAudioProvider,
 } from "../src/index.ts";
+import { resolveQwenAudioUrl } from "../src/providers/qwen-audio.ts";
 import { run, trackVendors } from "./streamingSessionHarness.ts";
 
 /**
@@ -38,6 +39,10 @@ async function startFakeVendor(
     /** Delay `task-started`, to prove audio is held until it arrives. */
     startDelayMs?: number;
     fail?: { code: string; message: string };
+    /** Hang up after the results, never sending `task-finished`. */
+    dropWithoutFinishing?: boolean;
+    /** Send `task-finished` twice. */
+    finishTwice?: boolean;
   } = {},
 ): Promise<FakeVendor> {
   const server: Server = createServer();
@@ -110,15 +115,19 @@ async function startFakeVendor(
             }),
           );
         }
-        ws.send(
-          JSON.stringify({
-            header: { event: "task-finished", task_id: frame.header.task_id },
-            payload: {
-              output: {},
-              usage: { duration: 9, input_tokens: 116, output_tokens: 54, total_tokens: 170 },
-            },
-          }),
-        );
+        if (options.dropWithoutFinishing) {
+          ws.close();
+          return;
+        }
+        const finishedFrame = JSON.stringify({
+          header: { event: "task-finished", task_id: frame.header.task_id },
+          payload: {
+            output: {},
+            usage: { duration: 9, input_tokens: 116, output_tokens: 54, total_tokens: 170 },
+          },
+        });
+        ws.send(finishedFrame);
+        if (options.finishTwice) ws.send(finishedFrame);
       }
     });
   });
@@ -262,4 +271,126 @@ test("both keys are required, and the missing one is named", () => {
   const resolution = catalogue.resolve({ DASHSCOPE_API_KEY: "k" }, `qwen-audio/${MESSAGE}`);
   expect(resolution.ok).toBe(false);
   if (!resolution.ok) expect(resolution.error.missing).toEqual(["DASHSCOPE_WORKSPACE_ID"]);
+});
+
+// --- Things a real vendor does that a tidy fake does not ---
+
+test("a last sentence that never gets sentence_end still counts", async () => {
+  const vendor = await withVendor({
+    sentences: [
+      { id: 1, text: "Hello.", end: true },
+      { id: 2, text: "Wor", end: false },
+      { id: 2, text: "World", end: false },
+    ],
+  });
+
+  const outcome = await run(provider(vendor), Buffer.alloc(3200));
+
+  // Dropping it would silently cut the end off what was said.
+  expect(outcome.text).toBe("Hello. World");
+});
+
+test("an unfinished earlier sentence is kept once a later one starts", async () => {
+  const vendor = await withVendor({
+    sentences: [
+      { id: 1, text: "Hello", end: false },
+      { id: 2, text: "World", end: false },
+    ],
+  });
+
+  const outcome = await run(provider(vendor), Buffer.alloc(3200));
+
+  expect(outcome.partials).toEqual(["Hello", "Hello World"]);
+});
+
+test("a socket closed without task-finished ends the session with an error", async () => {
+  const vendor = await withVendor({ dropWithoutFinishing: true });
+
+  const outcome = await run(provider(vendor), Buffer.alloc(3200));
+
+  // Without this the session waits for an end that is not coming.
+  expect(outcome.error?.message).toContain("closed before the task finished");
+});
+
+test("a duplicated task-finished ends the session once", async () => {
+  const vendor = await withVendor({ finishTwice: true });
+  let ends = 0;
+  let finals = 0;
+  let usages = 0;
+
+  await new Promise<void>((resolve) => {
+    const session = provider(vendor).createSession({
+      onFinal: () => finals++,
+      onUsage: () => usages++,
+      onEnd: () => {
+        ends++;
+        // Give the duplicate time to arrive before judging.
+        setTimeout(resolve, 150);
+      },
+      onError: () => resolve(),
+    });
+    session.sendAudio(Buffer.alloc(3200));
+    session.finish();
+  });
+
+  expect([ends, finals, usages]).toEqual([1, 1, 1]);
+});
+
+test("closing the session on purpose is not reported as a failure", async () => {
+  const vendor = await withVendor({ startDelayMs: 200 });
+  let errors = 0;
+
+  const session = provider(vendor).createSession({ onError: () => errors++ });
+  session.sendAudio(Buffer.alloc(3200));
+  session.close();
+  await new Promise((resolve) => setTimeout(resolve, 150));
+
+  expect(errors).toBe(0);
+});
+
+// --- The workspace endpoint, which every other test bypasses with baseUrl ---
+
+test("the endpoint is the workspace's own, in the Singapore region", () => {
+  expect(resolveQwenAudioUrl({ apiKey: "k", workspaceId: "ws-1" })).toBe(
+    "wss://ws-1.ap-southeast-1.maas.aliyuncs.com/api-ws/v1/inference",
+  );
+});
+
+test("a workspace id that is not a hostname label is refused, and never echoed", () => {
+  // Otherwise the bearer key is sent wherever the value points.
+  for (const bad of ["x.evil.com/#", "a b", " ws", "ws\n", "-ws", ""]) {
+    let message = "";
+    try {
+      resolveQwenAudioUrl({ apiKey: "k", workspaceId: bad });
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    expect(message).not.toBe("");
+    if (bad) expect(message).not.toContain(bad);
+  }
+});
+
+test("a malformed workspace id counts as missing, so the model is not offered", () => {
+  const catalogue = createDefaultConfigurationCatalogue();
+  const env = { DASHSCOPE_API_KEY: "k", DASHSCOPE_WORKSPACE_ID: "x.evil.com/#" };
+
+  expect(catalogue.get(`qwen-audio/${MESSAGE}`)?.isConfigured(env)).toBe(false);
+  expect(catalogue.get("qwen-omni/qwen3.8-omni-flash-realtime")?.isConfigured(env)).toBe(false);
+  expect(catalogue.get(`qwen-audio/${MESSAGE}`)?.resolve(env).ok).toBe(false);
+});
+
+test("a transport error does not leak the workspace id", async () => {
+  // Nothing listens here, so the connection is refused with the host in the message.
+  const dead = createQwenAudioProvider({
+    apiKey: "k",
+    baseUrl: "ws://secret-ws.invalid:1/api-ws/v1/inference",
+    workspaceId: "secret-ws",
+  });
+
+  const outcome = await run(dead, Buffer.alloc(3200));
+
+  expect(outcome.error).toBeDefined();
+  expect(outcome.error?.message).not.toContain("secret-ws");
+  // Proves the redaction ran, rather than the message never naming the host.
+  expect(outcome.error?.message).toContain("<workspace>");
 });

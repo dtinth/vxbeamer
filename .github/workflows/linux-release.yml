@@ -34,7 +34,7 @@ jobs:
           if [[ -n "$INPUT_VERSION" ]]; then
             version="${INPUT_VERSION#v}"
           elif [[ "$REF_TYPE" == branch ]]; then
-            version="0.5.0-test.1" # TEMPORARY, see the trigger above
+            version="0.5.0-test.2" # TEMPORARY, see the trigger above
           else
             version="${TAG#linux-v}"
           fi

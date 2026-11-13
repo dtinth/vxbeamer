@@ -114,3 +114,31 @@ jobs:
           tag: linux-v${{ inputs.version }}
           artifacts: dist/*.tar.gz
           bin: vxbeamer-linux
+
+  # Installs the release the way a user would, so a broken bundle, tag or
+  # archive layout fails here rather than on someone's desktop.
+  verify:
+    needs: release
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    steps:
+      - uses: jdx/mise-action@v4
+        with:
+          install: false
+      - name: Install with mise and run
+        env:
+          VERSION: ${{ inputs.version }}
+          TOOL: packslip:github.com/${{ github.repository }}/apps/linux
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mise --version
+          mise use -g "$TOOL@$VERSION"
+          mise exec -- vxbeamer-linux --version | tee version.txt
+          grep -Fx "vxbeamer-linux $VERSION" version.txt
+          mise which vxbeamer-linux

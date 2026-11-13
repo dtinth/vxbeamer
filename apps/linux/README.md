@@ -29,6 +29,35 @@ also printed to stdout, so the command works in scripts too.
 
 ## Install
 
+### With mise (recommended)
+
+Releases are static binaries for x86_64 and arm64, signed with
+[packslip](https://packslip.dev). [mise](https://mise.jdx.dev) 2026.9.2 or
+newer checks the signature before it installs anything:
+
+```bash
+mise use -g packslip:github.com/dtinth/vxbeamer/apps/linux
+```
+
+Upgrade later with `mise upgrade`. `mise which vxbeamer-linux` prints the
+binary's path, which you need for the keyboard shortcut. `latest` skips
+releases younger than 24 hours, so name an exact version (`…/apps/linux@1.2.3`)
+to get one straight away.
+
+The `.desktop` file ships inside the archive. Copy it into
+`~/.local/share/applications/` and change its `Exec=` line to the full path
+from `mise which`.
+
+### Without mise
+
+Download `vxbeamer-linux-<version>-linux-x64-musl.tar.gz` (or `-arm64-`) from
+a [`linux-v*` release](https://github.com/dtinth/vxbeamer/releases). Extract it,
+then put `vxbeamer-linux` on your `PATH`, for example in `~/.local/bin`. You can
+check the download with `packslip verify packslip.apps-linux.sigstore.json
+--artifact <archive>`.
+
+### From source
+
 You need a Rust toolchain (<https://rustup.rs>). No system libraries are
 needed to build it.
 
@@ -38,9 +67,6 @@ cargo build --release
 install -Dm755 target/release/vxbeamer-linux ~/.local/bin/vxbeamer-linux
 install -Dm644 vxbeamer-linux.desktop ~/.local/share/applications/vxbeamer-linux.desktop
 ```
-
-A prebuilt x86_64 binary is also attached to each run of the
-[Build Linux](../../.github/workflows/linux.yml) workflow.
 
 At runtime it needs a recorder. Plasma installs usually have one already:
 
@@ -104,3 +130,19 @@ Re-pairing keeps both.
 cargo test
 cargo clippy
 ```
+
+## Releasing
+
+Each changesets release also publishes `linux-v<version>`, through the
+`publish-linux` job in `.github/workflows/publish.yml`. To make a release by
+hand, or a test release, push a tag:
+
+```bash
+git tag linux-v1.2.3-test.1 && git push origin linux-v1.2.3-test.1
+```
+
+A version with a `-` suffix is a prerelease. mise installs it only when it is
+asked for by exact version. The `linux-` prefix is required: packslip finds a
+monorepo tool's versions only from tags prefixed with its subpath, its last
+segment or the repository name, so the changesets tag (`vxasr@…`) would be
+invisible to it.

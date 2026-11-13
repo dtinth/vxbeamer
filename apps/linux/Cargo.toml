@@ -1,6 +1,7 @@
 [package]
 name = "vxbeamer-linux"
-version = "0.1.0"
+# Stamped from the release version by .github/workflows/reusable-linux-release.yml.
+version = "0.0.0"
 description = "vxbeamer for the Linux desktop: toggle transcription from a global shortcut, transcript to the clipboard"
 license = "MIT"
 publish = false

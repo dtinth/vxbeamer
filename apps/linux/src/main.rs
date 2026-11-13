@@ -22,6 +22,7 @@ USAGE:
     vxbeamer-linux start         Start listening (no-op if already listening)
     vxbeamer-linux stop          Stop listening (no-op if not listening)
     vxbeamer-linux doctor        Check that everything needed is in place
+    vxbeamer-linux --version     Print the version
 
 Bind `vxbeamer-linux toggle` to a key in System Settings → Keyboard →
 Shortcuts → Add New → Command or Script.
@@ -38,6 +39,10 @@ fn main() -> ExitCode {
         Some("start") => toggle(true, false),
         Some("stop") => toggle(false, true),
         Some("doctor") => doctor(),
+        Some("-V" | "--version" | "version") => {
+            println!("vxbeamer-linux {}", env!("CARGO_PKG_VERSION"));
+            Ok(())
+        }
         Some("-h" | "--help" | "help") => {
             print!("{USAGE}");
             Ok(())

@@ -3,10 +3,10 @@ name: Build Linux
 on:
   push:
     branches: [main]
-    paths: [apps/linux/**, .github/workflows/linux.yml]
+    paths: [apps/linux/**, .github/workflows/linux.yml, .github/workflows/*linux-release.yml]
   pull_request:
     branches: [main]
-    paths: [apps/linux/**, .github/workflows/linux.yml]
+    paths: [apps/linux/**, .github/workflows/linux.yml, .github/workflows/*linux-release.yml]
   workflow_dispatch:
 
 jobs:

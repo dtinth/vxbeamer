@@ -9,9 +9,6 @@ name: Linux Release
 on:
   push:
     tags: ["linux-v*"]
-    # TEMPORARY: one test release from the PR branch (this session cannot
-    # push tags). Removed in the next commit.
-    branches: [claude/gifted-mendel-46i3im]
   workflow_dispatch:
     inputs:
       version:
@@ -28,13 +25,10 @@ jobs:
       - id: version
         env:
           TAG: ${{ github.ref_name }}
-          REF_TYPE: ${{ github.ref_type }}
           INPUT_VERSION: ${{ inputs.version }}
         run: |
           if [[ -n "$INPUT_VERSION" ]]; then
             version="${INPUT_VERSION#v}"
-          elif [[ "$REF_TYPE" == branch ]]; then
-            version="0.5.0-test.2" # TEMPORARY, see the trigger above
           else
             version="${TAG#linux-v}"
           fi

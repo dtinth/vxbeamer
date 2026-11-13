@@ -70,11 +70,11 @@ install -Dm644 vxbeamer-linux.desktop ~/.local/share/applications/vxbeamer-linux
 
 At runtime it needs a recorder. Plasma installs usually have one already:
 
-| Distro          | Package                     |
-| --------------- | --------------------------- |
-| Debian / Ubuntu | `pulseaudio-utils`          |
-| Fedora          | `pulseaudio-utils`          |
-| Arch            | `libpulse`                  |
+| Distro          | Package            |
+| --------------- | ------------------ |
+| Debian / Ubuntu | `pulseaudio-utils` |
+| Fedora          | `pulseaudio-utils` |
+| Arch            | `libpulse`         |
 
 ## Pair
 
@@ -102,13 +102,13 @@ is on the session's `PATH`.
 
 ## Commands
 
-| Command                        | What it does                                         |
-| ------------------------------ | ---------------------------------------------------- |
-| `vxbeamer-linux toggle`        | Start listening, or stop and copy the transcript     |
-| `vxbeamer-linux start`         | Start listening (does nothing if already listening)  |
-| `vxbeamer-linux stop`          | Stop listening (does nothing if not listening)       |
-| `vxbeamer-linux pair <link>`   | Sign in with a pairing link                          |
-| `vxbeamer-linux doctor`        | Check pairing, session, recorder and clipboard       |
+| Command                      | What it does                                        |
+| ---------------------------- | --------------------------------------------------- |
+| `vxbeamer-linux toggle`      | Start listening, or stop and copy the transcript    |
+| `vxbeamer-linux start`       | Start listening (does nothing if already listening) |
+| `vxbeamer-linux stop`        | Stop listening (does nothing if not listening)      |
+| `vxbeamer-linux pair <link>` | Sign in with a pairing link                         |
+| `vxbeamer-linux doctor`      | Check pairing, session, recorder and clipboard      |
 
 `start` and `stop` suit push-to-talk setups that can run one command on key
 press and another on release.
@@ -117,10 +117,10 @@ press and another on release.
 
 Optional keys in `~/.config/vxbeamer/linux.json`:
 
-| Key             | Meaning                                                                                                                             |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Key             | Meaning                                                                                                                                                                                                                                                  |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `recordCommand` | Recorder argv, e.g. `["parecord", "--device=my-mic", "--raw", "--format=s16le", "--channels=1", "--rate=16000"]` to pick a microphone other than the default (`pactl list short sources` lists them). It must write raw 16 kHz mono s16le PCM to stdout. |
-| `configuration` | ASR configuration id from `/asr/configurations`; the backend's default when unset.                                                  |
+| `configuration` | ASR configuration id from `/asr/configurations`; the backend's default when unset.                                                                                                                                                                       |
 
 Re-pairing keeps both.
 
@@ -135,11 +135,15 @@ cargo clippy
 
 Each changesets release also publishes `linux-v<version>`, through the
 `publish-linux` job in `.github/workflows/publish.yml`. To make a release by
-hand, or a test release, push a tag:
+hand, or a test release, run the **Linux Release** workflow from the Actions
+tab with a version such as `1.2.3-test.1`, or push a tag:
 
 ```bash
 git tag linux-v1.2.3-test.1 && git push origin linux-v1.2.3-test.1
 ```
+
+Each release is installed with mise on x64 and arm64 runners before the
+workflow passes.
 
 A version with a `-` suffix is a prerelease. mise installs it only when it is
 asked for by exact version. The `linux-` prefix is required: packslip finds a

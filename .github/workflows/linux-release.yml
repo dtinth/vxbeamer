@@ -1,13 +1,22 @@
 name: Linux Release
 
-# A manual or test release of vxbeamer-linux: push a tag `linux-vX.Y.Z`, or
-# `linux-vX.Y.Z-test.N` for a prerelease that `mise` never picks unless asked
-# for by exact version. Regular releases come from the Publish workflow,
-# alongside the changesets release.
+# A manual or test release of vxbeamer-linux: run this workflow from the
+# Actions tab with a version, or push a tag `linux-vX.Y.Z`. A version such as
+# `X.Y.Z-test.N` is a prerelease that `mise` never picks unless asked for by
+# exact version. Regular releases come from the Publish workflow, alongside
+# the changesets release.
 
 on:
   push:
     tags: ["linux-v*"]
+    # TEMPORARY: one test release from the PR branch (this session cannot
+    # push tags). Removed in the next commit.
+    branches: [claude/gifted-mendel-46i3im]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version without the leading v, e.g. 1.2.3 or 1.2.3-test.1
+        required: true
 
 jobs:
   version:
@@ -19,10 +28,18 @@ jobs:
       - id: version
         env:
           TAG: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
-          version="${TAG#linux-v}"
+          if [[ -n "$INPUT_VERSION" ]]; then
+            version="${INPUT_VERSION#v}"
+          elif [[ "$REF_TYPE" == branch ]]; then
+            version="0.5.0-test.1" # TEMPORARY, see the trigger above
+          else
+            version="${TAG#linux-v}"
+          fi
           if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
-            echo "::error::Tag $TAG does not name a semver version"
+            echo "::error::$version is not a semver version"
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"

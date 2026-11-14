@@ -1,5 +1,14 @@
 # backend
 
+## 0.6.0
+
+### Patch Changes
+
+- Updated dependencies [2817725]
+- Updated dependencies [5b960a3]
+- Updated dependencies [9086edb]
+  - vxasr@0.6.0
+
 ## 0.5.0
 
 ### Minor Changes

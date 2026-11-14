@@ -84,3 +84,15 @@ jobs:
     with:
       upload-artifacts: false
       release-tag: ${{ needs.release.outputs.release-tag }}
+
+  publish-linux:
+    name: Publish Linux binaries
+    needs: release
+    if: needs.release.outputs.published == 'true'
+    uses: ./.github/workflows/reusable-linux-release.yml
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    with:
+      version: ${{ needs.release.outputs.release-version }}

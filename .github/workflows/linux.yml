@@ -1,0 +1,35 @@
+name: Build Linux
+
+on:
+  push:
+    branches: [main]
+    paths: [apps/linux/**, .github/workflows/linux.yml, .github/workflows/*linux-release.yml]
+  pull_request:
+    branches: [main]
+    paths: [apps/linux/**, .github/workflows/linux.yml, .github/workflows/*linux-release.yml]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Test and build vxbeamer-linux
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: apps/linux
+    steps:
+      - uses: actions/checkout@v6
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/linux
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
+      - run: cargo build --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vxbeamer-linux-x86_64
+          path: |
+            apps/linux/target/release/vxbeamer-linux
+            apps/linux/vxbeamer-linux.desktop

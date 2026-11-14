@@ -1,5 +1,16 @@
 # vxasr
 
+## 0.5.0
+
+### Minor Changes
+
+- a590e4e: Add the `qwen-audio` provider with `qwen-audio-3.1-asr-flash-message` and `qwen-audio-3.1-asr-flash-streaming`. It speaks DashScope's duplex `run-task` protocol (a third Qwen wire format) and, unlike the Omni models, transcribes while the audio is still arriving. Both are served only from a workspace-specific endpoint, so they need `DASHSCOPE_WORKSPACE_ID`, and the vendor lists no dated snapshot for either. Priced at $0.93 input / $0.70 output per 1M tokens (Singapore), from the vendor's pricing page.
+- cadd50c: Add `qwen-omni/qwen3.8-omni-flash-realtime`. It is served only from a workspace-specific endpoint, so it also needs `DASHSCOPE_WORKSPACE_ID`. The vendor lists no dated snapshot for it yet, so it is the one unpinned Qwen model id; pin it when one appears. Priced from the vendor's page: $0.93 audio and $0.23 text input, $0.70 text output, per 1M tokens (Singapore).
+
+### Patch Changes
+
+- fd45cf2: `qwen-audio` now turns on the vendor's native text polishing (`disfluency_removal_enabled`) by default, for both models. It drops fillers such as "um", and in testing it also kept English words in Latin instead of spelling them in Thai script and kept spoken numbers as digits. Pass `disfluencyRemoval: false` to the provider to turn it off.
+
 ## 0.4.0
 
 ### Minor Changes

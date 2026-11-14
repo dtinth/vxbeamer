@@ -35,6 +35,12 @@ export { createOpenAIProvider, OPENAI_DEFAULT_MODEL } from "./providers/openai.t
 export type { OpenAIProviderConfig } from "./providers/openai.ts";
 export { createXaiProvider, XAI_DEFAULT_MODEL, XAI_PRICE_PER_SECOND } from "./providers/xai.ts";
 export type { XaiProviderConfig } from "./providers/xai.ts";
+export {
+  createElevenLabsProvider,
+  ELEVENLABS_DEFAULT_MODEL,
+  ELEVENLABS_PRICE_PER_SECOND,
+} from "./providers/elevenlabs.ts";
+export type { ElevenLabsProviderConfig } from "./providers/elevenlabs.ts";
 export { createOpenRouterProvider, OPENROUTER_DEFAULT_MODEL } from "./providers/openrouter.ts";
 export type { OpenRouterProviderConfig } from "./providers/openrouter.ts";
 export { createMetaMuseProvider, META_MUSE_DEFAULT_MODEL } from "./providers/meta-muse.ts";
@@ -79,6 +85,7 @@ export {
   qwenOmniProviderDefinition,
   qwenProviderDefinition,
   xaiProviderDefinition,
+  elevenLabsProviderDefinition,
 } from "./providers/builtin.ts";
 export {
   buildConfigurationId,

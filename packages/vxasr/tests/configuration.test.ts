@@ -210,6 +210,7 @@ test("the default catalogue offers each real model, enhanced only where that hel
     "openai/gpt-live-transcribe",
     // Raw only, like OpenAI: it renders loanwords in Latin unprompted.
     "xai/grok-voice-transcribe-2.0",
+    "elevenlabs/scribe_v2_realtime",
     // Raw only: plain batch transcription endpoints, nothing to enhance.
     // Ordered as declared, which is also fastest-first after they were timed
     // against each other rather than only read (dtinth/vxbeamer#86).
@@ -264,6 +265,9 @@ test("no configuration names a floating model id", () => {
     // Just this one id, not its provider: xAI lists no dated snapshot of
     // Grok Voice Transcribe 2.0 (it is simply "the default").
     if (configuration.model === "grok-voice-transcribe-2.0") continue;
+    // Just this one id, not its provider: ElevenLabs lists no dated snapshot of
+    // Scribe Realtime v2.
+    if (configuration.model === "scribe_v2_realtime") continue;
     // Just this one id, not its provider: the vendor's docs list no dated
     // snapshot for Qwen3.8 yet. Drop this line when one appears and pin to it.
     if (configuration.model === "qwen3.8-omni-flash-realtime") continue;

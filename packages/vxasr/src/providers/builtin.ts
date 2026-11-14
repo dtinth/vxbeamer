@@ -42,6 +42,7 @@ import {
   ELEVENLABS_DEFAULT_MODEL,
   type ElevenLabsProviderConfig,
 } from "./elevenlabs.ts";
+import { createIAppProvider, IAPP_DEFAULT_MODEL, type IAppProviderConfig } from "./iapp.ts";
 import { createMockProvider } from "./mock.ts";
 
 export const qwenProviderDefinition: ProviderDefinition = defineProvider<QwenProviderConfig>({
@@ -270,6 +271,26 @@ export const elevenLabsProviderDefinition: ProviderDefinition =
     },
   });
 
+export const iAppProviderDefinition: ProviderDefinition = defineProvider<IAppProviderConfig>({
+  id: "iapp",
+  label: "iApp (realtime, Thai only)",
+  // The vendor offers no model choice: this is the model its `ready` message
+  // reported, used as the configuration's label.
+  models: [IAPP_DEFAULT_MODEL],
+  // Confirmed (testdata/OBSERVATIONS.md, "iApp realtime"): a 9.2 s clip sent at
+  // once finishes in about 1.7 s with the same text as live pace. The provider
+  // paces anything long enough to hit the vendor's 120 s backlog limit.
+  supportsFastDump: true,
+  resolveConfig(env) {
+    const apiKey = env.IAPP_API_KEY;
+    if (!apiKey) return { ok: false, missing: ["IAPP_API_KEY"] };
+    return { ok: true, config: { apiKey } };
+  },
+  create(config, model) {
+    return createIAppProvider({ ...config, model });
+  },
+});
+
 export const openRouterProviderDefinition: ProviderDefinition =
   defineProvider<OpenRouterProviderConfig>({
     id: "openrouter",
@@ -431,6 +452,7 @@ export const builtinProviderDefinitions: readonly ProviderDefinition[] = [
   openAIProviderDefinition,
   xaiProviderDefinition,
   elevenLabsProviderDefinition,
+  iAppProviderDefinition,
   openRouterProviderDefinition,
   metaProviderDefinition,
   paxaProviderDefinition,

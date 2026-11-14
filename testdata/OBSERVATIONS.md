@@ -345,6 +345,46 @@ On the 9.2 s Thai fixture (about 30 sessions):
 Not covered: noisy audio, real Thai speech with numbers, a session longer than a
 minute at live pace.
 
+### iApp realtime (2026-11-14)
+
+iApp's `realtime-v2`, `wss://api.iapp.co.th/v3/store/speech/speech-to-text/realtime-v2`,
+header `apikey` (a bad or missing key is an HTTP 401 before the upgrade). The model
+cannot be chosen; the server's `ready` message reports `chinda-asr-realtime-v1`. Free
+during the vendor's launch (their docs). The client sends a JSON settings message
+(`language_code: "th"` is the only language, `sample_rate`, `encoding`, `latency_ms`,
+`end_silence_ms`); the server answers `ready`; audio is binary PCM16; the text message
+`end` finishes the turn, followed by the remaining finals and `done`.
+
+On the 9.2 s Thai fixture (about 12 sessions):
+
+- **Text**: Thai, with English words written **in Thai script**
+  (`เฟรมเวิร์ค`, `เอเลเซีย` for Elysia, `ดีพลอย`, `มองโก้ดีบีแอดลัส`), as the vendor's docs
+  say; `deploy to Vercel` came out as `ดีพลอยไปเที่ยวเลวเวย์`. The same text in the live
+  run and the fast runs at the default settings.
+- **English speech is not supported**: the synthetic English clips came back as Thai
+  nonsense (`ไอฮันตีแอปเอิลส์เตอร์ฟิฟตี…`). A 37 s mixed clip came through fine in its Thai
+  parts and mangled in the English ones, with a few Latin words slipping through.
+- **Partials**: 14 at the default `latency_ms` (560), the first at 1.1–1.5 s, about every
+  0.6 s, each replacing the one before. At `latency_ms` 80 there are 39 (the first at
+  0.8 s), at 320 24, at 1120 7–14 (the first at 1.2 s).
+- **`latency_ms` changes the text**: 80 wrote `มังโก้ดีแอดลัส` (dropping the `บี` of
+  MongoDB) in 2 of 2 runs, and 320 `เฟรมเวิร์ค`/`มังโกดีบีแอดลาส`; 560 wrote
+  `มองโก้ดีบีแอดลัส`. So the provider keeps the vendor's default.
+- **End to done**: 19–26 ms at live pace; the sentence's final arrives about 0.45 s before
+  the audio ends (the clip ends with silence longer than `end_silence_ms`).
+- **Faster than real time works, and gives the same text**: the 9.2 s clip all at once
+  finished in 1.7 s (0.75 s in the provider), a 37 s clip in 2.5 s.
+- **`TOO_FAST`** (`more than 120 s of audio is waiting; send audio in real time`) ends
+  the session when too much audio is waiting: a 150 s clip sent at once got it 0.5 s
+  in, with no final text. The provider therefore sends up to 90 s at once and the rest
+  at twice real time: 149 s took 30 s and 298 s took 106 s, no error, so the vendor
+  clears that backlog at least twice as fast as it arrives.
+- **Concurrency**: two sessions at once worked; a third on the same key got HTTP 429.
+- A 0.1 s clip finishes normally with no text.
+
+Not covered: noisy audio, real Thai speech with numbers, `end_silence_ms` variations,
+the `BUSY` limit (20 live sessions at launch, per the docs).
+
 ### Pacing: fast dump vs realtime
 
 `qwen-omni/qwen3.5-omni-flash-realtime-2026-03-15`, same fixture, 20 runs per

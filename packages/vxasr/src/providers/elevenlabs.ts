@@ -2,6 +2,7 @@ import WebSocket from "ws";
 import type { ASRCreateSessionOptions, ASRProvider, ASRSession } from "../asr.ts";
 import { BYTES_PER_SECOND } from "../audio.ts";
 import { createBufferedSocketSession } from "./bufferedSocketSession.ts";
+import { joinText } from "./joinText.ts";
 
 /**
  * ElevenLabs Scribe Realtime v2, over its realtime speech-to-text WebSocket
@@ -75,19 +76,6 @@ export interface ElevenLabsProviderConfig {
   noVerbatim?: boolean;
   /** Overrides {@link AUTO_COMMIT_SETTLE_MS}. */
   settleMs?: number;
-}
-
-/**
- * Join two segments the vendor cut apart. Thai has no inter-word spaces, so a
- * space goes in only where a Latin letter or digit meets something that is not
- * already a space.
- */
-function join(a: string, b: string): string {
-  if (!a) return b;
-  if (!b) return a;
-  const latin = /[A-Za-z0-9]/;
-  const edge = latin.test(a.at(-1)!) || latin.test(b[0]!);
-  return edge && !/\s/.test(a.at(-1)!) && !/\s/.test(b[0]!) ? `${a} ${b}` : a + b;
 }
 
 /** Every `message_type` the vendor documents as an error. */
@@ -223,10 +211,10 @@ export function createElevenLabsProvider(config: ElevenLabsProviderConfig): ASRP
             if (endRequested) sendCommit();
           } else if (type === "partial_transcript") {
             interim = event.text ?? "";
-            const running = join(segments, interim);
+            const running = joinText(segments, interim);
             if (running) callbacks.onPartial?.(running);
           } else if (type === "committed_transcript") {
-            segments = join(segments, event.text ?? "");
+            segments = joinText(segments, event.text ?? "");
             interim = "";
             // A commit the vendor made by itself (~36 s) does not end the session.
             if (!commitSent) return;

@@ -2,6 +2,7 @@ import WebSocket from "ws";
 import type { ASRCreateSessionOptions, ASRProvider, ASRSession } from "../asr.ts";
 import { BYTES_PER_SECOND } from "../audio.ts";
 import { createBufferedSocketSession } from "./bufferedSocketSession.ts";
+import { joinText } from "./joinText.ts";
 
 /**
  * xAI's Grok Voice Transcribe, over its streaming speech-to-text WebSocket
@@ -61,19 +62,6 @@ export interface XaiProviderConfig {
   format?: boolean;
 }
 
-/**
- * Join two pieces of text the vendor cut apart. Thai has no inter-word spaces,
- * but the vendor does put one between a Latin word and Thai text, so a space
- * goes in wherever a Latin letter or digit meets anything that is not a space.
- */
-function join(a: string, b: string): string {
-  if (!a) return b;
-  if (!b) return a;
-  const latin = /[A-Za-z0-9]/;
-  const edge = latin.test(a.at(-1)!) || latin.test(b[0]!);
-  return edge && !/\s/.test(a.at(-1)!) && !/\s/.test(b[0]!) ? `${a} ${b}` : a + b;
-}
-
 interface ServerEvent {
   type?: string;
   text?: string;
@@ -128,8 +116,8 @@ export function createXaiProvider(config: XaiProviderConfig): ASRProvider {
       };
       const sendDone = () => ws.send(JSON.stringify({ type: "audio.done" }));
 
-      const current = () => join(lockedChunks, interim);
-      const transcript = () => join(utterances, current());
+      const current = () => joinText(lockedChunks, interim);
+      const transcript = () => joinText(utterances, current());
 
       function fail(error: Error) {
         if (done) return;
@@ -176,11 +164,11 @@ export function createXaiProvider(config: XaiProviderConfig): ASRProvider {
               const text = event.text ?? "";
               if (event.speech_final) {
                 // The whole utterance, stitched: it replaces what was built up.
-                utterances = join(utterances, text);
+                utterances = joinText(utterances, text);
                 lockedChunks = "";
                 interim = "";
               } else if (event.is_final) {
-                lockedChunks = join(lockedChunks, text);
+                lockedChunks = joinText(lockedChunks, text);
                 interim = "";
               } else {
                 interim = text;

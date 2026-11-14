@@ -235,6 +235,16 @@ test("the ElevenLabs model is selectable with ELEVENLABS_API_KEY and not without
   expect(expectOk(withKey.select({ configuration: id })).configurationId).toBe(id);
 });
 
+test("the iApp model is selectable with IAPP_API_KEY and not without it", () => {
+  const id = "iapp/chinda-asr-realtime-v1";
+  const without = createConfigurationSelector({ DASHSCOPE_API_KEY: "dk" });
+  const withKey = createConfigurationSelector({ IAPP_API_KEY: "ik" });
+
+  expect(without.isEnabled(id)).toBe(false);
+  expect(withKey.isEnabled(id)).toBe(true);
+  expect(expectOk(withKey.select({ configuration: id })).configurationId).toBe(id);
+});
+
 test("isEnabled answers the same question as select, without building a provider", () => {
   const selector = createConfigurationSelector({
     DASHSCOPE_API_KEY: "dk",

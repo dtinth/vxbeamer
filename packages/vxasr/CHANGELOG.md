@@ -1,5 +1,13 @@
 # vxasr
 
+## 0.6.0
+
+### Minor Changes
+
+- 2817725: Add an `elevenlabs` provider for Scribe Realtime v2 (`scribe_v2_realtime`) over ElevenLabs' realtime speech-to-text WebSocket. It needs `ELEVENLABS_API_KEY` and is offered as `elevenlabs/scribe_v2_realtime`. It accepts audio faster than real time (a 9.2 s clip at once finishes in about 1.6 s), so it is declared fast-dump capable. A recording under the vendor's 0.3 s commit minimum is padded with silence rather than refused. Billed at $0.22 per hour of audio.
+- 5b960a3: Add an `iapp` provider for iApp's realtime speech-to-text (`chinda-asr-realtime-v1`, `wss://api.iapp.co.th/v3/store/speech/speech-to-text/realtime-v2`). It needs `IAPP_API_KEY` and is offered as `iapp/chinda-asr-realtime-v1`. Thai only: English words come back in Thai script. It accepts audio faster than real time (a 9.2 s clip at once finishes in about 1.7 s), so it is declared fast-dump capable; the vendor ends a session with `TOO_FAST` when more than 120 s of audio is waiting, so a long recording is sent 90 s at once and the rest at twice real time. Free during the vendor's launch, so the price defaults to zero. Also shares one `joinText` helper between the `xai`, `elevenlabs` and `iapp` providers.
+- 9086edb: Add an `xai` provider for Grok Voice Transcribe 2.0 over xAI's streaming speech-to-text WebSocket. It needs `XAI_API_KEY` and is offered as `xai/grok-voice-transcribe-2.0`. Partials arrive about a second in. The vendor's `transcript.done` carries no text, so the final text is built from its utterance finals. Billed at $0.20 per hour of audio.
+
 ## 0.5.0
 
 ### Minor Changes

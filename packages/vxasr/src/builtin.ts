@@ -152,6 +152,15 @@ export const builtinConfigurations: readonly ConfigurationSpec[] = [
     model: "scribe_v2_realtime",
     label: "ElevenLabs Scribe Realtime v2 (raw)",
   },
+  // iApp's realtime ASR, tried live: Thai only, and it writes English words in
+  // Thai script (its docs say so) rather than Latin, so raw only: there is
+  // nothing for an enhancement to do that the vendor's own output contradicts.
+  // The id is the model the vendor reports; it cannot be chosen.
+  {
+    provider: "iapp",
+    model: "chinda-asr-realtime-v1",
+    label: "iApp Realtime (chinda-asr-realtime-v1, raw)",
+  },
   // Every OpenRouter entry names its model explicitly, including the one that
   // is currently the provider's default. Relying on omission would tie a
   // configuration id to whichever model happens to lead the list, so

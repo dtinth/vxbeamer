@@ -41,6 +41,8 @@ export {
   ELEVENLABS_PRICE_PER_SECOND,
 } from "./providers/elevenlabs.ts";
 export type { ElevenLabsProviderConfig } from "./providers/elevenlabs.ts";
+export { createIAppProvider, IAPP_DEFAULT_MODEL, IAPP_PRICE_PER_SECOND } from "./providers/iapp.ts";
+export type { IAppProviderConfig } from "./providers/iapp.ts";
 export { createOpenRouterProvider, OPENROUTER_DEFAULT_MODEL } from "./providers/openrouter.ts";
 export type { OpenRouterProviderConfig } from "./providers/openrouter.ts";
 export { createMetaMuseProvider, META_MUSE_DEFAULT_MODEL } from "./providers/meta-muse.ts";
@@ -86,6 +88,7 @@ export {
   qwenProviderDefinition,
   xaiProviderDefinition,
   elevenLabsProviderDefinition,
+  iAppProviderDefinition,
 } from "./providers/builtin.ts";
 export {
   buildConfigurationId,

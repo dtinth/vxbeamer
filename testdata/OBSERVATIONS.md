@@ -260,6 +260,50 @@ letter in 4 of 4; on the filler clip the fillers are removed 4 of 4.
 Conclusion: polishing is the one setting that helped on every axis, so
 `qwen-audio` turns it on by default (`disfluencyRemoval: false` to turn it off).
 
+### Scribe Realtime v2 (2026-11-14)
+
+ElevenLabs' `scribe_v2_realtime`, `wss://api.elevenlabs.io/v1/speech-to-text/realtime`,
+header `xi-api-key`. $0.22 per hour (the same as `scribe_v3_live`), per the vendor's
+pricing page. The server speaks first (`session_started`); audio is JSON
+(`input_audio_chunk`, base64, `commit`, `sample_rate`); the turn ends with an empty
+chunk and `commit: true`.
+
+On the 9.2 s Thai fixture (about 30 sessions):
+
+- **Text** is the same in every run: Thai in Thai script, `Project`, `TypeScript`,
+  `framework`, `Elysia`, `deploy`, `Railway`, `MongoDB Atlas` in Latin (5 of 5 at live
+  pace, 5 of 5 fast, 5 of 5 with `language_code=th`). `Elysia` right in all of them.
+- **Partials**: none in the first 2 s (the vendor says processing starts after the
+  first 2 s of audio), the first at about 2.2 s after audio starts, then one a second.
+  Each _replaces_ the one before. They are shaky: the first two are guesses (`Project
+นี้คืออะไรครับ?`) and one went to `Project ниии-- project` before recovering.
+- **Commit to final**: 0.25-0.31 s at live pace in 5 of 5 sessions.
+- **Faster than real time works, and gives the same text.** The 9.2 s clip sent all at
+  once finished in 1.5-1.8 s (5 sessions); a 28.7 s clip in 2.5 s; a 37.3 s clip of
+  different speech in 2.7 s. The one difference seen is the Thai spelling of
+  `framework` in the 28 s clip (`เฟรมเวิร์ก` fast, `framework` live).
+- **A commit with under 0.3 s of uncommitted audio is refused**: `commit_throttled`,
+  then the socket closes. A 0.1 s clip hits it; the provider pads with silence.
+- **Commits sent in quick succession are throttled too**: a commit every 9.2 s of
+  audio, with the audio sent all at once, got `commit_throttled`.
+- **The vendor commits by itself** after about 36 s of audio. Sent faster than real
+  time, that segment can arrive _after_ our own commit was sent, and nothing on the
+  wire says which committed segment answers our commit, so for a recording over 30 s
+  the provider waits for segments to stop arriving (1 s). Checked live on the 37 s clip.
+- **A clip made of the same sentence four times** lost most of its text, at live pace
+  and fast (`Project นี้เขียนด้วย | มือ โอเค`); a 37 s clip of different speech came
+  through whole. So it looks like handling of repeated audio, not the 36 s limit, but
+  the cause is not known.
+- **`no_verbatim=true`** removed `um`/`uh` (2 of 2, synthetic English), and wrote the
+  phone number as `0812345678` and the year as `2026` in 1 of 2 runs (the other spelled
+  them out). Default is verbatim: fillers kept, numbers as words, `BHT` for baht.
+- **`scribe_v3_live`** (3 runs): `โปรเจกต์` in Thai script, but `Framework` and `Deploy`
+  capitalized mid-sentence, and 26 partials instead of 9. Not declared.
+- Errors are `{"message_type":"auth_error","error":"…"}` then a close (bad key).
+
+Not covered: noisy audio, real Thai speech with numbers, a session longer than a
+minute at live pace.
+
 ### Pacing: fast dump vs realtime
 
 `qwen-omni/qwen3.5-omni-flash-realtime-2026-03-15`, same fixture, 20 runs per

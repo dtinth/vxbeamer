@@ -33,6 +33,12 @@ export { createBytePlusProvider } from "./providers/byteplus.ts";
 export type { BytePlusProviderConfig } from "./providers/byteplus.ts";
 export { createOpenAIProvider, OPENAI_DEFAULT_MODEL } from "./providers/openai.ts";
 export type { OpenAIProviderConfig } from "./providers/openai.ts";
+export {
+  createElevenLabsProvider,
+  ELEVENLABS_DEFAULT_MODEL,
+  ELEVENLABS_PRICE_PER_SECOND,
+} from "./providers/elevenlabs.ts";
+export type { ElevenLabsProviderConfig } from "./providers/elevenlabs.ts";
 export { createOpenRouterProvider, OPENROUTER_DEFAULT_MODEL } from "./providers/openrouter.ts";
 export type { OpenRouterProviderConfig } from "./providers/openrouter.ts";
 export { createMetaMuseProvider, META_MUSE_DEFAULT_MODEL } from "./providers/meta-muse.ts";
@@ -76,6 +82,7 @@ export {
   qwenAudioProviderDefinition,
   qwenOmniProviderDefinition,
   qwenProviderDefinition,
+  elevenLabsProviderDefinition,
 } from "./providers/builtin.ts";
 export {
   buildConfigurationId,

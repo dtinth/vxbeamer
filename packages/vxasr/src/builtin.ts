@@ -138,6 +138,13 @@ export const builtinConfigurations: readonly ConfigurationSpec[] = [
   // OpenAI does not publish dated variants of it the way DashScope does, so
   // there is nothing to pin to — same situation as BytePlus's mode ids.
   { provider: "openai", label: "OpenAI gpt-live-transcribe (raw)" },
+  // Scribe Realtime v2, tried live: Thai in Thai script and English words in
+  // Latin, unprompted, so raw only. Undated id.
+  {
+    provider: "elevenlabs",
+    model: "scribe_v2_realtime",
+    label: "ElevenLabs Scribe Realtime v2 (raw)",
+  },
   // Every OpenRouter entry names its model explicitly, including the one that
   // is currently the provider's default. Relying on omission would tie a
   // configuration id to whichever model happens to lead the list, so

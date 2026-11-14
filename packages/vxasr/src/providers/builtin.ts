@@ -36,6 +36,11 @@ import {
   createAIGatewayProvider,
   type AIGatewayProviderConfig,
 } from "./ai-gateway.ts";
+import {
+  createElevenLabsProvider,
+  ELEVENLABS_DEFAULT_MODEL,
+  type ElevenLabsProviderConfig,
+} from "./elevenlabs.ts";
 import { createMockProvider } from "./mock.ts";
 
 export const qwenProviderDefinition: ProviderDefinition = defineProvider<QwenProviderConfig>({
@@ -223,6 +228,27 @@ export const openAIProviderDefinition: ProviderDefinition = defineProvider<OpenA
   },
 });
 
+export const elevenLabsProviderDefinition: ProviderDefinition =
+  defineProvider<ElevenLabsProviderConfig>({
+    id: "elevenlabs",
+    label: "ElevenLabs (Scribe Realtime)",
+    // One undated model id: the vendor lists no snapshot. `scribe_v3_live` is
+    // the same price and was tried, but is not declared: it was not asked for,
+    // and it capitalises English words mid-sentence on the test fixture.
+    models: [ELEVENLABS_DEFAULT_MODEL],
+    // Confirmed (testdata/OBSERVATIONS.md, "Scribe Realtime v2"): a 9.2 s clip
+    // sent at once finishes in about 1.6 s with the same text as live pace.
+    supportsFastDump: true,
+    resolveConfig(env) {
+      const apiKey = env.ELEVENLABS_API_KEY;
+      if (!apiKey) return { ok: false, missing: ["ELEVENLABS_API_KEY"] };
+      return { ok: true, config: { apiKey } };
+    },
+    create(config, model) {
+      return createElevenLabsProvider({ ...config, model });
+    },
+  });
+
 export const openRouterProviderDefinition: ProviderDefinition =
   defineProvider<OpenRouterProviderConfig>({
     id: "openrouter",
@@ -382,6 +408,7 @@ export const builtinProviderDefinitions: readonly ProviderDefinition[] = [
   qwenAudioProviderDefinition,
   bytePlusProviderDefinition,
   openAIProviderDefinition,
+  elevenLabsProviderDefinition,
   openRouterProviderDefinition,
   metaProviderDefinition,
   paxaProviderDefinition,

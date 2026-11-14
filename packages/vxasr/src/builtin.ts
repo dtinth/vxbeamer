@@ -145,6 +145,13 @@ export const builtinConfigurations: readonly ConfigurationSpec[] = [
     model: "grok-voice-transcribe-2.0",
     label: "xAI Grok Voice Transcribe 2.0 (raw)",
   },
+  // Scribe Realtime v2, tried live: Thai in Thai script and English words in
+  // Latin, unprompted, so raw only. Undated id.
+  {
+    provider: "elevenlabs",
+    model: "scribe_v2_realtime",
+    label: "ElevenLabs Scribe Realtime v2 (raw)",
+  },
   // Every OpenRouter entry names its model explicitly, including the one that
   // is currently the provider's default. Relying on omission would tie a
   // configuration id to whichever model happens to lead the list, so

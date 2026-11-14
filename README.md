@@ -114,6 +114,7 @@ services:
       - BYTEPLUS_API_KEY
       - OPENAI_API_KEY
       - XAI_API_KEY
+      - ELEVENLABS_API_KEY
       - OPENROUTER_API_KEY
       - META_API_KEY
       - PAXA_API_KEY
@@ -143,6 +144,7 @@ services:
 | `BYTEPLUS_BASE_URL`      | No       | BytePlus endpoint base, without the mode path segment                                                                                                                                    |
 | `OPENAI_API_KEY`         | No       | OpenAI key; enables the `openai` (`gpt-live-transcribe`) configuration                                                                                                                   |
 | `XAI_API_KEY`            | No       | xAI key; enables the `xai` (`grok-voice-transcribe-2.0`, streaming) configuration                                                                                                        |
+| `ELEVENLABS_API_KEY`     | No       | ElevenLabs key; enables the `elevenlabs` (`scribe_v2_realtime`) configuration                                                                                                            |
 | `OPENROUTER_API_KEY`     | No       | OpenRouter key; enables the `openrouter` configurations (`microsoft/mai-transcribe-2`, `meta/muse-voice-transcribe-1.0`, `microsoft/mai-transcribe-1.5`, `google/gemini-3.5-transcribe`) |
 | `META_API_KEY`           | No       | Meta key; enables the `meta` (`muse-voice-transcribe-1.0`, direct realtime API) configuration                                                                                            |
 | `PAXA_API_KEY`           | No       | Paxa Labs key; enables the `paxa` configurations (batch and realtime)                                                                                                                    |
@@ -242,6 +244,7 @@ A configuration is a provider, a model, and the post-processing chain applied to
 | `byteplus/bigmodel_nostream+groq`                  | `BYTEPLUS_API_KEY`, `GROQ_API_KEY`            |
 | `openai/gpt-live-transcribe`                       | `OPENAI_API_KEY`                              |
 | `xai/grok-voice-transcribe-2.0`                    | `XAI_API_KEY`                                 |
+| `elevenlabs/scribe_v2_realtime`                    | `ELEVENLABS_API_KEY`                          |
 | `openrouter/microsoft/mai-transcribe-2`            | `OPENROUTER_API_KEY`                          |
 | `openrouter/meta/muse-voice-transcribe-1.0`        | `OPENROUTER_API_KEY`                          |
 | `openrouter/microsoft/mai-transcribe-1.5`          | `OPENROUTER_API_KEY`                          |

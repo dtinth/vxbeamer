@@ -225,6 +225,16 @@ test("the xAI model is selectable with XAI_API_KEY and not without it", () => {
   expect(expectOk(withKey.select({ configuration: id })).configurationId).toBe(id);
 });
 
+test("the ElevenLabs model is selectable with ELEVENLABS_API_KEY and not without it", () => {
+  const id = "elevenlabs/scribe_v2_realtime";
+  const without = createConfigurationSelector({ DASHSCOPE_API_KEY: "dk" });
+  const withKey = createConfigurationSelector({ ELEVENLABS_API_KEY: "ek" });
+
+  expect(without.isEnabled(id)).toBe(false);
+  expect(withKey.isEnabled(id)).toBe(true);
+  expect(expectOk(withKey.select({ configuration: id })).configurationId).toBe(id);
+});
+
 test("isEnabled answers the same question as select, without building a provider", () => {
   const selector = createConfigurationSelector({
     DASHSCOPE_API_KEY: "dk",

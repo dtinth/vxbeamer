@@ -12,3 +12,5 @@ From the repository root:
 vp install
 vp run dev:backend
 ```
+
+The server needs `DASHSCOPE_API_KEY` for the default provider (or `ASR_PROVIDER=mock`, which needs no key) and, to sign clients in, an OIDC provider or `API_KEYS`; see {doc}`../configuration`. Note that `OIDC_SECRET` falls back to `local-dev-secret`, which is only fit for local development. Run the {doc}`website <website>` alongside it and pair it with the backend, as described in {ref}`pairing-a-client`.

@@ -8,11 +8,13 @@
 :alt: The vxbeamer web app
 ```
 
-1. Deploy the backend
+1. Deploy the backend (see {ref}`deployment`, below)
 2. Open `/pair` on it, sign in with OIDC, and open the pairing link in the client (see {ref}`pairing-a-client`)
 3. To start transcribing, click the start recording button
 4. To stop, click the same button
 5. Click on the transcript bubble to copy, swipe left to delete, swipe right to beam to custom integrations
+
+(deployment)=
 
 ## Deployment
 
@@ -31,7 +33,7 @@ services:
   backend:
     image: ghcr.io/dtinth/vxbeamer:latest
     pull_policy: always
-    restart: unless-stoppped
+    restart: unless-stopped
     expose:
       - 8787
     environment:
@@ -53,4 +55,4 @@ services:
       - API_KEYS
 ```
 
-The variables are listed on the {doc}`configuration` page.
+The `environment` list above is only the common subset: every variable is listed on the {doc}`configuration` page.

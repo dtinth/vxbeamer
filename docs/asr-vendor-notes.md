@@ -1,0 +1,3 @@
+```{include} ../testdata/OBSERVATIONS.md
+
+```

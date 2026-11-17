@@ -142,7 +142,7 @@ watch.
 
 ## CI
 
-The [Build Watch Apps](../../.github/workflows/watch.yml) workflow builds
+The [Build Watch Apps](https://github.com/dtinth/vxbeamer/blob/main/.github/workflows/watch.yml) workflow builds
 both APKs on every push to `main` and on pull requests touching this
 directory, and uploads them as GitHub Actions artifacts — open the workflow
 run and download `vxbeamer-watch-relay-mobile-debug` /

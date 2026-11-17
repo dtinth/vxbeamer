@@ -23,8 +23,8 @@ Docs are local at `node_modules/vite-plus/docs` or online at https://viteplus.de
 
 ### Issue tracker
 
-Issues are tracked in the `dtinth/vxbeamer` GitHub repo via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+Issues are tracked in the `dtinth/vxbeamer` GitHub repo via the `gh` CLI. See `agents/issue-tracker.md`.
 
 ### Domain docs
 
-Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `agents/domain.md`.

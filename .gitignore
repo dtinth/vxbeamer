@@ -41,3 +41,6 @@ apps/watch/local.properties
 apps/watch/.gradle/
 apps/watch/**/build/
 apps/watch/.kotlin/
+
+# thdocs
+_build/

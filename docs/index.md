@@ -23,8 +23,8 @@ This project is primarily for personal use and is not designed to be particularl
 - **Frontend** — React PWA (`apps/website`), deployed statically (hosted on Vercel)
 - **Backend** — Node.js/Hono server (`apps/backend`), deployed via Docker (self-hosted)
 - **Desktop app** — Tauri desktop client (`apps/desktop`) that receives backend events and integrates with the local machine (basically, it’s the frontend web app with extra desktop integrations)
-- **ASR** — Qwen Omni Realtime via DashScope (Alibaba Cloud)
-- **Post-processing** — optional; gpt-oss-120b via Groq, for configurations whose output needs formatting cleanup (not needed for Qwen Omni Realtime, and not used by default)
+- **ASR** — any of the providers on the {doc}`asr-configurations` page. The default is `qwen` (Qwen3-ASR-Flash Realtime via DashScope, Alibaba Cloud); the overview above describes Qwen Omni Realtime, which `ASR_PROVIDER=qwen-omni` selects
+- **Post-processing** — optional; gpt-oss-120b via Groq, for configurations whose output needs formatting cleanup (not needed for Qwen Omni Realtime; the default configuration uses it when `GROQ_API_KEY` is set)
 
 The code lives at [dtinth/vxbeamer](https://github.com/dtinth/vxbeamer). Under `apps/` are the backend, the website, the desktop app and the Android and Wear OS apps; `packages/vxasr` is the ASR client the backend uses.
 

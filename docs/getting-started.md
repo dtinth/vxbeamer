@@ -4,7 +4,7 @@
 
 ## Usage
 
-```{image} https://github.com/user-attachments/assets/e1067d8e-48ec-4ba4-91df-c378b6914978
+```{image} images/web-app.png
 :alt: The vxbeamer web app
 ```
 

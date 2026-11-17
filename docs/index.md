@@ -16,7 +16,7 @@ This project is primarily for personal use and is not designed to be particularl
 
 ## Architecture
 
-```{image} https://github.com/user-attachments/assets/ee534903-b031-419b-9219-bbb0abbe1c0f
+```{image} images/architecture.png
 :alt: vxbeamer architecture diagram including desktop app
 ```
 

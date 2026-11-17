@@ -56,3 +56,10 @@ apps/website
 apps/desktop
 apps/watch
 ```
+
+```{toctree}
+:caption: Decisions
+:maxdepth: 1
+
+adr/index
+```

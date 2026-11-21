@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=vxbeamer: Toggle transcription
+GenericName=Voice transcription
+Comment=Start listening, or stop and copy the transcript to the clipboard
+Exec=vxbeamer-linux toggle
+Icon=audio-input-microphone
+Terminal=false
+Categories=Utility;Accessibility;
+Keywords=voice;speech;dictation;transcribe;
+StartupNotify=false

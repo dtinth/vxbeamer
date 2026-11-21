@@ -1,0 +1,49 @@
+name: Linux Release
+
+# A manual or test release of vxbeamer-linux: run this workflow from the
+# Actions tab with a version, or push a tag `linux-vX.Y.Z`. A version such as
+# `X.Y.Z-test.N` is a prerelease that `mise` never picks unless asked for by
+# exact version. Regular releases come from the Publish workflow, alongside
+# the changesets release.
+
+on:
+  push:
+    tags: ["linux-v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version without the leading v, e.g. 1.2.3 or 1.2.3-test.1
+        required: true
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    permissions: {}
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - id: version
+        env:
+          TAG: ${{ github.ref_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [[ -n "$INPUT_VERSION" ]]; then
+            version="${INPUT_VERSION#v}"
+          else
+            version="${TAG#linux-v}"
+          fi
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::$version is not a semver version"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  release:
+    needs: version
+    uses: ./.github/workflows/reusable-linux-release.yml
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    with:
+      version: ${{ needs.version.outputs.version }}

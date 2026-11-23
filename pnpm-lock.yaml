@@ -24,9 +24,6 @@ catalogs:
     '@playwright/test':
       specifier: ^1.59.1
       version: 1.59.1
-    '@preact/signals-core':
-      specifier: ^1.14.5
-      version: 1.14.5
     '@thai/text-cleaner':
       specifier: jsr:^0.0.1
       version: 0.0.1
@@ -144,9 +141,6 @@ importers:
       '@nanostores/react':
         specifier: ^0.7.3
         version: 0.7.3(nanostores@0.11.4)(react@19.2.4)
-      '@preact/signals-core':
-        specifier: 'catalog:'
-        version: 1.14.5
       '@tauri-apps/api':
         specifier: 2.10.1
         version: 2.10.1
@@ -750,9 +744,6 @@ packages:
 
   '@polka/url@1.0.0-next.29':
     resolution: {integrity: sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww==}
-
-  '@preact/signals-core@1.14.5':
-    resolution: {integrity: sha512-vcRv7Ityz5JVmeiVqIluLFzT/PDS/AlhHUpw3/aUWqcVUs6bDGIPXE/6RSC4evBNWYvnniozg5Syfj33al3gkg==}
 
   '@quansync/fs@1.0.0':
     resolution: {integrity: sha512-4TJ3DFtlf1L5LDMaM6CanJ/0lckGNtJcMjQ1NAV6zDmA0tEHKZtxNKin8EgPaVX1YzljbxckyT2tJrpQKAtngQ==}
@@ -2773,8 +2764,6 @@ snapshots:
       playwright: 1.59.1
 
   '@polka/url@1.0.0-next.29': {}
-
-  '@preact/signals-core@1.14.5': {}
 
   '@quansync/fs@1.0.0':
     dependencies:

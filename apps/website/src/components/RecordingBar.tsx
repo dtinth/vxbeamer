@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef } from "react";
-import { effect } from "@preact/signals-core";
 import { useStore } from "@nanostores/react";
 import {
   $audioProcessingMode,
@@ -18,7 +17,6 @@ import {
   sendRecordingAudio,
 } from "../recordingConnection.ts";
 import { RecorderCore, type RecorderPorts } from "../core/RecorderCore.ts";
-import { useSignalValue } from "../useSignalValue.ts";
 import { SettingsIcon } from "./SettingsIcon.tsx";
 
 export interface RecordingBarProps {
@@ -71,17 +69,14 @@ export function RecordingBar({ createAudioSource, onOpenSettings }: RecordingBar
   coreRef.current ??= new RecorderCore(createPorts(() => createAudioSourceRef.current));
   const core = coreRef.current;
 
-  const isActive = useSignalValue(core.active);
-  const status = useSignalValue(core.status);
-  const error = useSignalValue(core.error);
+  const isActive = useStore(core.active);
+  const status = useStore(core.status);
+  const error = useStore(core.error);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // The rest of the app reads which recording is live from the store.
-  useEffect(
-    () => effect(() => setActiveRecordingReferenceId(core.activeReferenceId.value)),
-    [core],
-  );
+  useEffect(() => core.activeReferenceId.subscribe(setActiveRecordingReferenceId), [core]);
 
   // Draw the level bars while a recording is live.
   useEffect(() => {

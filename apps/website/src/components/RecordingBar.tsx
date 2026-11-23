@@ -31,12 +31,14 @@ export interface RecordingBarProps {
  * store and wake lock, handed to {@link RecorderCore} as ports. The core owns
  * every decision; this file only translates.
  */
-function createPorts(createAudioSource: (() => AudioSource) | undefined): RecorderPorts {
+function createPorts(getCreateAudioSource: () => (() => AudioSource) | undefined): RecorderPorts {
   return {
-    createAudioSource: () =>
-      createAudioSource
+    createAudioSource: () => {
+      const createAudioSource = getCreateAudioSource();
+      return createAudioSource
         ? createAudioSource()
-        : createDefaultAudioSource($audioProcessingMode.get()),
+        : createDefaultAudioSource($audioProcessingMode.get());
+    },
     newReferenceId: () => crypto.randomUUID(),
     // Retain the whole recording in memory (this tab only) so it can be
     // replayed against other models after the fact.
@@ -66,7 +68,7 @@ export function RecordingBar({ createAudioSource, onOpenSettings }: RecordingBar
   const createAudioSourceRef = useRef(createAudioSource);
   createAudioSourceRef.current = createAudioSource;
   const coreRef = useRef<RecorderCore | null>(null);
-  coreRef.current ??= new RecorderCore(createPorts(() => createAudioSourceRef.current!()));
+  coreRef.current ??= new RecorderCore(createPorts(() => createAudioSourceRef.current));
   const core = coreRef.current;
 
   const isActive = useSignalValue(core.active);

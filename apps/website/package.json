@@ -13,6 +13,7 @@
   "dependencies": {
     "@fontsource-variable/tasa-orbiter": "catalog:",
     "@nanostores/react": "^0.7.3",
+    "@preact/signals-core": "catalog:",
     "@tauri-apps/api": "2.10.1",
     "nanostores": "^0.11.4",
     "react": "^19.1.0",
@@ -24,7 +25,6 @@
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",
     "@vitejs/plugin-react": "^6.0.1",
-    "happy-dom": "catalog:",
     "tailwindcss": "^4.1.4",
     "typescript": "~5.9.3",
     "vite": "catalog:",

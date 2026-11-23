@@ -12,7 +12,8 @@ import {
   type Message,
 } from "../store.ts";
 import { $retainedRecordings } from "../recordedAudio.ts";
-import { forgetRecordingConnection, retryRecordingConnection } from "../recordingConnection.ts";
+import { forgetRecordingConnection } from "../recordingConnection.ts";
+import { retryMemo } from "../recordingResend.ts";
 import { EvalDialog } from "./EvalDialog.tsx";
 import {
   canEvalMessage,
@@ -120,10 +121,15 @@ function MessageCard({
   };
 
   const triggerDelete = () => {
+    // The voice memo on this device goes at once, whether or not the server
+    // has the message: its audio, its saved copy and any connection still
+    // holding it. A message already on the server stays on screen, without its
+    // audio, until the server's next list leaves it out.
+    if (message.referenceId && message.status !== "recording") {
+      forgetRecordingConnection(message.referenceId);
+    }
     if (canRetryConnection) {
-      // A local placeholder bubble — nothing server-side to delete. Drop the
-      // buffered audio and connection state along with it.
-      forgetRecordingConnection(message.referenceId!);
+      // A local memo has no server-side counterpart to delete.
       return;
     }
     void fetch(new URL(`/messages/${message.id}`, backendUrl).toString(), {
@@ -481,13 +487,14 @@ function MessageCard({
               {copied && <span className="text-xs text-green-400">Copied</span>}
               {/* Only the recording's own connect ever failed — the buffered
                   audio is still sitting in recordingConnection.ts waiting for
-                  another attempt. */}
+                  another attempt — or, for a recording that never reached
+                  the server at all, saved on this device to be sent again. */}
               {canRetryConnection && (
                 <button
                   type="button"
                   onClick={(event) => {
                     event.stopPropagation();
-                    retryRecordingConnection(message.referenceId!);
+                    retryMemo(message.referenceId!);
                   }}
                   className="-my-1 rounded-full p-1 text-(--m3-error) transition-colors hover:bg-(--m3-surface-container-highest)"
                   aria-label="Retry connecting this recording"

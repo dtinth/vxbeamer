@@ -1,5 +1,11 @@
 import { buildBackendSocketUrl } from "./backendSocket.ts";
-import { clearLocalConnectionError, obtainSessionToken, setLocalConnectionError } from "./store.ts";
+import {
+  clearLocalConnectionError,
+  forgetLocalRecording,
+  markLiveRecording,
+  obtainSessionToken,
+  setLocalConnectionError,
+} from "./store.ts";
 
 /**
  * Bridges a live recording's captured audio to the backend `/ws`, independent
@@ -169,7 +175,13 @@ export function beginRecordingConnection(
     autoRetriesLeft: MAX_AUTO_RETRIES,
   };
   connections.set(referenceId, state);
+  markLiveRecording(referenceId);
   openSocket(state);
+}
+
+/** Whether this page still holds a connection (and its undelivered audio) for the recording. */
+export function hasRecordingConnection(referenceId: string): boolean {
+  return connections.has(referenceId);
 }
 
 /** Deliver (or, while still connecting, buffer) one captured PCM chunk. */
@@ -241,7 +253,7 @@ export function retryRecordingConnection(referenceId: string): void {
     });
 }
 
-/** Drop everything for a recording whose error bubble was dismissed. */
+/** Drop everything for a recording whose error bubble was dismissed: its connection, its bubble and its saved audio. */
 export function forgetRecordingConnection(referenceId: string): void {
   const state = connections.get(referenceId);
   if (state) {
@@ -249,5 +261,5 @@ export function forgetRecordingConnection(referenceId: string): void {
     state.ws?.close();
     connections.delete(referenceId);
   }
-  clearLocalConnectionError(referenceId);
+  forgetLocalRecording(referenceId);
 }

@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
+import { effect } from "@preact/signals-core";
 import { useStore } from "@nanostores/react";
 import {
-  $activeRecordingReferenceId,
   $audioProcessingMode,
   $recordingButtonSize,
   $sessionToken,
@@ -11,12 +11,14 @@ import {
   setActiveRecordingReferenceId,
 } from "../store.ts";
 import { type AudioSource, createDefaultAudioSource } from "../audio.ts";
-import { type RecordingRetainer, retainRecording } from "../recordedAudio.ts";
+import { retainRecording } from "../recordedAudio.ts";
 import {
   beginRecordingConnection,
   endRecordingConnection,
   sendRecordingAudio,
 } from "../recordingConnection.ts";
+import { RecorderCore, type RecorderPorts } from "../core/RecorderCore.ts";
+import { useSignalValue } from "../useSignalValue.ts";
 import { SettingsIcon } from "./SettingsIcon.tsx";
 
 export interface RecordingBarProps {
@@ -24,168 +26,113 @@ export interface RecordingBarProps {
   onOpenSettings?: () => void;
 }
 
+/**
+ * The browser side of the recorder: microphone, backend socket, in-memory audio
+ * store and wake lock, handed to {@link RecorderCore} as ports. The core owns
+ * every decision; this file only translates.
+ */
+function createPorts(getCreateAudioSource: () => (() => AudioSource) | undefined): RecorderPorts {
+  return {
+    createAudioSource: () => {
+      const createAudioSource = getCreateAudioSource();
+      return createAudioSource
+        ? createAudioSource()
+        : createDefaultAudioSource($audioProcessingMode.get());
+    },
+    newReferenceId: () => crypto.randomUUID(),
+    // Retain the whole recording in memory (this tab only) so it can be
+    // replayed against other models after the fact.
+    retain: retainRecording,
+    beginTranscription: (referenceId) =>
+      beginRecordingConnection(referenceId, $sessionToken.get() ?? "", $backendUrl.get()),
+    sendAudio: sendRecordingAudio,
+    endTranscription: endRecordingConnection,
+    async acquireWakeLock() {
+      const mode = $wakeLockMode.get();
+      if (mode !== "recording" && mode !== "always") return () => undefined;
+      const sentinel = await navigator.wakeLock.request("screen");
+      $wakeLockActive.set(true);
+      return () => {
+        void sentinel.release().catch(() => undefined);
+        if ($wakeLockMode.get() === "recording") $wakeLockActive.set(false);
+      };
+    },
+  };
+}
+
 export function RecordingBar({ createAudioSource, onOpenSettings }: RecordingBarProps) {
   const authToken = useStore($sessionToken);
-  const backendUrl = useStore($backendUrl);
-  const audioProcessingMode = useStore($audioProcessingMode);
   const wakeLockMode = useStore($wakeLockMode);
   const recordingButtonSize = useStore($recordingButtonSize);
-  const [isRecording, setIsRecording] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const audioSourceRef = useRef<AudioSource | null>(null);
-  const retainerRef = useRef<RecordingRetainer | null>(null);
+  const createAudioSourceRef = useRef(createAudioSource);
+  createAudioSourceRef.current = createAudioSource;
+  const coreRef = useRef<RecorderCore | null>(null);
+  coreRef.current ??= new RecorderCore(createPorts(() => createAudioSourceRef.current));
+  const core = coreRef.current;
+
+  const isActive = useSignalValue(core.active);
+  const status = useSignalValue(core.status);
+  const error = useSignalValue(core.error);
+
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const animFrameRef = useRef<number | null>(null);
-  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
 
-  const stopVisualizer = useCallback(() => {
-    if (animFrameRef.current !== null) {
-      cancelAnimationFrame(animFrameRef.current);
-      animFrameRef.current = null;
-    }
-    const canvas = canvasRef.current;
-    if (canvas) {
-      const ctx = canvas.getContext("2d");
-      ctx?.clearRect(0, 0, canvas.width, canvas.height);
-    }
-  }, []);
+  // The rest of the app reads which recording is live from the store.
+  useEffect(
+    () => effect(() => setActiveRecordingReferenceId(core.activeReferenceId.value)),
+    [core],
+  );
 
-  const startVisualizer = useCallback(() => {
+  // Draw the level bars while a recording is live.
+  useEffect(() => {
+    if (status !== "recording") return;
     const canvas = canvasRef.current;
-    const audioSource = audioSourceRef.current;
-    if (!canvas || !audioSource) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    const ctx = canvas?.getContext("2d");
+    if (!canvas || !ctx) return;
+    let frame = 0;
 
     function draw() {
-      if (!canvas || !ctx || !audioSource) return;
-      const data = audioSource.getFrequencyData();
-
+      if (!canvas || !ctx) return;
+      const data = core.getFrequencyData();
       const w = canvas.width;
       const h = canvas.height;
       ctx.clearRect(0, 0, w, h);
 
-      if (!data) {
-        animFrameRef.current = requestAnimationFrame(draw);
-        return;
+      if (data) {
+        const bars = 32;
+        const gap = 2;
+        const barW = (w - gap * (bars - 1)) / bars;
+        for (let i = 0; i < bars; i++) {
+          const val = data[Math.floor((i * data.length) / bars)] ?? 0;
+          const barH = Math.max(2, (val / 255) * h);
+          const alpha = 0.3 + (val / 255) * 0.7;
+          ctx.fillStyle = `rgba(239, 68, 68, ${alpha})`;
+          const x = i * (barW + gap);
+          ctx.fillRect(x, (h - barH) / 2, barW, barH);
+        }
       }
-
-      const bars = 32;
-      const gap = 2;
-      const barW = (w - gap * (bars - 1)) / bars;
-
-      for (let i = 0; i < bars; i++) {
-        const val = data[Math.floor((i * data.length) / bars)] ?? 0;
-        const barH = Math.max(2, (val / 255) * h);
-        const alpha = 0.3 + (val / 255) * 0.7;
-        ctx.fillStyle = `rgba(239, 68, 68, ${alpha})`;
-        const x = i * (barW + gap);
-        ctx.fillRect(x, (h - barH) / 2, barW, barH);
-      }
-
-      animFrameRef.current = requestAnimationFrame(draw);
+      frame = requestAnimationFrame(draw);
     }
 
     draw();
-  }, []);
+    return () => {
+      cancelAnimationFrame(frame);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    };
+  }, [core, status]);
 
-  const stopRecording = useCallback(() => {
-    const referenceId = $activeRecordingReferenceId.get();
-    setActiveRecordingReferenceId(null);
-    if (referenceId) endRecordingConnection(referenceId);
+  // Leaving the page switches the recorder off.
+  useEffect(() => () => core.dispose(), [core]);
 
-    audioSourceRef.current?.stop();
-    audioSourceRef.current = null;
+  const canRecord = !!authToken;
 
-    // The recording is complete — keep its PCM around for replay.
-    retainerRef.current?.commit();
-    retainerRef.current = null;
-
-    void wakeLockRef.current?.release().catch(() => undefined);
-    wakeLockRef.current = null;
-    if ($wakeLockMode.get() === "recording") $wakeLockActive.set(false);
-
-    stopVisualizer();
-    setIsRecording(false);
-  }, [stopVisualizer]);
-
-  const startRecording = useCallback(async () => {
-    if (!authToken) {
-      setError("Sign in first");
-      return;
-    }
-    setError(null);
-
-    const audioSource = createAudioSource
-      ? createAudioSource()
-      : createDefaultAudioSource(audioProcessingMode);
-    audioSourceRef.current = audioSource;
-
-    const referenceId = crypto.randomUUID();
-
-    // Retain the whole recording in memory (this tab only) so it can be
-    // replayed against other models after the fact.
-    const retainer = retainRecording(referenceId);
-    retainerRef.current = retainer;
-
-    try {
-      await audioSource.start((chunk) => {
-        retainer.append(chunk);
-        sendRecordingAudio(referenceId, chunk);
-      });
-    } catch (err) {
-      // The microphone itself never started — there is nothing to retain, and
-      // no connection has been opened, so there is nothing on the backend to
-      // clean up either.
-      audioSourceRef.current = null;
-      retainerRef.current?.discard();
-      retainerRef.current = null;
-      setError(err instanceof Error ? err.message : "Failed to start");
-      return;
-    }
-
-    // Mic capture is live. The connection to /ws is independent of it from
-    // here on: a slow or failed connect no longer blocks or aborts the
-    // recording. See recordingConnection.ts.
-    beginRecordingConnection(referenceId, authToken, backendUrl);
-    setActiveRecordingReferenceId(referenceId);
-    setIsRecording(true);
-    startVisualizer();
-
-    if (wakeLockMode === "recording" || wakeLockMode === "always") {
-      try {
-        wakeLockRef.current = await navigator.wakeLock.request("screen");
-        $wakeLockActive.set(true);
-      } catch {
-        // wake lock not available or denied — non-fatal
-      }
-    }
-  }, [
-    authToken,
-    backendUrl,
-    audioProcessingMode,
-    wakeLockMode,
-    createAudioSource,
-    startVisualizer,
-  ]);
-
-  const handleToggle = () => {
+  const handleToggle = useCallback(() => {
     if (!canRecord) {
       onOpenSettings?.();
       return;
     }
-    if (isRecording) {
-      stopRecording();
-    } else {
-      void startRecording();
-    }
-  };
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => stopRecording();
-  }, [stopRecording]);
+    core.toggle();
+  }, [canRecord, core, onOpenSettings]);
 
   // Always-on wake lock
   useEffect(() => {
@@ -210,8 +157,6 @@ export function RecordingBar({ createAudioSource, onOpenSettings }: RecordingBar
       $wakeLockActive.set(false);
     };
   }, [wakeLockMode]);
-
-  const canRecord = !!authToken;
 
   // The button is hidden entirely for display-only use — the component stays
   // mounted so an in-progress recording and the always-on wake lock keep going.
@@ -244,15 +189,13 @@ export function RecordingBar({ createAudioSource, onOpenSettings }: RecordingBar
           className={[
             "relative z-10 rounded-full flex items-center justify-center transition-all shadow-lg",
             buttonBoxClass,
-            isRecording
+            isActive
               ? "bg-red-500 scale-110 shadow-red-500/50"
               : "bg-(--m3-surface-container-high) hover:bg-(--m3-surface-container-highest) active:scale-95",
           ].join(" ")}
-          aria-label={
-            isRecording ? "Stop recording" : canRecord ? "Start recording" : "Open settings"
-          }
+          aria-label={isActive ? "Stop recording" : canRecord ? "Start recording" : "Open settings"}
         >
-          {isRecording ? (
+          {isActive ? (
             <span className={`${innerSizeClass} rounded-md bg-(--m3-on-error)`} />
           ) : canRecord ? (
             <span className={`${innerSizeClass} rounded-full bg-red-500`} />

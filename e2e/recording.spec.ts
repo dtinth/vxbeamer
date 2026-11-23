@@ -209,3 +209,79 @@ test("evaluates a finished recording against the configured model set", async ({
   expect(evalSet.audio.data.length).toBeGreaterThan(0);
   expect(evalSet.candidates.some((c) => c.transcript?.includes("quarterly results"))).toBe(true);
 });
+
+/** How many recordings are saved in this page's IndexedDB. Runs in the browser. */
+function savedRecordingCount(): Promise<number> {
+  return new Promise((resolve) => {
+    const open = indexedDB.open("vxbeamer");
+    open.onsuccess = () => {
+      const req = open.result.transaction("recordings").objectStore("recordings").count();
+      req.onsuccess = () => resolve(req.result);
+    };
+    open.onerror = () => resolve(-1);
+  });
+}
+
+test("a finished recording's audio is still there after a reload", async ({ page }) => {
+  await signInAsFreshSubject(page, BACKEND_URL);
+
+  const card = await startRecordingAndGetItsCard(page, () =>
+    page.getByLabel("Start recording").click(),
+  );
+  await expect(card.getByText("Good morning")).toBeVisible({ timeout: 10_000 });
+  await page.waitForTimeout(1500);
+  await page.getByLabel("Stop recording").click();
+  await expect(card.getByText("quarterly results and our plans")).toBeVisible({ timeout: 10_000 });
+
+  const evalOffer = (scope: typeof page | typeof card) =>
+    scope.getByRole("button", { name: "Eval this recording against other configurations" });
+  await expect(evalOffer(card)).toBeVisible();
+
+  // The audio is saved on this device (IndexedDB), not just held in the tab:
+  // a fresh page load still offers the eval, which needs the retained PCM.
+  await expect.poll(() => page.evaluate(savedRecordingCount)).toBe(1);
+  await page.reload();
+  const reloaded = page.locator(".message-card").filter({ hasText: "quarterly results" });
+  await expect(reloaded).toBeVisible({ timeout: 10_000 });
+  await expect(evalOffer(reloaded)).toBeVisible({ timeout: 10_000 });
+});
+
+test("a recording the server never got shows as not transcribed, and can be sent again", async ({
+  page,
+}) => {
+  await signInAsFreshSubject(page, BACKEND_URL);
+
+  const card = await startRecordingAndGetItsCard(page, () =>
+    page.getByLabel("Start recording").click(),
+  );
+  await expect(card.getByText("Good morning")).toBeVisible({ timeout: 10_000 });
+  await page.waitForTimeout(1500);
+  await page.getByLabel("Stop recording").click();
+  await expect(card.getByText("quarterly results and our plans")).toBeVisible({ timeout: 10_000 });
+
+  // Stand in for a recording that never reached the backend: the audio is saved
+  // on this device, but the server has no message for it. Wait for the save to
+  // land (leaving mid-write would abort it), then leave the page, so it does
+  // not see the delete and erase the audio itself.
+  await expect.poll(() => page.evaluate(savedRecordingCount)).toBe(1);
+  const messageId = (await card.getAttribute("data-message-id"))!;
+  const accessToken = (await page.evaluate(() => localStorage.getItem("vxbeamer_access_token")))!;
+  await page.goto("about:blank");
+  const deleted = await page.request.delete(`${BACKEND_URL}/messages/${messageId}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  expect(deleted.ok()).toBe(true);
+
+  // Back on the app: the voice memo is still here, saved on this device.
+  await page.goto("/");
+  const memo = page.locator(".message-card").filter({ hasText: "Not transcribed yet" });
+  await expect(memo).toBeVisible({ timeout: 10_000 });
+
+  // Retry sends the saved audio again, and the transcript joins the same memo.
+  await memo.getByRole("button", { name: "Retry connecting this recording" }).click();
+  const resent = page.locator(".message-card").filter({ hasText: "quarterly results" });
+  await expect(resent).toBeVisible({ timeout: 15_000 });
+  await expect(
+    page.locator(".message-card").filter({ hasText: "Not transcribed yet" }),
+  ).toHaveCount(0);
+});

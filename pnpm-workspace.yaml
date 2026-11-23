@@ -10,12 +10,10 @@ catalog:
   "@changesets/cli": ^2.30.0
   "@fontsource-variable/tasa-orbiter": ^5.2.2
   "@playwright/test": ^1.59.1
-  "@preact/signals-core": ^1.14.5
   "@thai/text-cleaner": jsr:^0.0.1
   "@types/node": ^24
   "@types/qrcode": ^1.5.6
   ai: ^7.0.127
-  happy-dom: ^21.0.4
   jose: ^6.2.2
   qrcode: ^1.5.4
   typescript: ^5

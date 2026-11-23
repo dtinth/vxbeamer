@@ -1,30 +1,13 @@
 import { atom, computed } from "nanostores";
 import { handleDesktopSwipeBehavior, type DesktopSwipeBehavior } from "./desktop.ts";
+import { MemoStore, type FeedEvent, type Message, type SavedAudio } from "./core/MemoStore.ts";
 import {
   $retainedRecordings,
   clearRetainedRecordings,
   releaseRetainedRecording,
 } from "./recordedAudio.ts";
 
-export interface Message {
-  id: string;
-  referenceId?: string;
-  status: "recording" | "done" | "error";
-  partial?: string;
-  final?: string;
-  error?: string;
-  createdAt: number;
-  updatedAt: number;
-  /** The model configuration that authored `final` — the recording's own, or an eval winner's. */
-  configurationId?: string;
-  /**
-   * Client-synthesized placeholder for a recording whose `/ws` connect failed
-   * or timed out (see `recordingConnection.ts`) — never set by the server.
-   * Marks the bubble as retryable and is reconciled away once the real
-   * message for the same `referenceId` arrives over SSE.
-   */
-  connectionError?: boolean;
-}
+export type { Message };
 
 const BACKEND_URL_KEY = "vxbeamer_backend_url";
 const SESSION_TOKEN_KEY = "vxbeamer_access_token";
@@ -176,47 +159,27 @@ export const $userInfo = computed($sessionToken, (token) => {
   return { sub: payload.sub, name: payload.name };
 });
 
-export const $messages = atom<Map<string, Message>>(new Map());
-
-// Client-only connect-error placeholders, kept entirely separate from the
-// server-synced `$messages` — an SSE snapshot resync only ever describes
-// server state, so a placeholder living inside `$messages` would vanish the
-// moment one arrived (see `$visibleMessages` below for how they're merged
-// back in for display).
-export const $localConnectionErrors = atom<Map<string, Message>>(new Map());
-
-function localConnectionErrorId(referenceId: string): string {
-  return `local:${referenceId}`;
-}
-
-function collectReferenceIds(messages: Map<string, Message>): Set<string> {
-  const referenceIds = new Set<string>();
-  for (const message of messages.values()) {
-    if (message.referenceId) referenceIds.add(message.referenceId);
+// The feed: the server's messages joined with this device's saved audio and
+// client-only error bubbles. The joining lives in `core/MemoStore.ts`; these
+// are the app's handles on its one instance.
+const savedAudio = computed($retainedRecordings, (recordings) => {
+  const audio = new Map<string, SavedAudio>();
+  for (const [referenceId, recording] of recordings) {
+    if (recording.chunks.length > 0) audio.set(referenceId, { createdAt: recording.createdAt });
   }
-  return referenceIds;
-}
+  return audio;
+});
 
-// What the feed actually renders: every server message, plus any placeholder
-// whose recording hasn't produced a real server message yet. A placeholder
-// reconciles away the instant a real message for its `referenceId` exists in
-// `$messages` — for any reason it got there, not just the `"created"` event
-// that originally created it — so there is no separate cleanup step to keep
-// in sync with `$messages`'s own event handling.
-export const $visibleMessages = computed(
-  [$messages, $localConnectionErrors],
-  (messages, localConnectionErrors) => {
-    if (localConnectionErrors.size === 0) return messages;
-    const liveReferenceIds = collectReferenceIds(messages);
-    const merged = new Map(messages);
-    for (const [referenceId, placeholder] of localConnectionErrors) {
-      if (!liveReferenceIds.has(referenceId)) {
-        merged.set(localConnectionErrorId(referenceId), placeholder);
-      }
-    }
-    return merged;
-  },
-);
+export const memoStore = new MemoStore({
+  audio: savedAudio,
+  removeAudio: (referenceIds) => referenceIds.forEach(releaseRetainedRecording),
+});
+
+export const $messages = memoStore.messages;
+export const $localConnectionErrors = memoStore.localConnectionErrors;
+
+/** What the feed actually renders: see {@link MemoStore.memos}. */
+export const $visibleMessages = memoStore.memos;
 
 export const $activeRecordingReferenceId = atom<string | null>(null);
 
@@ -253,46 +216,8 @@ export function clearSessionToken(): void {
   localStorage.removeItem(SESSION_TOKEN_KEY);
   localStorage.removeItem(REFRESH_TOKEN_KEY);
   // The session's audio has no owner once the session is gone.
-  claimedRecordingReferenceIds.clear();
   clearRetainedRecordings();
 }
-
-// Reference ids whose message we have already seen in `$visibleMessages`. A
-// retained recording is published before its message arrives over SSE, so
-// absence only means "released" after the message has shown up at least once
-// — a connect-error placeholder counts too, so dismissing one (rather than it
-// ever getting a real server message) still releases its retained audio.
-const claimedRecordingReferenceIds = new Set<string>();
-
-/**
- * Retained audio lives exactly as long as the message it produced: once that
- * message is deleted, its PCM is released.
- */
-function releaseRetainedAudioForGoneMessages(messages: Map<string, Message>): void {
-  const retained = $retainedRecordings.get();
-  if (retained.size === 0) {
-    claimedRecordingReferenceIds.clear();
-    return;
-  }
-
-  const liveReferenceIds = collectReferenceIds(messages);
-
-  for (const referenceId of retained.keys()) {
-    if (liveReferenceIds.has(referenceId)) {
-      claimedRecordingReferenceIds.add(referenceId);
-    } else if (claimedRecordingReferenceIds.has(referenceId)) {
-      claimedRecordingReferenceIds.delete(referenceId);
-      releaseRetainedRecording(referenceId);
-    }
-  }
-
-  // Forget ids whose audio the size cap already evicted.
-  for (const referenceId of claimedRecordingReferenceIds) {
-    if (!retained.has(referenceId)) claimedRecordingReferenceIds.delete(referenceId);
-  }
-}
-
-$visibleMessages.subscribe(releaseRetainedAudioForGoneMessages);
 
 export function setActiveRecordingReferenceId(referenceId: string | null): void {
   $activeRecordingReferenceId.set(referenceId);
@@ -304,27 +229,22 @@ export function setActiveRecordingReferenceId(referenceId: string | null): void 
  * error to yet, since the backend only creates one once the socket opens.
  */
 export function setLocalConnectionError(referenceId: string, error: string): void {
-  const map = new Map($localConnectionErrors.get());
-  const existing = map.get(referenceId);
-  const now = Date.now();
-  map.set(referenceId, {
-    id: localConnectionErrorId(referenceId),
-    referenceId,
-    status: "error",
-    error,
-    connectionError: true,
-    createdAt: existing?.createdAt ?? now,
-    updatedAt: now,
-  });
-  $localConnectionErrors.set(map);
+  memoStore.setConnectionError(referenceId, error);
 }
 
-/** Remove a recording's local connect-error bubble, e.g. once retried successfully. */
+/** Remove a recording's local connect-error bubble, e.g. once retried successfully. Its audio stays. */
 export function clearLocalConnectionError(referenceId: string): void {
-  if (!$localConnectionErrors.get().has(referenceId)) return;
-  const map = new Map($localConnectionErrors.get());
-  map.delete(referenceId);
-  $localConnectionErrors.set(map);
+  memoStore.clearConnectionError(referenceId);
+}
+
+/** This page is delivering the recording itself, so it is not "missing" its transcript. */
+export function markLiveRecording(referenceId: string): void {
+  memoStore.markLive(referenceId);
+}
+
+/** Dismiss a memo that has no server message: its error bubble and its saved audio. */
+export function forgetLocalRecording(referenceId: string): void {
+  memoStore.forget(referenceId);
 }
 
 export function markPendingLocalSwipe(messageId: string): void {
@@ -427,30 +347,17 @@ async function refreshToken(): Promise<void> {
 const _initialToken = $sessionToken.get();
 if (_initialToken) scheduleTokenRefresh();
 
-type SseEvent =
-  | { type: "snapshot"; messages: Message[] }
-  | { type: "created"; message: Message }
-  | { type: "updated"; message: Message }
-  | { type: "deleted"; messageId: string }
-  | { type: "swiped"; eventId?: string; message: Message };
+type SseEvent = FeedEvent | { type: "swiped"; eventId?: string; message: Message };
 
 export function applySSEEvent(raw: unknown, sseEventId?: string): void {
   const event = raw as SseEvent;
-  if (event.type === "snapshot") {
-    const map = new Map(event.messages.map((m) => [m.id, m]));
-    $messages.set(map);
-  } else if (event.type === "created") {
-    const map = new Map($messages.get());
-    map.set(event.message.id, event.message);
-    $messages.set(map);
-  } else if (event.type === "updated") {
-    const map = new Map($messages.get());
-    map.set(event.message.id, event.message);
-    $messages.set(map);
-  } else if (event.type === "deleted") {
-    const map = new Map($messages.get());
-    map.delete(event.messageId);
-    $messages.set(map);
+  if (
+    event.type === "snapshot" ||
+    event.type === "created" ||
+    event.type === "updated" ||
+    event.type === "deleted"
+  ) {
+    memoStore.applyFeedEvent(event);
   } else if (event.type === "swiped") {
     const swipeEventId = event.eventId ?? sseEventId;
     if (swipeEventId) {

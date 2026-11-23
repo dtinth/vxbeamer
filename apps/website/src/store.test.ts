@@ -121,12 +121,11 @@ test("keeps retained audio while its message has not arrived yet", async () => {
 });
 
 test("releases retained audio once its connect-error placeholder is dismissed", async () => {
-  // Every recording retains eval audio, including ones whose /ws never
-  // opened. That audio is claimed the moment the placeholder appears in
-  // $visibleMessages, so dismissing the placeholder (nothing left to retry)
-  // must release it too, rather than leaving it to the size-cap eviction.
+  // Every recording retains audio, including ones whose /ws never opened.
+  // Dismissing the placeholder (nothing left to retry) erases that audio too,
+  // rather than leaving it to the size-cap eviction.
   const [
-    { setLocalConnectionError, clearLocalConnectionError },
+    { setLocalConnectionError, forgetLocalRecording },
     { getRetainedRecording, retainRecording },
   ] = await Promise.all([import("./store.ts"), import("./recordedAudio.ts")]);
 
@@ -137,8 +136,26 @@ test("releases retained audio once its connect-error placeholder is dismissed", 
   setLocalConnectionError("ref-1", "Connection failed");
   expect(getRetainedRecording("ref-1")).toBeDefined();
 
-  clearLocalConnectionError("ref-1");
+  forgetLocalRecording("ref-1");
   expect(getRetainedRecording("ref-1")).toBeUndefined();
+});
+
+test("keeps retained audio when a retry succeeds and the error bubble clears", async () => {
+  // The connection opened, so the error is over, but the transcript has not
+  // arrived yet: the audio must outlive the bubble.
+  const [
+    { setLocalConnectionError, clearLocalConnectionError },
+    { getRetainedRecording, retainRecording },
+  ] = await Promise.all([import("./store.ts"), import("./recordedAudio.ts")]);
+
+  const retainer = retainRecording("ref-1");
+  retainer.append(new ArrayBuffer(4));
+  retainer.commit();
+
+  setLocalConnectionError("ref-1", "Connection failed");
+  clearLocalConnectionError("ref-1");
+
+  expect(getRetainedRecording("ref-1")).toBeDefined();
 });
 
 test("releases retained audio when the session is cleared", async () => {

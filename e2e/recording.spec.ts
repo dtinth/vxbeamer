@@ -209,3 +209,26 @@ test("evaluates a finished recording against the configured model set", async ({
   expect(evalSet.audio.data.length).toBeGreaterThan(0);
   expect(evalSet.candidates.some((c) => c.transcript?.includes("quarterly results"))).toBe(true);
 });
+
+test("a finished recording's audio is still there after a reload", async ({ page }) => {
+  await signInAsFreshSubject(page, BACKEND_URL);
+
+  const card = await startRecordingAndGetItsCard(page, () =>
+    page.getByLabel("Start recording").click(),
+  );
+  await expect(card.getByText("Good morning")).toBeVisible({ timeout: 10_000 });
+  await page.waitForTimeout(1500);
+  await page.getByLabel("Stop recording").click();
+  await expect(card.getByText("quarterly results and our plans")).toBeVisible({ timeout: 10_000 });
+
+  const evalOffer = (scope: typeof page | typeof card) =>
+    scope.getByRole("button", { name: "Eval this recording against other configurations" });
+  await expect(evalOffer(card)).toBeVisible();
+
+  // The audio is saved on this device (IndexedDB), not just held in the tab:
+  // a fresh page load still offers the eval, which needs the retained PCM.
+  await page.reload();
+  const reloaded = page.locator(".message-card").filter({ hasText: "quarterly results" });
+  await expect(reloaded).toBeVisible({ timeout: 10_000 });
+  await expect(evalOffer(reloaded)).toBeVisible({ timeout: 10_000 });
+});

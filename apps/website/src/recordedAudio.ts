@@ -6,9 +6,11 @@ import { BITS_PER_SAMPLE, BYTES_PER_SECOND, CHANNELS, SAMPLE_RATE } from "vxasr/
  * recording's reference id (the same id carried on `Message.referenceId`), so a
  * finished recording can later be replayed against additional ASR models.
  *
- * Privacy: retained audio lives **only** in this tab's memory. It is never
- * persisted (no disk / localStorage / IndexedDB) and never uploaded from here.
- * Anything that wants to send it must ask the user first.
+ * Privacy: retained audio stays on this device. It is held in memory and,
+ * through an {@link AudioStorage} (IndexedDB in the browser), saved so it
+ * survives a reload; it is erased with the message it belongs to and when the
+ * session ends. It is never uploaded from here. Anything that wants to send it
+ * must ask the user first.
  */
 
 /**
@@ -28,26 +30,20 @@ export const RETAINED_AUDIO_FORMAT = {
 } as const;
 
 /**
- * PROVISIONAL SIZE CAP — not a settled policy.
- *
- * The eval map (dtinth/vxbeamer#29) lists "audio size-cap policy" as explicitly
- * unspecified. These numbers are a safe placeholder so retention cannot grow
- * without bound; they are expected to be replaced once the policy is decided.
- *
- * Per recording: 10 minutes of PCM (10 x 60 x 32000 bytes). A recording that
- * runs past this stops being retained entirely rather than keeping a truncated
- * head, because a partial replay would be judged against a different utterance
- * than the primary transcript heard.
+ * Across all retained recordings: 10 MB (about 5 minutes of PCM), the same cap
+ * as the Android app's audio store (`RetentionPolicy.MAX_AUDIO_BYTES`). Once
+ * exceeded, the oldest retained recordings are released until the total fits
+ * again (dtinth/vxbeamer#134 discussion: oldest first).
  */
-export const MAX_RETAINED_BYTES_PER_RECORDING = 10 * 60 * RETAINED_AUDIO_FORMAT.bytesPerSecond;
+export const MAX_RETAINED_BYTES_TOTAL = 10 * 1024 * 1024;
 
 /**
- * PROVISIONAL SIZE CAP — not a settled policy. See above.
- *
- * Across all retained recordings: ~32 minutes of PCM. Once exceeded, the oldest
- * retained recordings are released until the total fits again.
+ * Per recording: the whole budget. A recording that runs past this stops being
+ * retained entirely rather than keeping a truncated head, because a partial
+ * replay would be judged against a different utterance than the primary
+ * transcript heard.
  */
-export const MAX_RETAINED_BYTES_TOTAL = 32 * 60 * RETAINED_AUDIO_FORMAT.bytesPerSecond;
+export const MAX_RETAINED_BYTES_PER_RECORDING = MAX_RETAINED_BYTES_TOTAL;
 
 /** A finished recording's PCM, held in memory and ready to be replayed. */
 export interface RetainedRecording {
@@ -66,10 +62,62 @@ export interface RetainedRecording {
 }
 
 /**
+ * Where retained recordings are kept between page loads. An adapter: the
+ * browser's is IndexedDB (`idbAudioStorage.ts`), tests pass an in-memory one.
+ * Everything here is best effort: a failing store never interrupts recording.
+ */
+export interface AudioStorage {
+  loadAll(): Promise<RetainedRecording[]>;
+  save(recording: RetainedRecording): Promise<void>;
+  remove(referenceIds: readonly string[]): Promise<void>;
+  clear(): Promise<void>;
+}
+
+let storage: AudioStorage | null = null;
+
+function persist(work: (storage: AudioStorage) => Promise<void>): void {
+  if (!storage) return;
+  work(storage).catch((err: unknown) => {
+    console.warn("Could not update the saved recordings", err);
+  });
+}
+
+/**
  * Completed recordings only. A recording in progress is held by its
  * `RecordingRetainer` and appears here on `commit()`.
  */
 export const $retainedRecordings = atom<Map<string, RetainedRecording>>(new Map());
+
+/**
+ * Start saving retained recordings to `audioStorage`, and bring back the ones
+ * it already holds. Recordings made since startup win over saved ones with the
+ * same id. Resolves once the saved ones are loaded; it never rejects.
+ */
+export async function attachAudioStorage(audioStorage: AudioStorage): Promise<void> {
+  storage = audioStorage;
+  let saved: RetainedRecording[];
+  try {
+    saved = await audioStorage.loadAll();
+  } catch (err) {
+    console.warn("Could not load the saved recordings", err);
+    return;
+  }
+  if (storage !== audioStorage) return;
+
+  const merged = new Map<string, RetainedRecording>();
+  const all = [...saved, ...$retainedRecordings.get().values()].sort(
+    (a, b) => a.createdAt - b.createdAt,
+  );
+  for (const recording of all) merged.set(recording.referenceId, recording);
+  const evicted = evictUntilUnderTotalCap(merged);
+  $retainedRecordings.set(merged);
+  if (evicted.length > 0) persist((s) => s.remove(evicted));
+}
+
+/** Stop saving, and forget the storage. For tests. */
+export function detachAudioStorage(): void {
+  storage = null;
+}
 
 /** Accumulates a single in-progress recording's PCM. */
 export interface RecordingRetainer {
@@ -124,26 +172,31 @@ export function releaseRetainedRecording(referenceId: string): void {
   const next = new Map(recordings);
   next.delete(referenceId);
   $retainedRecordings.set(next);
+  persist((s) => s.remove([referenceId]));
 }
 
 /** Release every retained recording — e.g. when the session ends. */
 export function clearRetainedRecordings(): void {
+  persist((s) => s.clear());
   if ($retainedRecordings.get().size === 0) return;
   $retainedRecordings.set(new Map());
 }
 
-/** Evicts oldest-first until the total fits under the provisional cap. */
-function evictUntilUnderTotalCap(recordings: Map<string, RetainedRecording>): void {
+/** Evicts oldest-first until the total fits under the cap. Returns the evicted ids. */
+function evictUntilUnderTotalCap(recordings: Map<string, RetainedRecording>): string[] {
   let total = 0;
   for (const recording of recordings.values()) total += recording.byteLength;
+  const evicted: string[] = [];
   // Insertion order is start order, so this drops the oldest recordings first.
-  // A single recording can never exceed the per-recording cap, which is below
+  // A single recording can never exceed the per-recording cap, which equals
   // the total cap, so the recording just committed always survives.
   for (const [referenceId, recording] of recordings) {
     if (total <= MAX_RETAINED_BYTES_TOTAL) break;
     recordings.delete(referenceId);
+    evicted.push(referenceId);
     total -= recording.byteLength;
   }
+  return evicted;
 }
 
 /**
@@ -177,17 +230,23 @@ export function retainRecording(referenceId: string): RecordingRetainer {
       if (settled) return;
       settled = true;
       const next = new Map($retainedRecordings.get());
-      next.set(referenceId, {
+      const recording: RetainedRecording = {
         referenceId,
         chunks,
         byteLength,
         capturedByteLength,
         droppedForSize,
         createdAt,
-      });
+      };
+      next.set(referenceId, recording);
       chunks = [];
-      evictUntilUnderTotalCap(next);
+      const evicted = evictUntilUnderTotalCap(next);
       $retainedRecordings.set(next);
+      // A recording that outgrew the cap has no audio left worth saving.
+      persist(async (s) => {
+        if (!droppedForSize && next.has(referenceId)) await s.save(recording);
+        if (evicted.length > 0) await s.remove(evicted);
+      });
     },
     discard() {
       if (settled) return;

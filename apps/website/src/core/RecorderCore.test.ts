@@ -96,9 +96,9 @@ test("the switch flips at once, before the microphone has opened", () => {
 
   core.toggle();
 
-  expect(core.active.value).toBe(true);
-  expect(core.status.value).toBe("starting");
-  expect(core.activeReferenceId.value).toBeNull();
+  expect(core.active.get()).toBe(true);
+  expect(core.status.get()).toBe("starting");
+  expect(core.activeReferenceId.get()).toBeNull();
 });
 
 test("Start, Stop, Start in quick succession leaves exactly one recording", async () => {
@@ -112,9 +112,9 @@ test("Start, Stop, Start in quick succession leaves exactly one recording", asyn
 
   expect(sources).toHaveLength(1);
   expect(capturing(sources)).toHaveLength(1);
-  expect(core.active.value).toBe(true);
-  expect(core.status.value).toBe("recording");
-  expect(core.activeReferenceId.value).toBe("rec-1");
+  expect(core.active.get()).toBe(true);
+  expect(core.status.get()).toBe("recording");
+  expect(core.activeReferenceId.get()).toBe("rec-1");
   expect(log).toEqual(["begin rec-1"]);
 });
 
@@ -123,13 +123,13 @@ test("a Stop pressed while the microphone is still opening cancels that recordin
 
   core.toggle();
   core.toggle();
-  expect(core.active.value).toBe(false);
+  expect(core.active.get()).toBe(false);
   sources[0]!.finishStart();
   await settle();
 
   expect(capturing(sources)).toHaveLength(0);
-  expect(core.status.value).toBe("idle");
-  expect(core.activeReferenceId.value).toBeNull();
+  expect(core.status.get()).toBe("idle");
+  expect(core.activeReferenceId.get()).toBeNull();
   expect(retainers[0]!.outcome).toBe("discarded");
   expect(log).toEqual([]);
 });
@@ -162,7 +162,7 @@ test("a stop then start after the first recording is live starts a new one", asy
   expect(sources).toHaveLength(2);
   expect(sources[0]!.stopped).toBe(true);
   expect(capturing(sources)).toEqual([sources[1]]);
-  expect(core.activeReferenceId.value).toBe("rec-2");
+  expect(core.activeReferenceId.get()).toBe("rec-2");
 });
 
 test("audio captured before the microphone reports ready is retained and transcribed", async () => {
@@ -190,8 +190,8 @@ test("stopping releases everything: microphone, transcription, retained audio", 
   expect(sources[0]!.stopped).toBe(true);
   expect(retainers[0]!.outcome).toBe("committed");
   expect(log).toEqual(["begin rec-1", "audio rec-1 3200", "end rec-1"]);
-  expect(core.status.value).toBe("idle");
-  expect(core.activeReferenceId.value).toBeNull();
+  expect(core.status.get()).toBe("idle");
+  expect(core.activeReferenceId.get()).toBeNull();
 });
 
 test("a microphone that fails to start flips the switch back and says why", async () => {
@@ -201,14 +201,14 @@ test("a microphone that fails to start flips the switch back and says why", asyn
   sources[0]!.failStart(new Error("Permission denied"));
   await settle();
 
-  expect(core.active.value).toBe(false);
-  expect(core.status.value).toBe("idle");
-  expect(core.error.value).toBe("Permission denied");
+  expect(core.active.get()).toBe(false);
+  expect(core.status.get()).toBe("idle");
+  expect(core.error.get()).toBe("Permission denied");
   expect(retainers[0]!.outcome).toBe("discarded");
   expect(log).toEqual([]);
 
   core.toggle(); // trying again clears the message
-  expect(core.error.value).toBeNull();
+  expect(core.error.get()).toBeNull();
 });
 
 test("audio from a recording that has already ended is ignored", async () => {

@@ -1,11 +1,11 @@
-import { computed, signal, type ReadonlySignal } from "@preact/signals-core";
+import { atom, type ReadableAtom } from "nanostores";
 
 /**
  * The recording state of the web client, with nothing in it that touches the
  * browser. Everything outside the core (the microphone, the backend, the
  * in-memory audio store, the screen wake lock) is handed in as {@link RecorderPorts},
  * so the whole recording lifecycle can be driven and asserted in a plain unit
- * test, and a view only has to subscribe to the signals below.
+ * test, and a view only has to subscribe to the stores below.
  *
  * ## The switch
  *
@@ -72,19 +72,19 @@ export class RecorderCore {
   private readonly ports: RecorderPorts;
   private session: Session | null = null;
 
-  private readonly wanted = signal(false);
-  private readonly sessionStatus = signal<RecorderStatus>("idle");
-  private readonly activeId = signal<string | null>(null);
-  private readonly lastError = signal<string | null>(null);
+  private readonly wanted = atom(false);
+  private readonly sessionStatus = atom<RecorderStatus>("idle");
+  private readonly activeId = atom<string | null>(null);
+  private readonly lastError = atom<string | null>(null);
 
   /** The switch: whether a recording is wanted. Changes the moment it is toggled. */
-  readonly active: ReadonlySignal<boolean> = computed(() => this.wanted.value);
+  readonly active: ReadableAtom<boolean> = this.wanted;
   /** What the system is actually doing, which can trail {@link active} while the microphone opens. */
-  readonly status: ReadonlySignal<RecorderStatus> = computed(() => this.sessionStatus.value);
+  readonly status: ReadableAtom<RecorderStatus> = this.sessionStatus;
   /** Reference id of the recording that is live, or null. Set once capture is running, cleared when it stops. */
-  readonly activeReferenceId: ReadonlySignal<string | null> = computed(() => this.activeId.value);
+  readonly activeReferenceId: ReadableAtom<string | null> = this.activeId;
   /** Why the last start failed, cleared by the next attempt. */
-  readonly error: ReadonlySignal<string | null> = computed(() => this.lastError.value);
+  readonly error: ReadableAtom<string | null> = this.lastError;
 
   constructor(ports: RecorderPorts) {
     this.ports = ports;
@@ -92,13 +92,13 @@ export class RecorderCore {
 
   /** Flip the switch to the opposite position. */
   toggle(): void {
-    this.setActive(!this.wanted.peek());
+    this.setActive(!this.wanted.get());
   }
 
   setActive(active: boolean): void {
-    if (this.wanted.peek() === active) return;
-    this.wanted.value = active;
-    if (active) this.lastError.value = null;
+    if (this.wanted.get() === active) return;
+    this.wanted.set(active);
+    if (active) this.lastError.set(null);
     this.reconcile();
   }
 
@@ -113,7 +113,7 @@ export class RecorderCore {
 
   private reconcile(): void {
     const session = this.session;
-    if (this.wanted.peek()) {
+    if (this.wanted.get()) {
       if (!session) this.beginSession();
     } else if (session?.live) {
       this.endSession(session);
@@ -135,7 +135,7 @@ export class RecorderCore {
       releaseWakeLock: null,
     };
     this.session = session;
-    this.sessionStatus.value = "starting";
+    this.sessionStatus.set("starting");
 
     const onChunk = (chunk: ArrayBuffer): void => {
       if (this.session !== session) return;
@@ -148,10 +148,10 @@ export class RecorderCore {
     session.source.start(onChunk).then(
       () => {
         session.live = true;
-        if (this.wanted.peek()) {
+        if (this.wanted.get()) {
           this.startTranscribing(session);
-          this.sessionStatus.value = "recording";
-          this.activeId.value = referenceId;
+          this.sessionStatus.set("recording");
+          this.activeId.set(referenceId);
           this.holdWakeLock(session);
         }
         this.reconcile();
@@ -160,9 +160,9 @@ export class RecorderCore {
         // The microphone never started: nothing to keep, nothing to finish.
         session.retainer.discard();
         this.session = null;
-        this.sessionStatus.value = "idle";
-        this.lastError.value = err instanceof Error ? err.message : "Failed to start";
-        this.wanted.value = false;
+        this.sessionStatus.set("idle");
+        this.lastError.set(err instanceof Error ? err.message : "Failed to start");
+        this.wanted.set(false);
       },
     );
   }
@@ -190,8 +190,8 @@ export class RecorderCore {
 
   private endSession(session: Session): void {
     this.session = null;
-    this.sessionStatus.value = "idle";
-    this.activeId.value = null;
+    this.sessionStatus.set("idle");
+    this.activeId.set(null);
 
     session.source.stop();
     session.releaseWakeLock?.();

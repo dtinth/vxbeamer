@@ -8,6 +8,7 @@ import {
   getRetainedRecording,
   releaseRetainedRecording,
   retainRecording,
+  setRetainedTranscript,
   type AudioStorage,
   type RetainedRecording,
 } from "./recordedAudio.ts";
@@ -154,4 +155,53 @@ test("a storage that fails never interrupts recording", async () => {
 
   expect(getRetainedRecording("ref-1")).toBeDefined();
   expect(warn).toHaveBeenCalled();
+});
+
+test("a finished transcript is saved with its audio, and survives a reload", async () => {
+  const first = createMemoryStorage();
+  await attachAudioStorage(first.storage);
+  record("r1", 100);
+  await settle();
+
+  setRetainedTranscript({
+    id: "m1",
+    referenceId: "r1",
+    status: "done",
+    final: "Good morning",
+    createdAt: 1,
+    updatedAt: 2,
+  });
+  await settle();
+  expect(first.records.get("r1")?.transcript?.final).toBe("Good morning");
+
+  // A fresh page load: nothing in memory, only what the storage holds.
+  detachAudioStorage();
+  $retainedRecordings.set(new Map());
+  await attachAudioStorage(first.storage);
+  expect(getRetainedRecording("r1")?.transcript?.final).toBe("Good morning");
+});
+
+test("a transcript with no audio here is not saved, and one already saved is not rewritten", async () => {
+  const { storage } = createMemoryStorage();
+  const save = vi.spyOn(storage, "save");
+  await attachAudioStorage(storage);
+  const message = {
+    id: "m1",
+    referenceId: "r1",
+    status: "done" as const,
+    final: "Hi",
+    createdAt: 1,
+    updatedAt: 2,
+  };
+
+  setRetainedTranscript(message); // from another device: no audio here
+  record("r1", 100);
+  await settle();
+  save.mockClear();
+
+  setRetainedTranscript(message);
+  setRetainedTranscript(message); // reconnecting resends it
+  await settle();
+
+  expect(save).toHaveBeenCalledTimes(1);
 });

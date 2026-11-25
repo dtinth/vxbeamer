@@ -1,5 +1,6 @@
 import { atom } from "nanostores";
 import { BITS_PER_SAMPLE, BYTES_PER_SECOND, CHANNELS, SAMPLE_RATE } from "vxasr/audio";
+import type { Message } from "./core/MemoStore.ts";
 
 /**
  * In-memory retention of the PCM captured for a recording, keyed by the
@@ -59,6 +60,12 @@ export interface RetainedRecording {
   droppedForSize: boolean;
   /** When the recording started (epoch ms). Also the eviction order. */
   createdAt: number;
+  /**
+   * The last finished transcript the server gave for this recording. The server
+   * only remembers messages for so long; this lets the memo outlive its copy,
+   * for as long as the audio is kept.
+   */
+  transcript?: Message;
 }
 
 /**
@@ -173,6 +180,21 @@ export function releaseRetainedRecording(referenceId: string): void {
   next.delete(referenceId);
   $retainedRecordings.set(next);
   persist((s) => s.remove([referenceId]));
+}
+
+/**
+ * Keep the server's finished transcript with the recording it came from. Does
+ * nothing when the audio is not here (a memo from another device) or already
+ * holds this version, so reconnecting does not rewrite every saved recording.
+ */
+export function setRetainedTranscript(message: Message): void {
+  if (!message.referenceId) return;
+  const recordings = $retainedRecordings.get();
+  const recording = recordings.get(message.referenceId);
+  if (!recording || recording.transcript?.updatedAt === message.updatedAt) return;
+  const updated = { ...recording, transcript: message };
+  $retainedRecordings.set(new Map(recordings).set(recording.referenceId, updated));
+  persist((s) => s.save(updated));
 }
 
 /** Release every retained recording — e.g. when the session ends. */

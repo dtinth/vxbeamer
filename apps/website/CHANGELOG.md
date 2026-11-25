@@ -1,5 +1,17 @@
 # website
 
+## 0.7.0
+
+### Minor Changes
+
+- 8d93e29: Recorded audio is now saved on this device (IndexedDB) and survives a reload, capped at 10 MB with the oldest recordings dropped first, like the Android app.
+
+### Patch Changes
+
+- ad96910: A voice memo no longer turns into a "Not transcribed yet" error when the server stops remembering its message. The transcript is now saved on this device with the audio and kept until the audio is.
+- 7d46513: Fix two recordings running at once after pressing Start, Stop, Start quickly. The record button is now a switch whose position is the wanted state; a DOM-free core starts and stops the recording to match it.
+  - vxasr@0.7.0
+
 ## 0.6.0
 
 ### Patch Changes

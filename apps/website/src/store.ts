@@ -5,6 +5,7 @@ import {
   $retainedRecordings,
   clearRetainedRecordings,
   releaseRetainedRecording,
+  setRetainedTranscript,
 } from "./recordedAudio.ts";
 
 export type { Message };
@@ -165,7 +166,9 @@ export const $userInfo = computed($sessionToken, (token) => {
 const savedAudio = computed($retainedRecordings, (recordings) => {
   const audio = new Map<string, SavedAudio>();
   for (const [referenceId, recording] of recordings) {
-    if (recording.chunks.length > 0) audio.set(referenceId, { createdAt: recording.createdAt });
+    if (recording.chunks.length > 0) {
+      audio.set(referenceId, { createdAt: recording.createdAt, transcript: recording.transcript });
+    }
   }
   return audio;
 });
@@ -173,6 +176,7 @@ const savedAudio = computed($retainedRecordings, (recordings) => {
 export const memoStore = new MemoStore({
   audio: savedAudio,
   removeAudio: (referenceIds) => referenceIds.forEach(releaseRetainedRecording),
+  rememberTranscript: setRetainedTranscript,
 });
 
 export const $messages = memoStore.messages;

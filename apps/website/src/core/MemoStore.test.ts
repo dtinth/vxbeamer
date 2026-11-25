@@ -5,13 +5,15 @@ import { MemoStore, NOT_TRANSCRIBED_YET, type Message, type SavedAudio } from ".
 function createHarness() {
   const audio = atom<ReadonlyMap<string, SavedAudio>>(new Map());
   const removed: string[] = [];
+  const remembered: Message[] = [];
   const store = new MemoStore({
     audio,
     removeAudio: (ids) => void removed.push(...ids),
+    rememberTranscript: (message) => void remembered.push(message),
   });
-  const saveAudio = (referenceId: string, createdAt = 100) =>
-    audio.set(new Map(audio.get()).set(referenceId, { createdAt }));
-  return { store, saveAudio, removed };
+  const saveAudio = (referenceId: string, createdAt = 100, transcript?: Message) =>
+    audio.set(new Map(audio.get()).set(referenceId, { createdAt, transcript }));
+  return { store, saveAudio, removed, remembered };
 }
 
 function message(id: string, referenceId?: string, overrides: Partial<Message> = {}): Message {
@@ -145,14 +147,64 @@ test("deleting a message erases its audio", () => {
   expect(removed).toEqual(["r1"]);
 });
 
-test("a message missing from a later snapshot erases its audio; one never seen does not", () => {
+test("a message the server's list no longer has keeps its audio: the server only remembers so long", () => {
   const { store, removed } = createHarness();
   store.applyFeedEvent({ type: "snapshot", messages: [message("m1", "r1")] });
 
-  // Reconnect: m1 was deleted meanwhile. An offline recording was never in the feed.
   store.applyFeedEvent({ type: "snapshot", messages: [] });
 
-  expect(removed).toEqual(["r1"]);
+  expect(removed).toEqual([]);
+});
+
+test("a memo the server has dropped still shows its transcript, not an error", () => {
+  const { store, saveAudio } = createHarness();
+  // Saved on this device with the transcript the server once gave it.
+  saveAudio("r1", 50, message("m1", "r1", { final: "Good morning", createdAt: 50 }));
+
+  store.applyFeedEvent({ type: "snapshot", messages: [] });
+
+  const memo = store.memos.get().get("m1");
+  expect(memo?.final).toBe("Good morning");
+  expect(memo?.status).toBe("done");
+  expect(memo?.connectionError).toBeUndefined();
+  expect([...store.memos.get().keys()]).toEqual(["m1"]);
+});
+
+test("the server's message wins over the transcript saved with the audio", () => {
+  const { store, saveAudio } = createHarness();
+  saveAudio("r1", 50, message("m1", "r1", { final: "Old" }));
+
+  store.applyFeedEvent({ type: "snapshot", messages: [message("m1", "r1", { final: "New" })] });
+
+  expect(store.memos.get().get("m1")?.final).toBe("New");
+  expect(store.memos.get().size).toBe(1);
+});
+
+test("a transcript is saved with its audio once the message is finished, not while partial", () => {
+  const { store, remembered } = createHarness();
+
+  store.applyFeedEvent({ type: "created", message: message("m1", "r1", { status: "recording" }) });
+  store.applyFeedEvent({
+    type: "updated",
+    message: message("m1", "r1", { status: "recording", partial: "Good" }),
+  });
+  expect(remembered).toEqual([]);
+
+  const finished = message("m1", "r1", { final: "Good morning" });
+  store.applyFeedEvent({ type: "updated", message: finished });
+  expect(remembered).toEqual([finished]);
+});
+
+test("the transcripts in a snapshot are saved too", () => {
+  const { store, remembered } = createHarness();
+  const done = message("m1", "r1");
+
+  store.applyFeedEvent({
+    type: "snapshot",
+    messages: [done, message("m2", "r2", { status: "recording" }), message("m3")],
+  });
+
+  expect(remembered).toEqual([done]);
 });
 
 test("forgetting a memo erases its error and its audio", () => {

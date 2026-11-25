@@ -11,12 +11,17 @@ import { atom, computed, type ReadableAtom, type WritableAtom } from "nanostores
  * - the **transcript**, a server message. The feed carries every signed-in
  *   device's messages, so a memo recorded on another device is just a
  *   transcript with no audio here;
- * - the **audio**, kept on this device (see `recordedAudio.ts`); and
+ * - the **audio**, kept on this device (see `recordedAudio.ts`), together with
+ *   the last transcript the server gave for it; and
  * - a **connect error**, when this tab's `/ws` for the recording never opened.
  *
- * A recording whose audio is here but whose transcript never reached the
- * server (recorded offline, or the tab reloaded before it connected) shows as
- * "not transcribed yet": a retryable memo, so the audio can be sent again.
+ * The server only remembers messages for so long. A memo whose audio is here
+ * keeps the transcript it was given, so it outlives the server's copy and goes
+ * when its audio does (the user deletes it, or it ages out of the storage cap).
+ *
+ * A recording whose audio is here but which has no transcript at all (recorded
+ * offline, or the tab reloaded before it connected) shows as "not transcribed
+ * yet": a retryable memo, so the audio can be sent again.
  *
  * The device and the network come in as {@link MemoPorts}, so all of this is
  * plain state: events in, one `memos` store out.
@@ -52,13 +57,17 @@ export type FeedEvent =
 export interface SavedAudio {
   /** When the recording started (epoch ms), for placing it in the feed. */
   createdAt: number;
+  /** The last finished transcript the server gave for this recording, if any. */
+  transcript?: Message;
 }
 
 export interface MemoPorts {
   /** Recordings whose audio is on this device, by reference id. */
   audio: ReadableAtom<ReadonlyMap<string, SavedAudio>>;
-  /** Erase the audio of recordings that no longer have a memo. */
+  /** Erase the audio (and transcript) of recordings that no longer have a memo. */
   removeAudio(referenceIds: readonly string[]): void;
+  /** Keep a finished transcript with its recording's audio, if that audio is here. */
+  rememberTranscript(message: Message): void;
 }
 
 export const NOT_TRANSCRIBED_YET = "Not transcribed yet";
@@ -77,9 +86,6 @@ function collectReferenceIds(messages: Iterable<Message>): Set<string> {
 
 export class MemoStore {
   private readonly ports: MemoPorts;
-  /** Reference ids whose server message we have seen: a message that later vanishes took its audio with it. */
-  private seen = new Set<string>();
-
   /** The server's messages, as the feed last described them. */
   private readonly serverMessages = atom<Map<string, Message>>(new Map());
   /** Client-only error bubbles, kept apart from server state so a snapshot cannot wipe them. */
@@ -111,13 +117,19 @@ export class MemoStore {
         for (const [referenceId, placeholder] of connectionErrors) {
           if (!serverRefs.has(referenceId)) add(localMemoId(referenceId), placeholder);
         }
-        // Audio with no transcript, once the feed has had its say: the
-        // server's messages are not known until then, so nothing is "missing"
-        // yet. A recording this page is itself still delivering is not either.
-        if (feedReady) {
-          for (const [referenceId, saved] of audio) {
-            if (serverRefs.has(referenceId) || live.has(referenceId)) continue;
-            if (connectionErrors.has(referenceId)) continue;
+        for (const [referenceId, saved] of audio) {
+          if (serverRefs.has(referenceId) || live.has(referenceId)) continue;
+          if (connectionErrors.has(referenceId)) continue;
+          // The server no longer has it (or has not said yet), but this device
+          // kept the transcript.
+          if (saved.transcript) {
+            add(saved.transcript.id, saved.transcript);
+            continue;
+          }
+          // Audio with no transcript, once the feed has had its say: the
+          // server's messages are not known until then, so nothing is "missing"
+          // yet. A recording this page is itself still delivering is not either.
+          if (feedReady) {
             add(localMemoId(referenceId), {
               id: localMemoId(referenceId),
               referenceId,
@@ -137,27 +149,38 @@ export class MemoStore {
   applyFeedEvent(event: FeedEvent): void {
     if (event.type === "snapshot") {
       const next = new Map(event.messages.map((m) => [m.id, m]));
-      const nextRefs = collectReferenceIds(next.values());
-      const gone = [...this.seen].filter((referenceId) => !nextRefs.has(referenceId));
-      this.seen = nextRefs;
       this.serverMessages.set(next);
       this.feedReady.set(true);
-      if (gone.length > 0) this.ports.removeAudio(gone);
+      // A message the list leaves out is not erased here: the server only
+      // keeps messages for so long, and the device keeps what it has.
+      for (const message of next.values()) this.remember(message);
     } else if (event.type === "created" || event.type === "updated") {
       const next = new Map(this.serverMessages.get());
       next.set(event.message.id, event.message);
-      if (event.message.referenceId) this.seen.add(event.message.referenceId);
       this.serverMessages.set(next);
+      this.remember(event.message);
     } else {
       const next = new Map(this.serverMessages.get());
       const removed = next.get(event.messageId);
       next.delete(event.messageId);
       this.serverMessages.set(next);
-      const referenceId = removed?.referenceId;
-      if (referenceId) {
-        this.seen.delete(referenceId);
-        this.ports.removeAudio([referenceId]);
+      // Deleted on purpose (from here or another device), unlike a message that
+      // merely aged out of the server's list. It may be a memo only this
+      // device still shows, so look at the saved transcripts too.
+      let referenceId = removed?.referenceId;
+      if (!referenceId) {
+        for (const [ref, saved] of this.ports.audio.get()) {
+          if (saved.transcript?.id === event.messageId) referenceId = ref;
+        }
       }
+      if (referenceId) this.ports.removeAudio([referenceId]);
+    }
+  }
+
+  /** Keep a finished transcript with its audio; a partial one is still changing. */
+  private remember(message: Message): void {
+    if (message.referenceId && message.status !== "recording") {
+      this.ports.rememberTranscript(message);
     }
   }
 
@@ -198,7 +221,6 @@ export class MemoStore {
   /** The user dismissed a memo that has no server message: its error and its audio go. */
   forget(referenceId: string): void {
     this.clearConnectionError(referenceId);
-    this.seen.delete(referenceId);
     if (this.live.get().has(referenceId)) {
       const live = new Set(this.live.get());
       live.delete(referenceId);

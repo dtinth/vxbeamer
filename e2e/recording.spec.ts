@@ -246,7 +246,71 @@ test("a finished recording's audio is still there after a reload", async ({ page
   await expect(evalOffer(reloaded)).toBeVisible({ timeout: 10_000 });
 });
 
-test("a recording the server never got shows as not transcribed, and can be sent again", async ({
+/** How many saved recordings hold a transcript. Runs in the browser. */
+function savedTranscriptCount(): Promise<number> {
+  return new Promise((resolve) => {
+    const open = indexedDB.open("vxbeamer");
+    open.onsuccess = () => {
+      const req = open.result.transaction("recordings").objectStore("recordings").getAll();
+      req.onsuccess = () =>
+        resolve(req.result.filter((r: { transcript?: unknown }) => r.transcript).length);
+    };
+    open.onerror = () => resolve(-1);
+  });
+}
+
+/** Strip the transcript from every saved recording, leaving only the audio. Runs in the browser. */
+function dropSavedTranscripts(): Promise<void> {
+  return new Promise((resolve) => {
+    const open = indexedDB.open("vxbeamer");
+    open.onsuccess = () => {
+      const tx = open.result.transaction("recordings", "readwrite");
+      const store = tx.objectStore("recordings");
+      store.getAll().onsuccess = (event) => {
+        for (const record of (event.target as IDBRequest<Record<string, unknown>[]>).result) {
+          delete record.transcript;
+          store.put(record);
+        }
+      };
+      tx.oncomplete = () => resolve();
+    };
+  });
+}
+
+test("a memo the server has dropped keeps its transcript", async ({ page }) => {
+  await signInAsFreshSubject(page, BACKEND_URL);
+
+  const card = await startRecordingAndGetItsCard(page, () =>
+    page.getByLabel("Start recording").click(),
+  );
+  await expect(card.getByText("Good morning")).toBeVisible({ timeout: 10_000 });
+  await page.waitForTimeout(1500);
+  await page.getByLabel("Stop recording").click();
+  await expect(card.getByText("quarterly results and our plans")).toBeVisible({ timeout: 10_000 });
+
+  // The transcript is saved with the audio. Wait for that to land (leaving
+  // mid-write would abort it), then leave the page and stand in for the
+  // server's retention running out: its copy goes, while this page is not
+  // watching, so it is not a delete the page saw.
+  await expect.poll(() => page.evaluate(savedTranscriptCount)).toBe(1);
+  const messageId = (await card.getAttribute("data-message-id"))!;
+  const accessToken = (await page.evaluate(() => localStorage.getItem("vxbeamer_access_token")))!;
+  await page.goto("about:blank");
+  const deleted = await page.request.delete(`${BACKEND_URL}/messages/${messageId}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  expect(deleted.ok()).toBe(true);
+
+  await page.goto("/");
+  await expect(
+    page.locator(".message-card").filter({ hasText: "quarterly results and our plans" }),
+  ).toBeVisible({ timeout: 10_000 });
+  await expect(
+    page.locator(".message-card").filter({ hasText: "Not transcribed yet" }),
+  ).toHaveCount(0);
+});
+
+test("a recording with no transcript shows as not transcribed, and can be sent again", async ({
   page,
 }) => {
   await signInAsFreshSubject(page, BACKEND_URL);
@@ -260,10 +324,13 @@ test("a recording the server never got shows as not transcribed, and can be sent
   await expect(card.getByText("quarterly results and our plans")).toBeVisible({ timeout: 10_000 });
 
   // Stand in for a recording that never reached the backend: the audio is saved
-  // on this device, but the server has no message for it. Wait for the save to
-  // land (leaving mid-write would abort it), then leave the page, so it does
-  // not see the delete and erase the audio itself.
+  // on this device with no transcript, and the server has no message for it.
+  // Wait for the saves to land (leaving mid-write would abort them), then leave
+  // the page, so it does not see the delete and erase the audio itself.
+  await expect.poll(() => page.evaluate(savedTranscriptCount)).toBe(1);
+  await page.evaluate(dropSavedTranscripts);
   await expect.poll(() => page.evaluate(savedRecordingCount)).toBe(1);
+  await expect.poll(() => page.evaluate(savedTranscriptCount)).toBe(0);
   const messageId = (await card.getAttribute("data-message-id"))!;
   const accessToken = (await page.evaluate(() => localStorage.getItem("vxbeamer_access_token")))!;
   await page.goto("about:blank");
